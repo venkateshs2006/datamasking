@@ -1,0 +1,68 @@
+job_profile:
+  name: "customer_data_migration"
+  batch_mode: "PARALLEL_PARTITIONING"
+  chunk_size: 1000
+  threads: 50
+
+connections:
+  source:
+    url: "jdbc:oracle:thin:@prod-db:1521:ORCL"
+    username: "${SOURCE_DB_USER}"
+    password: "${SOURCE_DB_PASSWORD}"
+    driver_class_name: "oracle.jdbc.OracleDriver"
+    max_pool_size: 20
+    min_idle: 5
+
+  target:
+    url: "jdbc:postgresql://stage-db:5432/app_db"
+    username: "${TARGET_DB_USER}"
+    password: "${TARGET_DB_PASSWORD}"
+    driver_class_name: "org.postgresql.Driver"
+    max_pool_size: 20
+    min_idle: 5
+
+# Define relationships not present in database schema
+virtual_relationships:
+  - parent: "customer_master.customer_id"
+    child: "customer_accounts.cust_ref_id"
+  - parent: "customer_master.customer_id"
+    child: "customer_transactions.customer_id"
+
+# Masking rules for sensitive data
+masking_rules:
+  - table: "customer_master"
+    columns:
+      - name: "email_address"
+        action: "FAKER_EMAIL"
+
+      - name: "phone_number"
+        action: "FAKER_PHONE_IN"
+
+      - name: "national_id"
+        action: "FPE_ENCRYPT"
+        key_ref: "master-key-v1"
+
+      - name: "first_name"
+        action: "FAKER_EMAIL"
+
+      - name: "last_name"
+        action: "FAKER_EMAIL"
+
+  - table: "customer_accounts"
+    columns:
+      - name: "account_number"
+        action: "FPE_ENCRYPT"
+        key_ref: "master-key-v1"
+
+      - name: "balance"
+        action: "NUMERIC_VARIANCE"
+        variance_percent: 10
+
+  - table: "customer_transactions"
+    columns:
+      - name: "transaction_amount"
+        action: "NUMERIC_VARIANCE"
+        variance_percent: 15
+
+      - name: "merchant_name"
+        action: "FAKER_EMAIL"

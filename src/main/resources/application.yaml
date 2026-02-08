@@ -1,3 +1,71 @@
 spring:
   application:
-    name: datamasking
+    name: seedm db migration
+
+  # Source Database Configuration
+  datasource:
+    source:
+      url: jdbc:postgresql://localhost:5432/source_db
+      username: postgres
+      password: Mannit@12345
+      driver-class-name: org.postgresql.Driver
+      hikari:
+        maximum-pool-size: 10
+        minimum-idle: 2
+
+    # Destination Database Configuration
+    destination:
+      url: jdbc:postgresql://localhost:5432/destination_db
+      username:  postgres
+      password: Mannit@12345
+      driver-class-name: org.postgresql.Driver
+      hikari:
+        maximum-pool-size: 10
+        minimum-idle: 2
+
+  # Spring Batch Configuration
+  batch:
+    jdbc:
+      initialize-schema: always
+    job:
+      enabled: true  # Auto-start the migration job on application startup
+
+  # JPA Configuration (for Spring Batch metadata)
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+
+# Migration Configuration
+migration:
+  source:
+    schema: public  # Source schema name
+  destination:
+    schema: public  # Destination schema name
+  chunk-size: 1000  # Number of rows per batch
+
+# Server Configuration
+server:
+  port: 8080
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.example.migrator: DEBUG
+    org.springframework.batch: INFO
+    org.hibernate.SQL: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+  file:
+    name: logs/seedm-platform.log
+    max-size: 10MB
+    max-history: 30
+
+# Application Specific Configuration
+seedm:
+  migration:
+    default-chunk-size: 1000
+    default-thread-count: 50
+    max-retry-attempts: 3
+    checkpoint-interval: 1000

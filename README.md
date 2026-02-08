@@ -1,2 +1,0 @@
-# datamasking
-Postgres Data masking
