@@ -17,10 +17,10 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
-public class TableDiscoveryService {
+public class DestinationTableDiscoveryService {
 
     private final DataSource sourceDataSource;
-    private final JdbcTemplate sourceJdbcTemplate;
+    private final JdbcTemplate destinationJdbcTemplate;
 
     @Value("${migration.source.schema}")
     private String sourceSchema;
@@ -28,15 +28,15 @@ public class TableDiscoveryService {
     @Value("${spring.batch.jdbc.table-prefix:BATCH_}")
     private String batchTablePrefix;
 
-    public TableDiscoveryService(@Qualifier("sourceDataSource") DataSource sourceDataSource) {
-        this.sourceDataSource = sourceDataSource;
-        this.sourceJdbcTemplate = new JdbcTemplate(sourceDataSource);
+    public DestinationTableDiscoveryService(@Qualifier("destinationDataSource") DataSource destinationDataSource) {
+        this.sourceDataSource = destinationDataSource;
+        this.destinationJdbcTemplate = new JdbcTemplate(destinationDataSource);
     }
 
     /**
      * Get all table names from source schema, excluding Spring Batch tables.
      */
-    public List<String> discoverTables() throws SQLException {
+    public List<String> discoverDestinationTables() throws SQLException {
         String sql = """
             SELECT table_name 
             FROM information_schema.tables 
@@ -45,7 +45,7 @@ public class TableDiscoveryService {
             ORDER BY table_name
             """;
 
-        List<String> tables = sourceJdbcTemplate.queryForList(sql, String.class, sourceSchema);
+        List<String> tables = destinationJdbcTemplate.queryForList(sql, String.class, sourceSchema);
 
         // Filter out Spring Batch tables
         List<String> filteredTables = tables.stream()
@@ -71,7 +71,7 @@ public class TableDiscoveryService {
             ORDER BY ordinal_position
             """;
 
-        List<String> columns = sourceJdbcTemplate.queryForList(sql, String.class, sourceSchema, tableName);
+        List<String> columns = destinationJdbcTemplate.queryForList(sql, String.class, sourceSchema, tableName);
         log.debug("Table '{}' has {} columns", tableName, columns.size());
         return columns;
     }
@@ -81,7 +81,7 @@ public class TableDiscoveryService {
      */
     public long getTableRowCount(String tableName) {
         String sql = String.format("SELECT COUNT(*) FROM %s.%s", sourceSchema, tableName);
-        Long count = sourceJdbcTemplate.queryForObject(sql, Long.class);
+        Long count = destinationJdbcTemplate.queryForObject(sql, Long.class);
         return count != null ? count : 0;
     }
 }

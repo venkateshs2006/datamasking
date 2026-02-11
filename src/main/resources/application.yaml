@@ -2,8 +2,8 @@ spring:
   application:
     name: seedm db migration
 
-  # Source Database Configuration
   datasource:
+    # Batch Metadata Database Configuration (Primary)
     batchdb:
       url: jdbc:postgresql://localhost:5432/batch_db
       username: postgres
@@ -12,8 +12,8 @@ spring:
       hikari:
         maximum-pool-size: 10
         minimum-idle: 2
-    # Source Database Configuration
 
+    # Source Database Configuration (Read-only)
     source:
       url: jdbc:postgresql://localhost:5432/source_db
       username: postgres
@@ -23,7 +23,7 @@ spring:
         maximum-pool-size: 10
         minimum-idle: 2
 
-    # Destination Database Configuration
+    # Destination Database Configuration (Write)
     destination:
       url: jdbc:postgresql://localhost:5432/destination_db
       username:  postgres
@@ -37,8 +37,8 @@ spring:
   batch:
     jdbc:
       initialize-schema: always
-      # schema: classpath:batch-schem.sql
-      table-prefix: V5_BATCH_
+      schema: classpath:batch-schema.sql
+      table-prefix: BATCH_
     job:
       enabled: true  # Auto-start the migration job on application startup
 

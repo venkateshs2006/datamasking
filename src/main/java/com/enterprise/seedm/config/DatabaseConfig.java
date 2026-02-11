@@ -8,6 +8,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
 
@@ -34,6 +36,12 @@ public class DatabaseConfig {
     }
 
     @Bean
+    @Primary
+    public PlatformTransactionManager transactionManager(DataSource dataSource) {
+        return new DataSourceTransactionManager(dataSource);
+    }
+
+    @Bean
     @ConfigurationProperties("spring.datasource.source")
     public DataSourceProperties sourceDataSourceProperties() {
         return new DataSourceProperties();
@@ -45,6 +53,11 @@ public class DatabaseConfig {
                 .initializeDataSourceBuilder()
                 .type(HikariDataSource.class)
                 .build();
+    }
+
+    @Bean(name = "sourceTransactionManager")
+    public PlatformTransactionManager sourceTransactionManager(@Qualifier("sourceDataSource") DataSource sourceDataSource) {
+        return new DataSourceTransactionManager(sourceDataSource);
     }
 
     // Destination Database Configuration
@@ -61,5 +74,10 @@ public class DatabaseConfig {
                 .initializeDataSourceBuilder()
                 .type(HikariDataSource.class)
                 .build();
+    }
+
+    @Bean(name = "destinationTransactionManager")
+    public PlatformTransactionManager destinationTransactionManager(@Qualifier("destinationDataSource") DataSource destinationDataSource) {
+        return new DataSourceTransactionManager(destinationDataSource);
     }
 }

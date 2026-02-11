@@ -1,5 +1,6 @@
 package com.enterprise.seedm.controller;
 
+import com.enterprise.seedm.service.DestinationTableDiscoveryService;
 import com.enterprise.seedm.service.TableDiscoveryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +31,8 @@ public class MigrationController {
     private  Job migrationJob;
     @Autowired
     private TableDiscoveryService tableDiscoveryService;
-
+    @Autowired
+    private DestinationTableDiscoveryService destinationTableDiscoveryService;
     /**
      * Get list of tables to be migrated
      */
@@ -46,7 +48,7 @@ public class MigrationController {
     }
     @GetMapping("/destination/tables")
     public Map<String, Object> getDestinationTables() throws SQLException {
-        List<String> tables = tableDiscoveryService.discoverDestinationTables();
+        List<String> tables = destinationTableDiscoveryService.discoverDestinationTables();
 
         Map<String, Object> response = new HashMap<>();
         response.put("tableCount", tables.size());

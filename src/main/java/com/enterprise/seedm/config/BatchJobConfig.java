@@ -34,6 +34,7 @@ public class BatchJobConfig {
     private final DataSource destinationDataSource;
     private final JobRepository jobRepository;
     private final PlatformTransactionManager transactionManager;
+    private final PlatformTransactionManager destinationTransactionManager;
     private final TableDiscoveryService tableDiscoveryService;
 
     @Value("${migration.source.schema}")
@@ -49,11 +50,13 @@ public class BatchJobConfig {
                           @Qualifier("destinationDataSource") DataSource destinationDataSource,
                           JobRepository jobRepository,
                           PlatformTransactionManager transactionManager,
+                          @Qualifier("destinationTransactionManager") PlatformTransactionManager destinationTransactionManager,
                           TableDiscoveryService tableDiscoveryService) {
         this.sourceDataSource = sourceDataSource;
         this.destinationDataSource = destinationDataSource;
         this.jobRepository = jobRepository;
         this.transactionManager = transactionManager;
+        this.destinationTransactionManager = destinationTransactionManager;
         this.tableDiscoveryService = tableDiscoveryService;
     }
 
@@ -130,7 +133,7 @@ public class BatchJobConfig {
 
         // Build step
         return new StepBuilder("migrate_" + tableName, jobRepository)
-                .<Map<String, Object>, Map<String, Object>>chunk(chunkSize, transactionManager)
+                .<Map<String, Object>, Map<String, Object>>chunk(chunkSize, destinationTransactionManager)
                 .reader(reader)
                 .writer(writer)
                 .build();
