@@ -18,6 +18,7 @@ import java.util.List;
 @Slf4j
 public class TableDiscoveryService {
 
+    private final DataSource dataSource;
     private final DataSource sourceDataSource;
     private final DataSource destinationDataSource;
     
@@ -30,8 +31,9 @@ public class TableDiscoveryService {
     private JdbcTemplate sourceJdbcTemplate;
     private JdbcTemplate destinationJdbcTemplate;
 
-    public TableDiscoveryService(@Qualifier("sourceDataSource") DataSource sourceDataSource,
+    public TableDiscoveryService(@Qualifier("dataSource") DataSource dataSource,@Qualifier("sourceDataSource") DataSource sourceDataSource,
                                  @Qualifier("destinationDataSource") DataSource destinationDataSource) {
+        this.dataSource=dataSource;
         this.sourceDataSource = sourceDataSource;
         this.destinationDataSource = destinationDataSource;
     }

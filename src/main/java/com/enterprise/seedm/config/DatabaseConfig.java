@@ -19,16 +19,27 @@ import javax.sql.DataSource;
 public class DatabaseConfig {
 
     // Source Database Configuration
+    @Bean
+    @ConfigurationProperties("spring.datasource.batchdb")
+    public DataSourceProperties batchDataSourceProperties() {
+        return new DataSourceProperties();
+    }
+    @Bean(name = "dataSource")
+    @Primary
+    public DataSource dataSource() {
+        return batchDataSourceProperties()
+                .initializeDataSourceBuilder()
+                .type(HikariDataSource.class)
+                .build();
+    }
 
     @Bean
-    @Primary
     @ConfigurationProperties("spring.datasource.source")
     public DataSourceProperties sourceDataSourceProperties() {
         return new DataSourceProperties();
     }
 
     @Bean(name = "sourceDataSource")
-    @Primary
     public DataSource sourceDataSource() {
         return sourceDataSourceProperties()
                 .initializeDataSourceBuilder()
@@ -52,4 +63,3 @@ public class DatabaseConfig {
                 .build();
     }
 }
-

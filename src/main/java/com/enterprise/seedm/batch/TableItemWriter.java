@@ -5,7 +5,6 @@ import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.util.Assert;
 
 import javax.sql.DataSource;
@@ -25,8 +24,8 @@ public class TableItemWriter extends JdbcBatchItemWriter<Map<String, Object>> {
     private final String tableName;
     private long totalWritten = 0;
 
-    public TableItemWriter(@Qualifier("destinationDataSource") DataSource destinationDataSource, DataSource destinationDataSource1, String schemaName, String tableName) {
-        this.destinationDataSource = destinationDataSource1;
+    public TableItemWriter(@Qualifier("destinationDataSource") DataSource destinationDataSource,  String schemaName, String tableName) {
+        this.destinationDataSource = destinationDataSource;
         this.schemaName = schemaName;
         this.tableName = tableName;
 
@@ -41,13 +40,24 @@ public class TableItemWriter extends JdbcBatchItemWriter<Map<String, Object>> {
 
     @Override
     public void afterPropertiesSet() {
-        // We override this to skip the 'sql' property check since we set it dynamically
         Assert.notNull(destinationDataSource, "DataSource must be provided");
         
-        // Manually initialize the NamedParameterJdbcTemplate if not already set
-        // JdbcBatchItemWriter doesn't expose a getter for it, but it has a setter.
-        // We can't check if it's null easily, but setting it again is harmless.
-        setJdbcTemplate(new NamedParameterJdbcTemplate(destinationDataSource));
+        // Set a dummy SQL to satisfy JdbcBatchItemWriter.afterPropertiesSet() check.
+        // We will overwrite this with the actual dynamic SQL in the write() method.
+        setSql("INSERT INTO DUMMY_TABLE (ID) VALUES (:id)");
+        
+        // Set the parameter source provider.
+        // This is crucial because JdbcBatchItemWriter.afterPropertiesSet() checks if this is null
+        // to determine whether to use named parameters (true) or positional parameters (false).
+        setItemSqlParameterSourceProvider(item -> {
+            MapSqlParameterSource params = new MapSqlParameterSource();
+            item.forEach(params::addValue);
+            return params;
+        });
+        
+        // Call super.afterPropertiesSet() to initialize internal fields like namedParameterJdbcTemplate
+        // and the 'usingNamedParameters' flag.
+        super.afterPropertiesSet();
     }
 
     @Override
@@ -61,14 +71,9 @@ public class TableItemWriter extends JdbcBatchItemWriter<Map<String, Object>> {
         // Generate INSERT SQL from first item's columns
         Map<String, Object> firstItem = items.get(0);
         String insertSql = generateInsertSql(firstItem.keySet());
+        
+        // Overwrite the dummy SQL with the real one
         setSql(insertSql);
-
-        // Set parameter source provider
-        setItemSqlParameterSourceProvider(item -> {
-            MapSqlParameterSource params = new MapSqlParameterSource();
-            item.forEach(params::addValue);
-            return params;
-        });
 
         // Write the batch
         super.write(chunk);

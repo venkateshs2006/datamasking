@@ -4,6 +4,16 @@ spring:
 
   # Source Database Configuration
   datasource:
+    batchdb:
+      url: jdbc:postgresql://localhost:5432/batch_db
+      username: postgres
+      password: Mannit@12345
+      driver-class-name: org.postgresql.Driver
+      hikari:
+        maximum-pool-size: 10
+        minimum-idle: 2
+    # Source Database Configuration
+
     source:
       url: jdbc:postgresql://localhost:5432/source_db
       username: postgres
@@ -27,6 +37,8 @@ spring:
   batch:
     jdbc:
       initialize-schema: always
+      # schema: classpath:batch-schem.sql
+      table-prefix: V5_BATCH_
     job:
       enabled: true  # Auto-start the migration job on application startup
 

@@ -124,7 +124,6 @@ public class BatchJobConfig {
         // Create writer
         TableItemWriter writer = new TableItemWriter(
                 destinationDataSource,
-                destinationDataSource,
                 destinationSchema,
                 tableName
         );
