@@ -3,6 +3,8 @@ package com.enterprise.seedm.config;
 
 import com.enterprise.seedm.batch.TableItemReader;
 import com.enterprise.seedm.batch.TableItemWriter;
+import com.enterprise.seedm.model.ColumnMetadata;
+import com.enterprise.seedm.service.DestinationSchemaService;
 import com.enterprise.seedm.service.TableDiscoveryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
@@ -22,6 +24,7 @@ import javax.sql.DataSource;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Batch Job Configuration
@@ -36,6 +39,7 @@ public class BatchJobConfig {
     private final PlatformTransactionManager transactionManager;
     private final PlatformTransactionManager destinationTransactionManager;
     private final TableDiscoveryService tableDiscoveryService;
+    private final DestinationSchemaService destinationSchemaService;
 
     @Value("${migration.source.schema}")
     private String sourceSchema;
@@ -51,13 +55,15 @@ public class BatchJobConfig {
                           JobRepository jobRepository,
                           PlatformTransactionManager transactionManager,
                           @Qualifier("destinationTransactionManager") PlatformTransactionManager destinationTransactionManager,
-                          TableDiscoveryService tableDiscoveryService) {
+                          TableDiscoveryService tableDiscoveryService,
+                          DestinationSchemaService destinationSchemaService) {
         this.sourceDataSource = sourceDataSource;
         this.destinationDataSource = destinationDataSource;
         this.jobRepository = jobRepository;
         this.transactionManager = transactionManager;
         this.destinationTransactionManager = destinationTransactionManager;
         this.tableDiscoveryService = tableDiscoveryService;
+        this.destinationSchemaService = destinationSchemaService;
     }
 
     /**
@@ -111,8 +117,16 @@ public class BatchJobConfig {
     private Step createTableMigrationStep(String tableName) {
         log.info("Creating step for table: {}", tableName);
 
-        // Get columns for this table
-        List<String> columns = tableDiscoveryService.getTableColumns(tableName);
+        // Get detailed column metadata for this table
+        List<ColumnMetadata> columnMetadata = tableDiscoveryService.getTableColumnMetadata(tableName);
+        
+        // Recreate table in destination
+        destinationSchemaService.recreateTable(tableName, columnMetadata);
+
+        // Extract column names for reader
+        List<String> columns = columnMetadata.stream()
+                .map(ColumnMetadata::getColumnName)
+                .collect(Collectors.toList());
 
         // Create reader
         TableItemReader reader = new TableItemReader(

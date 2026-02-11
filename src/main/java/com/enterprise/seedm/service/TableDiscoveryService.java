@@ -1,5 +1,6 @@
 package com.enterprise.seedm.service;
 
+import com.enterprise.seedm.model.ColumnMetadata;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -74,6 +75,29 @@ public class TableDiscoveryService {
         List<String> columns = sourceJdbcTemplate.queryForList(sql, String.class, sourceSchema, tableName);
         log.debug("Table '{}' has {} columns", tableName, columns.size());
         return columns;
+    }
+
+    /**
+     * Get detailed column metadata for a specific table
+     */
+    public List<ColumnMetadata> getTableColumnMetadata(String tableName) {
+        String sql = """
+            SELECT column_name, data_type, is_nullable, character_maximum_length, 
+                   numeric_precision, numeric_scale
+            FROM information_schema.columns 
+            WHERE table_schema = ? 
+            AND table_name = ? 
+            ORDER BY ordinal_position
+            """;
+
+        return sourceJdbcTemplate.query(sql, (rs, rowNum) -> new ColumnMetadata(
+                rs.getString("column_name"),
+                rs.getString("data_type"),
+                rs.getString("is_nullable"),
+                rs.getObject("character_maximum_length") != null ? rs.getInt("character_maximum_length") : null,
+                rs.getObject("numeric_precision") != null ? rs.getInt("numeric_precision") : null,
+                rs.getObject("numeric_scale") != null ? rs.getInt("numeric_scale") : null
+        ), sourceSchema, tableName);
     }
 
     /**
