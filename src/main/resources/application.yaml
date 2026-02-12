@@ -81,3 +81,6 @@ seedm:
     default-thread-count: 50
     max-retry-attempts: 3
     checkpoint-interval: 1000
+    masking-columns: mydata.name, testing.name
+    masking-constraints: mydata.id,testing.id,testing.mydata_id
+    masking-key: SecretKey123

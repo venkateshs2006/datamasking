@@ -1,9 +1,11 @@
 package com.enterprise.seedm.config;
 
 
+import com.enterprise.seedm.batch.TableItemProcessor;
 import com.enterprise.seedm.batch.TableItemReader;
 import com.enterprise.seedm.batch.TableItemWriter;
 import com.enterprise.seedm.model.ColumnMetadata;
+import com.enterprise.seedm.service.DataMaskingService;
 import com.enterprise.seedm.service.DestinationSchemaService;
 import com.enterprise.seedm.service.TableDiscoveryService;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +42,7 @@ public class BatchJobConfig {
     private final PlatformTransactionManager destinationTransactionManager;
     private final TableDiscoveryService tableDiscoveryService;
     private final DestinationSchemaService destinationSchemaService;
+    private final DataMaskingService dataMaskingService;
 
     @Value("${migration.source.schema}")
     private String sourceSchema;
@@ -56,7 +59,8 @@ public class BatchJobConfig {
                           PlatformTransactionManager transactionManager,
                           @Qualifier("destinationTransactionManager") PlatformTransactionManager destinationTransactionManager,
                           TableDiscoveryService tableDiscoveryService,
-                          DestinationSchemaService destinationSchemaService) {
+                          DestinationSchemaService destinationSchemaService,
+                          DataMaskingService dataMaskingService) {
         this.sourceDataSource = sourceDataSource;
         this.destinationDataSource = destinationDataSource;
         this.jobRepository = jobRepository;
@@ -64,6 +68,7 @@ public class BatchJobConfig {
         this.destinationTransactionManager = destinationTransactionManager;
         this.tableDiscoveryService = tableDiscoveryService;
         this.destinationSchemaService = destinationSchemaService;
+        this.dataMaskingService = dataMaskingService;
     }
 
     /**
@@ -138,6 +143,9 @@ public class BatchJobConfig {
         );
         reader.setName(tableName + "Reader");
 
+        // Create processor
+        TableItemProcessor processor = new TableItemProcessor(tableName, dataMaskingService);
+
         // Create writer
         TableItemWriter writer = new TableItemWriter(
                 destinationDataSource,
@@ -149,6 +157,7 @@ public class BatchJobConfig {
         return new StepBuilder("migrate_" + tableName, jobRepository)
                 .<Map<String, Object>, Map<String, Object>>chunk(chunkSize, destinationTransactionManager)
                 .reader(reader)
+                .processor(processor)
                 .writer(writer)
                 .build();
     }
