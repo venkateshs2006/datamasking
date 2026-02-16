@@ -40,7 +40,7 @@ spring:
       schema: classpath:batch-schema.sql
       table-prefix: BATCH_
     job:
-      enabled: true  # Auto-start the migration job on application startup
+      enabled: false  # Disable auto-start of the migration job on application startup
 
   # JPA Configuration (for Spring Batch metadata)
   jpa:
@@ -81,6 +81,14 @@ seedm:
     default-thread-count: 50
     max-retry-attempts: 3
     checkpoint-interval: 1000
-    masking-columns: mydata.name, testing.name
-    masking-constraints: mydata.id,testing.id,testing.mydata_id
+    masking-columns:
+      - users.email
+      - users.first_name
+      - users.last_name
+      - products.description
+    masking-constraints:
+      - users.id
+      - orders.user_id
+      - orders.product_id
+      - products.id
     masking-key: SecretKey123
