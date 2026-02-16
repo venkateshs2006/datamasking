@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SeEDM Migration Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); }
+        .status-badge { padding: 4px 12px; border-radius: 9999px; font-weight: 600; font-size: 0.875rem; }
+        .status-completed { background-color: #d1fae5; color: #065f46; }
+        .status-running { background-color: #dbeafe; color: #1e40af; }
+        .status-failed { background-color: #fee2e2; color: #991b1b; }
+        .progress-bar { transition: width 0.5s ease-in-out; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <!-- Sidebar -->
+    <div class="fixed inset-y-0 left-0 w-64 bg-gray-900 text-white transition-transform duration-300 transform z-30" id="sidebar">
+        <div class="flex items-center justify-center h-16 border-b border-gray-800">
+            <h1 class="text-2xl font-bold tracking-wider"><i class="fas fa-database mr-2 text-blue-500"></i>SeEDM</h1>
+        </div>
+        <nav class="mt-6">
+            <a href="#" class="flex items-center px-6 py-3 bg-gray-800 border-l-4 border-blue-500 text-gray-100">
+                <i class="fas fa-tachometer-alt w-6"></i>
+                <span class="mx-3">Dashboard</span>
+            </a>
+            <a href="tables.html" id="navTables" class="flex items-center px-6 py-3 hover:bg-gray-800 hover:text-gray-100 transition-colors text-gray-400">
+                <i class="fas fa-table w-6"></i>
+                <span class="mx-3">Tables</span>
+            </a>
+            <a href="#" class="flex items-center px-6 py-3 hover:bg-gray-800 hover:text-gray-100 transition-colors text-gray-400">
+                <i class="fas fa-cogs w-6"></i>
+                <span class="mx-3">Settings</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="ml-64 p-8">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h2 class="text-3xl font-bold text-gray-800">Migration Dashboard</h2>
+                <p class="text-gray-500 mt-1">Real-time monitoring of database migration jobs</p>
+            </div>
+            <form action="/api/migration/start" method="POST">
+                <button type="submit" id="startBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg shadow-lg transition duration-300 flex items-center">
+                    <i class="fas fa-play mr-2"></i> Start Migration
+                </button>
+            </form>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="card p-6 border-l-4 border-blue-500">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Job Status</p>
+                        <h3 class="text-2xl font-bold mt-1" id="jobStatus">Ready</h3>
+                    </div>
+                    <div class="p-2 bg-blue-100 rounded-lg text-blue-600">
+                        <i class="fas fa-tasks"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card p-6 border-l-4 border-green-500">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Tables Completed</p>
+                        <h3 class="text-2xl font-bold mt-1" id="completedCount">0</h3>
+                    </div>
+                    <div class="p-2 bg-green-100 rounded-lg text-green-600">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card p-6 border-l-4 border-purple-500">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Total Records</p>
+                        <h3 class="text-2xl font-bold mt-1" id="totalRecords">0</h3>
+                    </div>
+                    <div class="p-2 bg-purple-100 rounded-lg text-purple-600">
+                        <i class="fas fa-list-ol"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card p-6 border-l-4 border-yellow-500">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Duration</p>
+                        <h3 class="text-2xl font-bold mt-1" id="duration">0s</h3>
+                    </div>
+                    <div class="p-2 bg-yellow-100 rounded-lg text-yellow-600">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts & Metrics -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- System Metrics -->
+            <div class="card p-6 lg:col-span-1">
+                <h3 class="text-lg font-semibold mb-4 text-gray-700">System Health</h3>
+                <div class="space-y-6">
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <span class="text-sm font-medium text-gray-600">Heap Memory</span>
+                            <span class="text-sm font-medium text-gray-600" id="heapText">0 / 0 MB</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="bg-blue-600 h-2.5 rounded-full progress-bar" id="heapBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <span class="text-sm font-medium text-gray-600">CPU Load</span>
+                            <span class="text-sm font-medium text-gray-600" id="cpuText">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="bg-green-500 h-2.5 rounded-full progress-bar" id="cpuBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="pt-4 border-t border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-500">Available Processors</span>
+                            <span class="font-semibold text-gray-700" id="processors">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Chart -->
+            <div class="card p-6 lg:col-span-2">
+                <h3 class="text-lg font-semibold mb-4 text-gray-700">Migration Throughput</h3>
+                <div class="relative h-64">
+                    <canvas id="throughputChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table Details -->
+        <div class="card overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-700">Table Migration Details</h3>
+                <span class="text-sm text-gray-500" id="executionIdDisplay">Execution ID: -</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50 text-gray-600 text-sm uppercase tracking-wider">
+                            <th class="px-6 py-3 font-medium">Table Name</th>
+                            <th class="px-6 py-3 font-medium">Read Count</th>
+                            <th class="px-6 py-3 font-medium">Write Count</th>
+                            <th class="px-6 py-3 font-medium">Status</th>
+                            <th class="px-6 py-3 font-medium">Progress</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100" id="tableBody">
+                        <!-- Rows will be populated here -->
+                        <tr>
+                            <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                No migration data available. Click "Start Migration" to begin.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Chart Initialization
+        const ctx = document.getElementById('throughputChart').getContext('2d');
+        const throughputChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Read Count',
+                        data: [],
+                        backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Write Count',
+                        data: [],
+                        backgroundColor: 'rgba(16, 185, 129, 0.6)',
+                        borderColor: 'rgba(16, 185, 129, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' },
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#f3f4f6' } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        // Check for executionId in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const executionId = urlParams.get('executionId');
+        let pollingInterval;
+
+        if (executionId) {
+            // Update Tables Link
+            document.getElementById('navTables').href = `tables.html?executionId=${executionId}`;
+
+            // If executionId is present, start polling immediately
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('startBtn').classList.add('opacity-50', 'cursor-not-allowed');
+            document.getElementById('startBtn').innerHTML = '<i class="fas fa-sync fa-spin mr-2"></i> Migration Running...';
+
+            pollStatus(executionId);
+            // Poll every 5 seconds (approx "every minute" as requested, but 5s is better for UX)
+            // If strictly 1 minute is required, change 5000 to 60000
+            pollingInterval = setInterval(() => pollStatus(executionId), 5000);
+        }
+
+        async function pollStatus(id) {
+            try {
+                const response = await fetch(`/api/migration/status/${id}`);
+                const data = await response.json();
+                updateDashboard(data);
+
+                if (data.status === 'COMPLETED' || data.status === 'FAILED') {
+                    clearInterval(pollingInterval);
+                    document.getElementById('startBtn').disabled = false;
+                    document.getElementById('startBtn').classList.remove('opacity-50', 'cursor-not-allowed');
+                    document.getElementById('startBtn').innerHTML = '<i class="fas fa-play mr-2"></i> Start New Migration';
+                }
+            } catch (error) {
+                console.error('Polling error:', error);
+            }
+        }
+
+        function updateDashboard(data) {
+            // Update KPI Cards
+            const statusEl = document.getElementById('jobStatus');
+            statusEl.textContent = data.status;
+            statusEl.className = `text-2xl font-bold mt-1 ${getStatusColor(data.status)}`;
+
+            document.getElementById('executionIdDisplay').textContent = `Execution ID: ${data.executionId}`;
+            document.getElementById('completedCount').textContent = data.completedTables ? data.completedTables.length : 0;
+
+            // Calculate total records
+            let totalWrites = 0;
+            if (data.tableProgress) {
+                totalWrites = data.tableProgress.reduce((acc, curr) => acc + curr.writeCount, 0);
+            }
+            document.getElementById('totalRecords').textContent = totalWrites.toLocaleString();
+
+            // Calculate Duration
+            if (data.startTime) {
+                const start = new Date(data.startTime);
+                const end = data.endTime ? new Date(data.endTime) : new Date();
+                const diff = Math.floor((end - start) / 1000);
+                document.getElementById('duration').textContent = `${diff}s`;
+            }
+
+            // Update System Metrics
+            if (data.systemMetrics) {
+                const heapUsed = data.systemMetrics.heapUsedMB;
+                const heapMax = data.systemMetrics.heapMaxMB;
+                const heapPercent = Math.round((heapUsed / heapMax) * 100);
+
+                document.getElementById('heapText').textContent = `${heapUsed} / ${heapMax} MB`;
+                document.getElementById('heapBar').style.width = `${heapPercent}%`;
+
+                // CPU Load
+                let load = data.systemMetrics.systemLoadAverage;
+                if (load < 0) load = 0;
+                const cpuPercent = Math.min(Math.round(load * 100), 100);
+
+                document.getElementById('cpuText').textContent = `${load.toFixed(2)}`;
+                document.getElementById('cpuBar').style.width = `${cpuPercent}%`;
+
+                document.getElementById('processors').textContent = data.systemMetrics.availableProcessors;
+            }
+
+            // Update Table
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            const labels = [];
+            const readData = [];
+            const writeData = [];
+
+            if (data.tableProgress && data.tableProgress.length > 0) {
+                data.tableProgress.forEach(row => {
+                    // Update Chart Data
+                    labels.push(row.tableName);
+                    readData.push(row.readCount);
+                    writeData.push(row.writeCount);
+
+                    // Update Table Row
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50 transition-colors border-b border-gray-100';
+
+                    let progress = 0;
+                    if (row.status === 'COMPLETED') progress = 100;
+                    else if (row.readCount > 0) progress = 50;
+
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 font-medium text-gray-900">${row.tableName}</td>
+                        <td class="px-6 py-4 text-gray-600">${row.readCount.toLocaleString()}</td>
+                        <td class="px-6 py-4 text-gray-600">${row.writeCount.toLocaleString()}</td>
+                        <td class="px-6 py-4">
+                            <span class="status-badge ${getStatusBadgeClass(row.status)}">
+                                ${row.status}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-blue-600 h-2 rounded-full" style="width: ${progress}%"></div>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Job started, waiting for step execution...</td></tr>`;
+            }
+
+            // Update Chart
+            throughputChart.data.labels = labels;
+            throughputChart.data.datasets[0].data = readData;
+            throughputChart.data.datasets[1].data = writeData;
+            throughputChart.update();
+        }
+
+        function getStatusColor(status) {
+            switch(status) {
+                case 'COMPLETED': return 'text-green-600';
+                case 'STARTED':
+                case 'STARTING': return 'text-blue-600';
+                case 'FAILED': return 'text-red-600';
+                default: return 'text-gray-600';
+            }
+        }
+
+        function getStatusBadgeClass(status) {
+            switch(status) {
+                case 'COMPLETED': return 'status-completed';
+                case 'STARTED':
+                case 'STARTING': return 'status-running';
+                case 'FAILED': return 'status-failed';
+                default: return 'bg-gray-100 text-gray-600';
+            }
+        }
+    </script>
+</body>
+</html>

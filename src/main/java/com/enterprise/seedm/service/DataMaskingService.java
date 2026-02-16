@@ -2,14 +2,18 @@ package com.enterprise.seedm.service;
 
 import lombok.extern.slf4j.Slf4j;
 import net.datafaker.Faker;
+import org.postgresql.util.PGobject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Data Masking Service
@@ -31,8 +35,8 @@ public class DataMaskingService {
         this.fpeService = fpeService;
         this.maskingRules = parseRules(maskingColumns);
         this.constraintRules = parseRules(maskingConstraints);
-        
-        log.info("Initialized DataMaskingService with {} masking rules and {} constraint rules", 
+
+        log.info("Initialized DataMaskingService with {} masking rules and {} constraint rules",
                 maskingRules.size(), constraintRules.size());
     }
 
@@ -58,11 +62,11 @@ public class DataMaskingService {
      */
     public Map<String, Object> maskData(String tableName, Map<String, Object> row) {
         String lowerTableName = tableName.toLowerCase();
-        
+
         // Check if we need to do anything for this table
         boolean hasMasking = maskingRules.containsKey(lowerTableName);
         boolean hasConstraints = constraintRules.containsKey(lowerTableName);
-        
+
         if (!hasMasking && !hasConstraints) {
             return row;
         }
@@ -111,7 +115,44 @@ public class DataMaskingService {
 
     private Object generateMaskedValue(String columnName, Object originalValue) {
         String lowerCol = columnName.toLowerCase();
-        
+
+        // Handle specific types first
+        if (originalValue instanceof byte[]) {
+            // Mask byte array (e.g., images, binary data)
+            // Return a random byte array of same length or fixed dummy content
+            return "MASKED_BLOB".getBytes(StandardCharsets.UTF_8);
+        } else if (originalValue instanceof UUID) {
+            return UUID.randomUUID();
+        } else if (originalValue instanceof java.sql.Array) {
+            // Masking arrays is complex as it depends on the underlying type.
+            // For now, returning null or empty might be safer, or we need to unpack it.
+            // A simple strategy is to return null to avoid type mismatch if we can't easily construct a new java.sql.Array
+            log.warn("Masking java.sql.Array is not fully supported yet. Returning null for column: {}", columnName);
+            return null;
+        } else if (originalValue instanceof PGobject) {
+            PGobject pgObject = (PGobject) originalValue;
+            String type = pgObject.getType();
+            if ("json".equals(type) || "jsonb".equals(type)) {
+                PGobject maskedJson = new PGobject();
+                maskedJson.setType(type);
+                try {
+                    maskedJson.setValue("{\"masked\": true}");
+                } catch (SQLException e) {
+                    log.error("Failed to mask JSON column {}", columnName, e);
+                    return originalValue;
+                }
+                return maskedJson;
+            }
+        }
+
+        // Handle JSON/JSONB (usually comes as String or PGObject)
+        if (originalValue.toString().trim().startsWith("{") || originalValue.toString().trim().startsWith("[")) {
+            // Simple JSON masking: return an empty JSON object
+            // But we should return it as PGobject if the original was PGobject, handled above.
+            // If it's a string, return string.
+            return "{\"masked\": true}";
+        }
+
         // Basic heuristic for masking based on column name
         if (lowerCol.contains("email")) {
             return faker.internet().emailAddress();
@@ -138,12 +179,12 @@ public class DataMaskingService {
         } else if (lowerCol.contains("description") || lowerCol.contains("comment")) {
             return faker.lorem().sentence();
         }
-        
+
         // Fallback: preserve type if possible, or return string
         if (originalValue instanceof Number) {
-             return faker.number().numberBetween(1, 10000);
+            return faker.number().numberBetween(1, 10000);
         }
-        
+
         return faker.lorem().characters(10);
     }
 }

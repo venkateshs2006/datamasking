@@ -81,14 +81,6 @@ seedm:
     default-thread-count: 50
     max-retry-attempts: 3
     checkpoint-interval: 1000
-    masking-columns:
-      - users.email
-      - users.first_name
-      - users.last_name
-      - products.description
-    masking-constraints:
-      - users.id
-      - orders.user_id
-      - orders.product_id
-      - products.id
+    masking-columns: testing.name,data.name
+    masking-constraints: testing.id,testing.mydata_id,data.id
     masking-key: SecretKey123

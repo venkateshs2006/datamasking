@@ -5,6 +5,7 @@ import com.enterprise.seedm.batch.ConstraintCreationTasklet;
 import com.enterprise.seedm.batch.TableItemProcessor;
 import com.enterprise.seedm.batch.TableItemReader;
 import com.enterprise.seedm.batch.TableItemWriter;
+import com.enterprise.seedm.batch.TablePreparationTasklet;
 import com.enterprise.seedm.model.ColumnMetadata;
 import com.enterprise.seedm.service.DataMaskingService;
 import com.enterprise.seedm.service.DestinationSchemaService;
@@ -92,15 +93,20 @@ public class BatchJobConfig {
 
         SimpleJobBuilder simpleJobBuilder = null;
 
-        // 1. Create steps for each table migration (Data only)
+        // 1. Create steps for each table migration
         for (String tableName : tables) {
-            Step step = createTableMigrationStep(tableName);
+            // Step 1.1: Prepare table (Drop & Create without constraints)
+            Step prepareStep = createTablePreparationStep(tableName);
+            
+            // Step 1.2: Migrate data (Read -> Mask -> Write)
+            Step migrateStep = createTableMigrationStep(tableName);
 
             if (simpleJobBuilder == null) {
-                simpleJobBuilder = jobBuilder.start(step);
+                simpleJobBuilder = jobBuilder.start(prepareStep);
             } else {
-                simpleJobBuilder.next(step);
+                simpleJobBuilder.next(prepareStep);
             }
+            simpleJobBuilder.next(migrateStep);
         }
 
         // 2. Create a final step for constraint creation (PK, FK, Unique)
@@ -125,17 +131,26 @@ public class BatchJobConfig {
     }
 
     /**
-     * Create a step for migrating a single table
+     * Create a step for preparing a single table (Drop & Create)
+     */
+    private Step createTablePreparationStep(String tableName) {
+        // Get detailed column metadata for this table
+        List<ColumnMetadata> columnMetadata = tableDiscoveryService.getTableColumnMetadata(tableName);
+        
+        return new StepBuilder("prepare_" + tableName, jobRepository)
+                .tasklet(new TablePreparationTasklet(destinationSchemaService, tableName, columnMetadata), transactionManager)
+                .build();
+    }
+
+    /**
+     * Create a step for migrating a single table (Data only)
      */
     private Step createTableMigrationStep(String tableName) {
-        log.info("Creating step for table: {}", tableName);
+        log.info("Creating migration step for table: {}", tableName);
 
         // Get detailed column metadata for this table
         List<ColumnMetadata> columnMetadata = tableDiscoveryService.getTableColumnMetadata(tableName);
         
-        // Recreate table in destination (without constraints initially for faster load)
-        destinationSchemaService.recreateTable(tableName, columnMetadata);
-
         // Extract column names for reader
         List<String> columns = columnMetadata.stream()
                 .map(ColumnMetadata::getColumnName)
