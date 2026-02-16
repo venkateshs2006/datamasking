@@ -1,6 +1,7 @@
 package com.enterprise.seedm.service;
 
 import com.enterprise.seedm.model.ColumnMetadata;
+import com.enterprise.seedm.model.ConstraintMetadata;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,6 +54,50 @@ public class DestinationSchemaService {
 
         log.debug("Create SQL: {}", createSql);
         destinationJdbcTemplate.execute(createSql.toString());
+    }
+
+    @Transactional
+    public void createConstraints(String tableName, List<ConstraintMetadata> constraints) {
+        log.info("Creating constraints for table {}.{}", destinationSchema, tableName);
+
+        for (ConstraintMetadata constraint : constraints) {
+            try {
+                String sql = generateConstraintSql(tableName, constraint);
+                if (sql != null) {
+                    log.debug("Executing constraint SQL: {}", sql);
+                    destinationJdbcTemplate.execute(sql);
+                }
+            } catch (Exception e) {
+                log.error("Failed to create constraint {} on table {}: {}", 
+                        constraint.getConstraintName(), tableName, e.getMessage());
+                // Don't fail the whole job for a constraint failure, but log it
+            }
+        }
+    }
+
+    private String generateConstraintSql(String tableName, ConstraintMetadata constraint) {
+        String constraintName = constraint.getConstraintName();
+        // Ensure constraint name is unique or just use the source name
+        // Ideally, we should prefix it or ensure it doesn't conflict if multiple schemas are involved
+        
+        switch (constraint.getConstraintType()) {
+            case "PRIMARY KEY":
+                return String.format("ALTER TABLE %s.%s ADD CONSTRAINT %s PRIMARY KEY (%s)",
+                        destinationSchema, tableName, constraintName, constraint.getColumnName());
+            
+            case "UNIQUE":
+                return String.format("ALTER TABLE %s.%s ADD CONSTRAINT %s UNIQUE (%s)",
+                        destinationSchema, tableName, constraintName, constraint.getColumnName());
+            
+            case "FOREIGN KEY":
+                // Note: This assumes the referenced table already exists in the destination schema
+                return String.format("ALTER TABLE %s.%s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s.%s (%s)",
+                        destinationSchema, tableName, constraintName, constraint.getColumnName(),
+                        destinationSchema, constraint.getForeignTableName(), constraint.getForeignColumnName());
+                
+            default:
+                return null;
+        }
     }
 
     private String mapDataType(ColumnMetadata col) {

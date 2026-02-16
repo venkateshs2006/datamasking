@@ -1,6 +1,7 @@
 package com.enterprise.seedm.service;
 
 import com.enterprise.seedm.model.ColumnMetadata;
+import com.enterprise.seedm.model.ConstraintMetadata;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -97,6 +98,41 @@ public class TableDiscoveryService {
                 rs.getObject("character_maximum_length") != null ? rs.getInt("character_maximum_length") : null,
                 rs.getObject("numeric_precision") != null ? rs.getInt("numeric_precision") : null,
                 rs.getObject("numeric_scale") != null ? rs.getInt("numeric_scale") : null
+        ), sourceSchema, tableName);
+    }
+
+    /**
+     * Get all constraints (PK, FK, Unique) for a specific table
+     */
+    public List<ConstraintMetadata> getTableConstraints(String tableName) {
+        String sql = """
+            SELECT 
+                tc.constraint_name, 
+                tc.constraint_type, 
+                tc.table_name, 
+                kcu.column_name, 
+                ccu.table_name AS foreign_table_name, 
+                ccu.column_name AS foreign_column_name 
+            FROM 
+                information_schema.table_constraints AS tc 
+                JOIN information_schema.key_column_usage AS kcu 
+                  ON tc.constraint_name = kcu.constraint_name 
+                  AND tc.table_schema = kcu.table_schema 
+                LEFT JOIN information_schema.constraint_column_usage AS ccu 
+                  ON ccu.constraint_name = tc.constraint_name 
+                  AND ccu.table_schema = tc.table_schema 
+            WHERE tc.constraint_type IN ('PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE') 
+            AND tc.table_schema = ?
+            AND tc.table_name = ?
+            """;
+
+        return sourceJdbcTemplate.query(sql, (rs, rowNum) -> new ConstraintMetadata(
+                rs.getString("constraint_name"),
+                rs.getString("constraint_type"),
+                rs.getString("table_name"),
+                rs.getString("column_name"),
+                rs.getString("foreign_table_name"),
+                rs.getString("foreign_column_name")
         ), sourceSchema, tableName);
     }
 

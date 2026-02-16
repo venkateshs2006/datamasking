@@ -1,6 +1,7 @@
 package com.enterprise.seedm.config;
 
 
+import com.enterprise.seedm.batch.ConstraintCreationTasklet;
 import com.enterprise.seedm.batch.TableItemProcessor;
 import com.enterprise.seedm.batch.TableItemReader;
 import com.enterprise.seedm.batch.TableItemWriter;
@@ -91,6 +92,7 @@ public class BatchJobConfig {
 
         SimpleJobBuilder simpleJobBuilder = null;
 
+        // 1. Create steps for each table migration (Data only)
         for (String tableName : tables) {
             Step step = createTableMigrationStep(tableName);
 
@@ -100,6 +102,9 @@ public class BatchJobConfig {
                 simpleJobBuilder.next(step);
             }
         }
+
+        // 2. Create a final step for constraint creation (PK, FK, Unique)
+        Step constraintStep = createConstraintCreationStep();
 
         if (simpleJobBuilder == null) {
             log.error("No steps created - no tables to migrate!");
@@ -111,6 +116,9 @@ public class BatchJobConfig {
                     }, transactionManager)
                     .build();
             simpleJobBuilder = jobBuilder.start(noTablesStep);
+        } else {
+            // Add constraint step at the end
+            simpleJobBuilder.next(constraintStep);
         }
 
         return simpleJobBuilder.build();
@@ -125,7 +133,7 @@ public class BatchJobConfig {
         // Get detailed column metadata for this table
         List<ColumnMetadata> columnMetadata = tableDiscoveryService.getTableColumnMetadata(tableName);
         
-        // Recreate table in destination
+        // Recreate table in destination (without constraints initially for faster load)
         destinationSchemaService.recreateTable(tableName, columnMetadata);
 
         // Extract column names for reader
@@ -159,6 +167,15 @@ public class BatchJobConfig {
                 .reader(reader)
                 .processor(processor)
                 .writer(writer)
+                .build();
+    }
+
+    /**
+     * Create a step for creating constraints after data migration
+     */
+    private Step createConstraintCreationStep() {
+        return new StepBuilder("createConstraintsStep", jobRepository)
+                .tasklet(new ConstraintCreationTasklet(tableDiscoveryService, destinationSchemaService), transactionManager)
                 .build();
     }
 }
