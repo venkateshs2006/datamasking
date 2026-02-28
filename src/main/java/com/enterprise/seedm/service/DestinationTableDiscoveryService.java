@@ -22,7 +22,7 @@ public class DestinationTableDiscoveryService {
     private final DataSource sourceDataSource;
     private final JdbcTemplate destinationJdbcTemplate;
 
-    @Value("${migration.source.schema}")
+    @Value("${seedm.migration.source.schema}")
     private String sourceSchema;
 
     @Value("${spring.batch.jdbc.table-prefix:BATCH_}")

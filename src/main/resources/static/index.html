@@ -17,6 +17,13 @@
         .status-running { background-color: #dbeafe; color: #1e40af; }
         .status-failed { background-color: #fee2e2; color: #991b1b; }
         .progress-bar { transition: width 0.5s ease-in-out; }
+        /* Modal Styles */
+        .modal { display: none; position: fixed; z-index: 50; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px; }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close:hover, .close:focus { color: black; text-decoration: none; cursor: pointer; }
+        .error-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 400px; display: inline-block; vertical-align: middle; }
+        .error-full { display: none; white-space: pre-wrap; word-break: break-word; margin-top: 10px; padding: 10px; background: #fff; border: 1px solid #eee; border-radius: 4px; }
     </style>
 </head>
 <body class="text-gray-800">
@@ -55,6 +62,35 @@
                     <i class="fas fa-play mr-2"></i> Start Migration
                 </button>
             </form>
+        </div>
+
+        <!-- Connection Details Card -->
+        <div class="card p-6 mb-8 border-l-4 border-indigo-500">
+            <h3 class="text-lg font-semibold mb-4 text-gray-700"><i class="fas fa-network-wired mr-2"></i>Connection Details</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div class="flex items-center mb-2">
+                        <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3">
+                            <i class="fas fa-database"></i>
+                        </div>
+                        <span class="font-semibold text-gray-700">Source Database</span>
+                    </div>
+                    <div id="sourceUrl" class="text-sm text-gray-600 break-all font-mono bg-white p-2 rounded border border-gray-100">
+                        Loading...
+                    </div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div class="flex items-center mb-2">
+                        <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 mr-3">
+                            <i class="fas fa-server"></i>
+                        </div>
+                        <span class="font-semibold text-gray-700">Destination Database</span>
+                    </div>
+                    <div id="destinationUrl" class="text-sm text-gray-600 break-all font-mono bg-white p-2 rounded border border-gray-100">
+                        Loading...
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- KPI Cards -->
@@ -177,7 +213,34 @@
         </div>
     </div>
 
+    <!-- Error Modal -->
+    <div id="errorModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2 class="text-xl font-bold text-red-600 mb-4"><i class="fas fa-exclamation-triangle mr-2"></i>Job Failed</h2>
+            <div id="errorDetails" class="text-gray-700 space-y-2">
+                <!-- Error messages will be injected here -->
+            </div>
+        </div>
+    </div>
+
     <script>
+        // Fetch Connection Details on Load
+        async function fetchConnectionDetails() {
+            try {
+                const response = await fetch('/api/migration/connection-details');
+                const data = await response.json();
+                document.getElementById('sourceUrl').textContent = data.sourceUrl || 'Not configured';
+                document.getElementById('destinationUrl').textContent = data.destinationUrl || 'Not configured';
+            } catch (error) {
+                console.error('Failed to fetch connection details:', error);
+                document.getElementById('sourceUrl').textContent = 'Error loading';
+                document.getElementById('destinationUrl').textContent = 'Error loading';
+            }
+        }
+
+        fetchConnectionDetails();
+
         // Chart Initialization
         const ctx = document.getElementById('throughputChart').getContext('2d');
         const throughputChart = new Chart(ctx, {
@@ -220,6 +283,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const executionId = urlParams.get('executionId');
         let pollingInterval;
+        let errorShown = false;
 
         if (executionId) {
             // Update Tables Link
@@ -231,8 +295,7 @@
             document.getElementById('startBtn').innerHTML = '<i class="fas fa-sync fa-spin mr-2"></i> Migration Running...';
 
             pollStatus(executionId);
-            // Poll every 5 seconds (approx "every minute" as requested, but 5s is better for UX)
-            // If strictly 1 minute is required, change 5000 to 60000
+            // Poll every 5 seconds
             pollingInterval = setInterval(() => pollStatus(executionId), 5000);
         }
 
@@ -247,6 +310,11 @@
                     document.getElementById('startBtn').disabled = false;
                     document.getElementById('startBtn').classList.remove('opacity-50', 'cursor-not-allowed');
                     document.getElementById('startBtn').innerHTML = '<i class="fas fa-play mr-2"></i> Start New Migration';
+
+                    if (data.status === 'FAILED' && !errorShown) {
+                        showErrorModal(data);
+                        errorShown = true;
+                    }
                 }
             } catch (error) {
                 console.error('Polling error:', error);
@@ -365,6 +433,85 @@
                 case 'STARTING': return 'status-running';
                 case 'FAILED': return 'status-failed';
                 default: return 'bg-gray-100 text-gray-600';
+            }
+        }
+
+        function showErrorModal(data) {
+            const modal = document.getElementById('errorModal');
+            const details = document.getElementById('errorDetails');
+            details.innerHTML = '';
+
+            const createErrorElement = (err, index) => {
+                const container = document.createElement('div');
+                container.className = 'mb-2';
+
+                const summary = document.createElement('div');
+                summary.className = 'flex justify-between items-center bg-red-50 border-l-4 border-red-500 p-2 text-sm';
+
+                const text = document.createElement('span');
+                text.className = 'error-summary';
+                text.textContent = err.split('|')[0] || err; // Show first part as summary
+
+                const btn = document.createElement('button');
+                btn.className = 'text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded ml-2 transition-colors';
+                btn.textContent = 'Show More';
+                btn.onclick = () => {
+                    const full = document.getElementById(`error-full-${index}`);
+                    if (full.style.display === 'none' || full.style.display === '') {
+                        full.style.display = 'block';
+                        btn.textContent = 'Show Less';
+                    } else {
+                        full.style.display = 'none';
+                        btn.textContent = 'Show More';
+                    }
+                };
+
+                summary.appendChild(text);
+                summary.appendChild(btn);
+                container.appendChild(summary);
+
+                const fullText = document.createElement('div');
+                fullText.id = `error-full-${index}`;
+                fullText.className = 'error-full text-xs text-gray-600';
+                fullText.textContent = err; // Full error message
+                container.appendChild(fullText);
+
+                return container;
+            };
+
+            if (data.errors && data.errors.length > 0) {
+                data.errors.forEach((err, index) => {
+                    details.appendChild(createErrorElement(err, 'job-' + index));
+                });
+            }
+
+            if (data.constraintErrors && data.constraintErrors.length > 0) {
+                 const h = document.createElement('h4');
+                 h.className = 'font-bold mt-4 mb-2';
+                 h.textContent = 'Constraint Creation Errors:';
+                 details.appendChild(h);
+
+                 data.constraintErrors.forEach((err, index) => {
+                    details.appendChild(createErrorElement(err, 'constraint-' + index));
+                });
+            }
+
+            if (details.innerHTML === '') {
+                details.innerHTML = '<p>Unknown error occurred. Check logs for details.</p>';
+            }
+
+            modal.style.display = "block";
+        }
+
+        function closeModal() {
+            document.getElementById('errorModal').style.display = "none";
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('errorModal');
+            if (event.target == modal) {
+                modal.style.display = "none";
             }
         }
     </script>

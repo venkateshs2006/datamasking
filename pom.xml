@@ -19,7 +19,7 @@
 	<description>Secure Enterprise Data Masking and Migration Platform</description>
 
 	<properties>
-		<java.version>21</java.version>
+		<java.version>17</java.version>
 		<spring-batch.version>5.1.1</spring-batch.version>
 	</properties>
 

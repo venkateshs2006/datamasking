@@ -5,6 +5,7 @@ import com.enterprise.seedm.model.ConstraintMetadata;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,7 +19,7 @@ public class DestinationSchemaService {
 
     private final JdbcTemplate destinationJdbcTemplate;
 
-    @Value("${migration.destination.schema}")
+    @Value("${seedm.migration.destination.schema}")
     private String destinationSchema;
 
     public DestinationSchemaService(@Qualifier("destinationDataSource") DataSource destinationDataSource) {
@@ -62,23 +63,40 @@ public class DestinationSchemaService {
 
         for (ConstraintMetadata constraint : constraints) {
             try {
+                if (constraintExists(tableName, constraint.getConstraintName())) {
+                    log.info("Constraint {} on table {} already exists. Skipping.", constraint.getConstraintName(), tableName);
+                    continue;
+                }
+
                 String sql = generateConstraintSql(tableName, constraint);
                 if (sql != null) {
                     log.debug("Executing constraint SQL: {}", sql);
                     destinationJdbcTemplate.execute(sql);
+                    log.info("Successfully created constraint {} on table {}", constraint.getConstraintName(), tableName);
                 }
-            } catch (Exception e) {
+            } catch (DataAccessException e) {
                 log.error("Failed to create constraint {} on table {}: {}", 
                         constraint.getConstraintName(), tableName, e.getMessage());
-                // Don't fail the whole job for a constraint failure, but log it
+                // Re-throw exception to let Spring Batch handle the retry at the step level
+                throw e;
             }
         }
     }
 
+    private boolean constraintExists(String tableName, String constraintName) {
+        String sql = """
+            SELECT COUNT(*) 
+            FROM information_schema.table_constraints 
+            WHERE table_schema = ? 
+            AND table_name = ? 
+            AND constraint_name = ?
+            """;
+        Integer count = destinationJdbcTemplate.queryForObject(sql, Integer.class, destinationSchema, tableName, constraintName);
+        return count != null && count > 0;
+    }
+
     private String generateConstraintSql(String tableName, ConstraintMetadata constraint) {
         String constraintName = constraint.getConstraintName();
-        // Ensure constraint name is unique or just use the source name
-        // Ideally, we should prefix it or ensure it doesn't conflict if multiple schemas are involved
         
         switch (constraint.getConstraintType()) {
             case "PRIMARY KEY":
@@ -90,7 +108,6 @@ public class DestinationSchemaService {
                         destinationSchema, tableName, constraintName, constraint.getColumnName());
             
             case "FOREIGN KEY":
-                // Note: This assumes the referenced table already exists in the destination schema
                 return String.format("ALTER TABLE %s.%s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s.%s (%s)",
                         destinationSchema, tableName, constraintName, constraint.getColumnName(),
                         destinationSchema, constraint.getForeignTableName(), constraint.getForeignColumnName());

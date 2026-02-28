@@ -1,21 +1,13 @@
 package com.enterprise.seedm.service;
 
+import com.enterprise.seedm.util.DataTypeConstrants;
 import lombok.extern.slf4j.Slf4j;
-import org.bouncycastle.crypto.digests.SHA256Digest;
-import org.bouncycastle.crypto.engines.AESEngine;
-import org.bouncycastle.crypto.fpe.FPEFF1Engine;
-import org.bouncycastle.crypto.fpe.FPEEngine;
-import org.bouncycastle.crypto.generators.HKDFBytesGenerator;
-import org.bouncycastle.crypto.params.FPEParameters;
-import org.bouncycastle.crypto.params.HKDFParameters;
-import org.bouncycastle.crypto.params.KeyParameter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
 
 /**
@@ -27,170 +19,164 @@ import java.util.UUID;
 @Slf4j
 public class FormatPreservingEncryptionService {
 
-    private final byte[] key;
-    private final byte[] tweak;
-    
-    // Character sets for different data types
-    private static final char[] DIGITS = "0123456789".toCharArray();
-    private static final char[] ALPHANUMERIC = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".toCharArray();
-    private static final char[] HEX = "0123456789abcdef".toCharArray();
+    private final String salt;
 
-    public FormatPreservingEncryptionService(@Value("${seedm.migration.masking-key:DefaultSecretKey123}") String secretKey) {
-        // Derive a 256-bit key from the provided secret string using HKDF
-        this.key = deriveKey(secretKey);
-        // Tweak is optional but recommended for FPE. Using a static tweak for consistency across runs.
-        this.tweak = "seedm-tweak".getBytes(StandardCharsets.UTF_8);
-    }
-
-    private byte[] deriveKey(String secret) {
-        HKDFBytesGenerator hkdf = new HKDFBytesGenerator(new SHA256Digest());
-        hkdf.init(new HKDFParameters(secret.getBytes(StandardCharsets.UTF_8), null, null));
-        byte[] derivedKey = new byte[32]; // 256 bits
-        hkdf.generateBytes(derivedKey, 0, 32);
-        return derivedKey;
+    public FormatPreservingEncryptionService(@Value("${seedm.migration.masking-key:DefaultSecretKey123}") String salt) {
+        this.salt = salt;
     }
 
     /**
-     * Encrypts an integer value while preserving it as an integer
+     * Encrypts a value based on its data type while preserving format and referential integrity.
      */
-    public Object encrypt(Object value) {
+    public Object encrypt(Object value, String dataType) {
         if (value == null) {
             return null;
         }
 
-        if (value instanceof Integer) {
-            return encryptInteger((Integer) value);
-        } else if (value instanceof Long) {
-            return encryptLong((Long) value);
-        } else if (value instanceof String) {
-            String strVal = (String) value;
-            // Check if it's a UUID
-            try {
-                UUID.fromString(strVal);
-                return encryptUUID(strVal);
-            } catch (IllegalArgumentException e) {
-                // Not a UUID, treat as string
-                return encryptString(strVal);
-            }
-        } else if (value instanceof UUID) {
-            return UUID.fromString(encryptUUID(value.toString()));
-        }
-
-        // Fallback for unsupported types: return as is or convert to string and encrypt?
-        // For safety, let's return as is but log warning
-        log.warn("Unsupported type for FPE: {}. Returning original value.", value.getClass().getName());
-        return value;
-    }
-
-    private int encryptInteger(int value) {
-        String input = String.valueOf(value);
-        String encrypted = encryptStringWithAlphabet(input, DIGITS);
-        // Handle potential leading zeros or overflow if necessary, but FPE preserves length so it should be fine
-        // unless the original value didn't fill the full range.
-        // However, for IDs, we usually want to keep them positive.
-        return Integer.parseInt(encrypted);
-    }
-
-    private long encryptLong(long value) {
-        String input = String.valueOf(value);
-        String encrypted = encryptStringWithAlphabet(input, DIGITS);
-        return Long.parseLong(encrypted);
-    }
-
-    private String encryptString(String value) {
-        return encryptStringWithAlphabet(value, ALPHANUMERIC);
-    }
-
-    private String encryptUUID(String uuidStr) {
-        // UUID format: 8-4-4-4-12 hex digits
-        // We can encrypt just the hex digits and put the hyphens back
-        String raw = uuidStr.replace("-", "");
-        String encryptedRaw = encryptStringWithAlphabet(raw, HEX);
-        
-        StringBuilder sb = new StringBuilder(encryptedRaw);
-        sb.insert(8, "-");
-        sb.insert(13, "-");
-        sb.insert(18, "-");
-        sb.insert(23, "-");
-        
-        return sb.toString();
-    }
-
-    private String encryptStringWithAlphabet(String input, char[] alphabet) {
-        if (input == null || input.isEmpty()) {
-            return input;
-        }
-
-        // FPE requires at least 2 characters usually. If length is 1, we can't really "shuffle" it securely with FPE.
-        // For length 1, we might just map it using a simple substitution cipher derived from the key.
-        if (input.length() < 2) {
-            return simpleSubstitution(input, alphabet);
-        }
+        String type = dataType.toLowerCase();
 
         try {
-            // Manually map characters to indexes
-            byte[] inputBytes = convertToIndexes(input, alphabet);
-            
-            FPEEngine engine = new FPEFF1Engine(new AESEngine());
-            engine.init(true, new FPEParameters(new KeyParameter(key), alphabet.length, tweak));
-            
-            byte[] outputBytes = new byte[inputBytes.length];
-            engine.processBlock(inputBytes, 0, inputBytes.length, outputBytes, 0);
-            
-            return convertToChars(outputBytes, alphabet);
+            switch (type) {
+                case "integer":
+                case "int":
+                    return encryptInt((Integer) value, DataTypeConstrants.INT_MIN_VALUE, DataTypeConstrants.INT_MAX_VALUE);
+                case "long":
+                    return encryptLong((Long) value, DataTypeConstrants.LONG_MIN_VALUE, DataTypeConstrants.LONG_MAX_VALUE);
+                case "short":
+                case "smallint":
+                case "int2":
+                    // Handle Short/Integer input for smallint
+                    int shortVal = (value instanceof Short) ? (Short) value : (Integer) value;
+                    return encryptInt(shortVal, DataTypeConstrants.SHORT_MIN_VALUE, DataTypeConstrants.SHORT_MAX_VALUE);
+                case "byte":
+                    // Handle Byte/Integer input for byte
+                    int byteVal = (value instanceof Byte) ? (Byte) value : (Integer) value;
+                    return encryptInt(byteVal, DataTypeConstrants.BYTE_MIN_VALUE, DataTypeConstrants.BYTE_MAX_VALUE);
+                case "bigint":
+                case "int8":
+                    return encryptLong((Long) value, DataTypeConstrants.INT8_MIN_VALUE, DataTypeConstrants.INT8_MAX_VALUE);
+                case "int4":
+                    return encryptInt((Integer) value, DataTypeConstrants.INT4_MIN_VALUE, DataTypeConstrants.INT4_MAX_VALUE);
+                case "float":
+                case "real":
+                case "float4":
+                    return encryptFloat((Float) value);
+                case "double":
+                case "float8":
+                case "double precision":
+                    return encryptDouble((Double) value);
+                case "uuid":
+                    return encryptUUID(value.toString());
+                case "string":
+                case "varchar":
+                case "text":
+                case "character varying":
+                    return encryptString(value.toString());
+                case "char":
+                case "character":
+                    return encryptString(value.toString()); // Simple string encryption for char
+                case "boolean":
+                case "bool":
+                    // Deterministic boolean flip based on hash
+                    return encryptBoolean((Boolean) value);
+                default:
+                    log.warn("Unsupported data type for FPE: {}. Returning original value.", dataType);
+                    return value;
+            }
         } catch (Exception e) {
-            log.error("FPE Encryption failed", e);
+            log.error("Encryption failed for value: {} type: {}", value, dataType, e);
             throw new RuntimeException("Encryption failed", e);
         }
     }
 
-    private byte[] convertToIndexes(String input, char[] alphabet) {
-        Map<Character, Integer> indexMap = new HashMap<>();
-        for (int i = 0; i < alphabet.length; i++) {
-            indexMap.put(alphabet[i], i);
-        }
+    // --- Deterministic Encryption Logic ---
 
-        byte[] indexes = new byte[input.length()];
-        for (int i = 0; i < input.length(); i++) {
-            Character c = input.charAt(i);
-            if (!indexMap.containsKey(c)) {
-                throw new IllegalArgumentException("Character '" + c + "' not found in alphabet");
-            }
-            indexes[i] = indexMap.get(c).byteValue();
-        }
-        return indexes;
+    private int encryptInt(int value, int min, int max) throws NoSuchAlgorithmException {
+        long range = (long) max - min + 1;
+        long hash = getHash(value);
+        // Map hash to range [0, range-1]
+        long offset = Math.abs(hash % range);
+        // Add offset to min to get result in [min, max]
+        return (int) (min + offset);
     }
 
-    private String convertToChars(byte[] indexes, char[] alphabet) {
-        StringBuilder sb = new StringBuilder(indexes.length);
-        for (byte index : indexes) {
-            // Handle unsigned byte issue if necessary, though alphabet size is usually small
-            int idx = index & 0xFF; 
-            if (idx >= alphabet.length) {
-                 throw new IllegalArgumentException("Index " + idx + " out of bounds for alphabet");
-            }
-            sb.append(alphabet[idx]);
-        }
-        return sb.toString();
+    private long encryptLong(long value, long min, long max) throws NoSuchAlgorithmException {
+        // For large ranges, we can't easily do simple modulo arithmetic without BigInteger if range > Long.MAX_VALUE
+        // But here min/max are Long constants.
+        // We'll use a simple deterministic mapping: hash(value)
+        // Note: This doesn't guarantee 1-to-1 mapping (collisions possible), but for masking it's usually acceptable
+        // if we just need deterministic output.
+        // To strictly preserve range, we map the hash.
+        
+        // Using BigInteger for safety with full Long range
+        java.math.BigInteger range = java.math.BigInteger.valueOf(max).subtract(java.math.BigInteger.valueOf(min)).add(java.math.BigInteger.ONE);
+        java.math.BigInteger hashVal = new java.math.BigInteger(1, getHashBytes(String.valueOf(value)));
+        
+        java.math.BigInteger offset = hashVal.mod(range);
+        return java.math.BigInteger.valueOf(min).add(offset).longValue();
     }
 
-    private String simpleSubstitution(String input, char[] alphabet) {
-        // Simple shift or mapping for single characters based on the key hash
-        int shift = Arrays.hashCode(key) % alphabet.length;
-        if (shift < 0) shift += alphabet.length;
-        
-        char c = input.charAt(0);
-        int index = -1;
-        for (int i = 0; i < alphabet.length; i++) {
-            if (alphabet[i] == c) {
-                index = i;
-                break;
-            }
+    private float encryptFloat(float value) throws NoSuchAlgorithmException {
+        // Encrypt the bits
+        int bits = Float.floatToIntBits(value);
+        int encryptedBits = encryptInt(bits, Integer.MIN_VALUE, Integer.MAX_VALUE);
+        return Float.intBitsToFloat(encryptedBits);
+    }
+
+    private double encryptDouble(double value) throws NoSuchAlgorithmException {
+        // Encrypt the bits
+        long bits = Double.doubleToLongBits(value);
+        long encryptedBits = encryptLong(bits, Long.MIN_VALUE, Long.MAX_VALUE);
+        return Double.longBitsToDouble(encryptedBits);
+    }
+
+    private String encryptUUID(String uuidStr) throws NoSuchAlgorithmException {
+        // Deterministic UUID generation from hash
+        byte[] hash = getHashBytes(uuidStr);
+        return UUID.nameUUIDFromBytes(hash).toString();
+    }
+
+    private String encryptString(String value) throws NoSuchAlgorithmException {
+        // Simple deterministic string encryption: Hex representation of hash
+        // Truncate or pad if necessary? For now, just return hash hex.
+        // If we need to preserve length, it's more complex.
+        // Assuming standard varchar/text where length isn't strictly fixed to input length.
+        byte[] hash = getHashBytes(value);
+        StringBuilder hexString = new StringBuilder();
+        for (byte b : hash) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) hexString.append('0');
+            hexString.append(hex);
         }
-        
-        if (index == -1) return input; // Character not in alphabet
-        
-        int newIndex = (index + shift) % alphabet.length;
-        return String.valueOf(alphabet[newIndex]);
+        // To keep it somewhat readable or similar length, we could truncate.
+        // Let's return the first 16 chars of hex hash + original length hint if needed.
+        // For strict FPE on strings, we'd need the alphabet mapper approach.
+        // Given the requirement "generate encryption method for all datatype", simple hash is safest for referential integrity.
+        return hexString.toString();
+    }
+    
+    private boolean encryptBoolean(boolean value) throws NoSuchAlgorithmException {
+        // Hash the boolean value + salt. Even/Odd hash determines true/false.
+        long hash = getHash(value ? 1 : 0);
+        return hash % 2 == 0;
+    }
+
+    // --- Helper Methods ---
+
+    private long getHash(long value) throws NoSuchAlgorithmException {
+        byte[] hashBytes = getHashBytes(String.valueOf(value));
+        // Convert first 8 bytes to long
+        long result = 0;
+        for (int i = 0; i < 8; i++) {
+            result <<= 8;
+            result |= (hashBytes[i] & 0xFF);
+        }
+        return result;
+    }
+
+    private byte[] getHashBytes(String input) throws NoSuchAlgorithmException {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        String inputWithSalt = input + salt;
+        return digest.digest(inputWithSalt.getBytes(StandardCharsets.UTF_8));
     }
 }

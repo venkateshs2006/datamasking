@@ -1,4 +1,6 @@
 spring:
+  main:
+    allow-bean-definition-overriding: true
   application:
     name: seedm db migration
 
@@ -15,7 +17,7 @@ spring:
 
     # Source Database Configuration (Read-only)
     source:
-      url: jdbc:postgresql://localhost:5432/source_db
+      url: jdbc:postgresql://localhost:5432/dvdrental
       username: postgres
       password: Mannit@12345
       driver-class-name: org.postgresql.Driver
@@ -48,13 +50,7 @@ spring:
       ddl-auto: none
     show-sql: false
 
-# Migration Configuration
-migration:
-  source:
-    schema: public  # Source schema name
-  destination:
-    schema: public  # Destination schema name
-  chunk-size: 1000  # Number of rows per batch
+
 
 # Server Configuration
 server:
@@ -76,11 +72,17 @@ logging:
 
 # Application Specific Configuration
 seedm:
+  # Migration Configuration
   migration:
+    source:
+      schema: public  # Source schema name
+    destination:
+      schema: public  # Destination schema name
+    chunk-size: 1000  # Number of rows per batchmigration:
     default-chunk-size: 1000
     default-thread-count: 50
     max-retry-attempts: 3
     checkpoint-interval: 1000
-    masking-columns: testing.name,data.name
-    masking-constraints: testing.id,testing.mydata_id,data.id
+    masking-columns: actor.first_name,actor.last_name, flim.title, customer.first_name, customer.last_name, customer.email
+    masking-constraints: actor.actor_id,address.address_id,address.city_id, category.category_id, city.city_id, city.country_id, country.country_id, customer.customer_id, customer.address_id, film.film_id,film_actor.actor_id, film_actor.film_id, film_category.film_id, film_category.category_id, inventory.inventory_id, inventory.film_id,payment.payment_id, payment.customer_id
     masking-key: SecretKey123

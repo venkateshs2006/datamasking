@@ -1,0 +1,261 @@
+package com.enterprise.seedm.service;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Base64;
+import java.util.UUID;
+
+public class UltimateDeterministicEncryptor {
+
+    private static final String AES_ALGO = "AES/CBC/PKCS5Padding";
+    private static final String ALPHA_NUMERIC = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+    // --- NEW: UNIFIED ENTRY POINT ---
+
+    /**
+     * Unified encryption method that handles all types.
+     * If length <= 0, it uses standard format preservation.
+     * If length > 0, it applies fixed-length constraints for supported types.
+     */
+    public Object process(Object value, Integer length, String key, String salt, boolean isEncrypt) throws Exception {
+        if (value == null) return null;
+
+        // 1. Handle UUIDs (Object or String format)
+        if (value instanceof UUID) {
+            return isEncrypt ? encryptUUID((UUID) value, key, salt) : decryptUUID((UUID) value, key, salt);
+        }
+
+        if (value instanceof String) {
+            String str = (String) value;
+            if (isUuid(str)) {
+                UUID res = isEncrypt ? encryptUUID(UUID.fromString(str), key, salt) : decryptUUID(UUID.fromString(str), key, salt);
+                return res.toString();
+            }
+            // Standard String
+            if (length != null && length > 0) {
+                return isEncrypt ? encryptStringFixed(str, length, key, salt) : decryptStringFixed(str, length, key, salt);
+            }
+            return isEncrypt ? encryptObject(str, key, salt) : decryptObject(str, key, salt);
+        }
+
+        // 2. Handle Integers
+        if (value instanceof Integer) {
+            int val = (Integer) value;
+            if (length != null && length > 0) {
+                return isEncrypt ? encryptIntFixed(val, length, key, salt) : decryptIntFixed((String) value, length, key, salt);
+            }
+            return isEncrypt ? encryptInt(val, key, salt) : decryptInt(val, key, salt);
+        }
+
+        // 3. Handle Longs
+        if (value instanceof Long) {
+            long val = (Long) value;
+            if (length != null && length > 0) {
+                return isEncrypt ? encryptLongFixed(val, length, key, salt) : decryptLongFixed((String) value, length, key, salt);
+            }
+            return isEncrypt ? encryptLong(val, key, salt) : decryptLong(val, key, salt);
+        }
+
+        // 4. Handle Floating Points (Always Format Preserving)
+        if (value instanceof Double) {
+            return isEncrypt ? encryptDouble((Double) value, key, salt) : decryptDouble((Double) value, key, salt);
+        }
+        if (value instanceof Float) {
+            return isEncrypt ? encryptFloat((Float) value, key, salt) : decryptFloat((Float) value, key, salt);
+        }
+
+        // 5. Fallback for complex objects (BigDecimal, JSON, etc.)
+        return isEncrypt ? encryptObject(value, key, salt) : decryptObject(value.toString(), key, salt);
+    }
+
+    private boolean isUuid(String str) {
+        try {
+            UUID.fromString(str);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // --- SUPPORTING METHODS (Standard & Fixed) ---
+
+    public static UUID encryptUUID(UUID val, String key, String salt) throws Exception {
+        long msb = val.getMostSignificantBits();
+        long lsb = val.getLeastSignificantBits();
+        long encMsb = transformLongBits(msb, key, salt + "_uuid_m", true);
+        long encLsb = transformLongBits(lsb, key, salt + "_uuid_l", true);
+        encMsb = (encMsb & ~0x000000000000F000L) | (msb & 0x000000000000F000L);
+        encLsb = (encLsb & 0x3FFFFFFFFFFFFFFFL) | (lsb & 0xC000000000000000L);
+        return new UUID(encMsb, encLsb);
+    }
+
+    public static UUID decryptUUID(UUID val, String key, String salt) throws Exception {
+        long msb = val.getMostSignificantBits();
+        long lsb = val.getLeastSignificantBits();
+        long decMsb = transformLongBits(msb, key, salt + "_uuid_m", false);
+        long decLsb = transformLongBits(lsb, key, salt + "_uuid_l", false);
+        decMsb = (decMsb & ~0x000000000000F000L) | (msb & 0x000000000000F000L);
+        decLsb = (decLsb & 0x3FFFFFFFFFFFFFFFL) | (lsb & 0xC000000000000000L);
+        return new UUID(decMsb, decLsb);
+    }
+
+    public static String encryptIntFixed(int val, int length, String key, String salt) throws Exception {
+        long m = (long) Math.pow(10, length);
+        long encrypted = transform(Math.abs((long) val) % m, m, key, salt + "_i", true);
+        return String.format("%0" + length + "d", encrypted);
+    }
+
+    public static String encryptLongFixed(long val, int length, String key, String salt) throws Exception {
+        BigInteger m = BigInteger.valueOf(10).pow(length);
+        BigInteger encrypted = transformBig(BigInteger.valueOf(val).abs().remainder(m), m, key, salt + "_l", true);
+        return String.format("%0" + length + "d", encrypted);
+    }
+
+    public static int decryptIntFixed(String cipherText, int length, String key, String salt) throws Exception {
+        long m = (long) Math.pow(10, length);
+        return (int) transform(Long.parseLong(cipherText), m, key, salt + "_i", false);
+    }
+
+    public static long decryptLongFixed(String cipherText, int length, String key, String salt) throws Exception {
+        BigInteger m = BigInteger.valueOf(10).pow(length);
+        return transformBig(new BigInteger(cipherText), m, key, salt + "_l", false).longValue();
+    }
+
+    public static String encryptStringFixed(String input, int length, String key, String salt) throws Exception {
+        StringBuilder sb = new StringBuilder();
+        String normalized = String.format("%-" + length + "s", input).substring(0, length);
+        for (int i = 0; i < length; i++) {
+            int charPos = Math.max(0, ALPHA_NUMERIC.indexOf(normalized.charAt(i)));
+            int encPos = (int) transform(charPos, ALPHA_NUMERIC.length(), key, salt + "_s" + i, true);
+            sb.append(ALPHA_NUMERIC.charAt(encPos));
+        }
+        return sb.toString();
+    }
+
+    public static String decryptStringFixed(String cipherText, int length, String key, String salt) throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            int charPos = ALPHA_NUMERIC.indexOf(cipherText.charAt(i));
+            int decPos = (int) transform(charPos, ALPHA_NUMERIC.length(), key, salt + "_s" + i, false);
+            sb.append(ALPHA_NUMERIC.charAt(decPos));
+        }
+        return sb.toString().trim();
+    }
+
+    // --- STANDARD UTILITIES ---
+
+    public static int encryptInt(int val, String key, String salt) throws Exception {
+        int sign = val < 0 ? -1 : 1;
+        return (int) (transform(Math.abs((long) val), (long) Integer.MAX_VALUE + 1, key, salt, true) * sign);
+    }
+
+    public static int decryptInt(int val, String key, String salt) throws Exception {
+        int sign = val < 0 ? -1 : 1;
+        return (int) (transform(Math.abs((long) val), (long) Integer.MAX_VALUE + 1, key, salt, false) * sign);
+    }
+
+    public static double encryptDouble(double val, String key, String salt) throws Exception {
+        long bits = Double.doubleToRawLongBits(val);
+        long signBit = bits & 0x8000000000000000L;
+        long mag = bits & 0x7FFFFFFFFFFFFFFFL;
+        long encMag = transformBig(BigInteger.valueOf(mag), BigInteger.valueOf(2).pow(63), key, salt + "_d", true).longValue();
+        return Double.longBitsToDouble(signBit | (encMag & 0x7FFFFFFFFFFFFFFFL));
+    }
+
+    public static double decryptDouble(double val, String key, String salt) throws Exception {
+        long bits = Double.doubleToRawLongBits(val);
+        long signBit = bits & 0x8000000000000000L;
+        long mag = bits & 0x7FFFFFFFFFFFFFFFL;
+        long decMag = transformBig(BigInteger.valueOf(mag), BigInteger.valueOf(2).pow(63), key, salt + "_d", false).longValue();
+        return Double.longBitsToDouble(signBit | (decMag & 0x7FFFFFFFFFFFFFFFL));
+    }
+
+    public static float encryptFloat(float val, String key, String salt) throws Exception {
+        int bits = Float.floatToRawIntBits(val);
+        int signBit = bits & 0x80000000;
+        int mag = bits & 0x7FFFFFFF;
+        int encMag = (int) transform(mag, 0x80000000L, key, salt + "_f", true);
+        return Float.intBitsToFloat(signBit | (encMag & 0x7FFFFFFF));
+    }
+
+    public static float decryptFloat(float val, String key, String salt) throws Exception {
+        int bits = Float.floatToRawIntBits(val);
+        int signBit = bits & 0x80000000;
+        int mag = bits & 0x7FFFFFFF;
+        int decMag = (int) transform(mag, 0x80000000L, key, salt + "_f", false);
+        return Float.intBitsToFloat(signBit | (decMag & 0x7FFFFFFF));
+    }
+
+    public static long encryptLong(long val, String key, String salt) throws Exception {
+        int sign = val < 0 ? -1 : 1;
+        BigInteger m = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE);
+        return transformBig(BigInteger.valueOf(val).abs(), m, key, salt, true).multiply(BigInteger.valueOf(sign)).longValue();
+    }
+
+    public static long decryptLong(long val, String key, String salt) throws Exception {
+        int sign = val < 0 ? -1 : 1;
+        BigInteger m = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE);
+        return transformBig(BigInteger.valueOf(val).abs(), m, key, salt, false).multiply(BigInteger.valueOf(sign)).longValue();
+    }
+
+    // --- SHARED CORE ENGINE ---
+
+    private static long transform(long x, long m, String k, String s, boolean enc) throws Exception {
+        return transformBig(BigInteger.valueOf(x), BigInteger.valueOf(m), k, s, enc).longValue();
+    }
+
+    private static BigInteger transformBig(BigInteger x, BigInteger m, String k, String s, boolean enc) throws Exception {
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        byte[] hash = md.digest((k + s).getBytes(StandardCharsets.UTF_8));
+        BigInteger h = new BigInteger(1, hash);
+        BigInteger a = h.multiply(BigInteger.valueOf(2)).add(BigInteger.ONE);
+        BigInteger b = h.divide(BigInteger.valueOf(3)).remainder(m);
+        if (enc) return x.multiply(a).add(b).remainder(m);
+        return a.modInverse(m).multiply(x.subtract(b)).remainder(m).add(m).remainder(m);
+    }
+
+    private static long transformLongBits(long val, String k, String s, boolean enc) throws Exception {
+        BigInteger m = BigInteger.valueOf(2).pow(64);
+        BigInteger x = BigInteger.valueOf(val).add(BigInteger.valueOf(2).pow(63)).remainder(m);
+        BigInteger res = transformBig(x, m, k, s, enc);
+        return res.subtract(BigInteger.valueOf(2).pow(63)).longValue();
+    }
+
+    public static String encryptObject(Object data, String key, String salt) throws Exception {
+        Cipher cipher = getCipher(Cipher.ENCRYPT_MODE, key, salt);
+        return Base64.getEncoder().encodeToString(cipher.doFinal(String.valueOf(data).getBytes(StandardCharsets.UTF_8)));
+    }
+
+    public static String decryptObject(String base64, String key, String salt) throws Exception {
+        Cipher cipher = getCipher(Cipher.DECRYPT_MODE, key, salt);
+        return new String(cipher.doFinal(Base64.getDecoder().decode(base64)), StandardCharsets.UTF_8);
+    }
+
+    private static Cipher getCipher(int mode, String k, String s) throws Exception {
+        byte[] keyBytes = MessageDigest.getInstance("SHA-256").digest(k.getBytes(StandardCharsets.UTF_8));
+        byte[] ivBytes = MessageDigest.getInstance("MD5").digest(s.getBytes(StandardCharsets.UTF_8));
+        Cipher cipher = Cipher.getInstance(AES_ALGO);
+        cipher.init(mode, new SecretKeySpec(keyBytes, "AES"), new IvParameterSpec(ivBytes));
+        return cipher;
+    }
+
+    public static void main(String[] args) throws Exception {
+        UltimateDeterministicEncryptor engine = new UltimateDeterministicEncryptor();
+        String k = "secret123";
+        String s = "salt456";
+
+        // Test Unified Entry for UUID
+        UUID myUuid = UUID.randomUUID();
+        UUID encUuid = (UUID) engine.process(myUuid, 0, k, s, true);
+        System.out.println("UUID Processed: " + encUuid);
+
+        // Test Unified Entry for Fixed Int
+        String encIntStr = (String) engine.process(55, 4, k, s, true);
+        System.out.println("Int (len 4) Processed: " + encIntStr);
+    }
+}

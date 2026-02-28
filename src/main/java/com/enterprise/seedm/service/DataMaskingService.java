@@ -1,5 +1,6 @@
 package com.enterprise.seedm.service;
 
+import com.enterprise.seedm.model.ColumnMetadata;
 import lombok.extern.slf4j.Slf4j;
 import net.datafaker.Faker;
 import org.postgresql.util.PGobject;
@@ -27,12 +28,15 @@ public class DataMaskingService {
     private final Map<String, Set<String>> maskingRules;
     private final Map<String, Set<String>> constraintRules;
     private final FormatPreservingEncryptionService fpeService;
-
+    private final TableDiscoveryService tableDiscoveryService;
+    
     public DataMaskingService(@Value("${seedm.migration.masking-columns:}") List<String> maskingColumns,
                               @Value("${seedm.migration.masking-constraints:}") List<String> maskingConstraints,
-                              FormatPreservingEncryptionService fpeService) {
+                              FormatPreservingEncryptionService fpeService,
+                              TableDiscoveryService tableDiscoveryService) {
         this.faker = new Faker();
         this.fpeService = fpeService;
+        this.tableDiscoveryService = tableDiscoveryService;
         this.maskingRules = parseRules(maskingColumns);
         this.constraintRules = parseRules(maskingConstraints);
 
@@ -72,8 +76,14 @@ public class DataMaskingService {
         }
 
         Map<String, Object> maskedRow = new HashMap<>(row);
+        
+        // We might need column metadata for data type if we are encrypting
+        List<ColumnMetadata> metadata = null;
+        if (hasConstraints) {
+             metadata = getCachedMetadata(tableName);
+        }
 
-        // Apply Constraint Masking (FPE) first
+        // Apply Constraint Masking (Deterministic Encryption) first
         if (hasConstraints) {
             Set<String> constraintColumns = constraintRules.get(lowerTableName);
             for (String column : constraintColumns) {
@@ -81,7 +91,13 @@ public class DataMaskingService {
                 if (matchingKey != null) {
                     Object originalValue = maskedRow.get(matchingKey);
                     if (originalValue != null) {
-                        maskedRow.put(matchingKey, fpeService.encrypt(originalValue));
+                        String dataType = getColumnType(metadata, matchingKey);
+                        try {
+                            // Use FPE Service for constraints
+                            maskedRow.put(matchingKey, fpeService.encrypt(originalValue, dataType));
+                        } catch (Exception e) {
+                            log.error("Encryption failed for {}.{}", tableName, column, e);
+                        }
                     }
                 }
             }
@@ -103,6 +119,23 @@ public class DataMaskingService {
 
         return maskedRow;
     }
+    
+    // Simple cache for metadata to avoid DB hits per row
+    private final Map<String, List<ColumnMetadata>> metadataCache = new HashMap<>();
+    
+    private List<ColumnMetadata> getCachedMetadata(String tableName) {
+        return metadataCache.computeIfAbsent(tableName, k -> tableDiscoveryService.getTableColumnMetadata(k));
+    }
+    
+    private String getColumnType(List<ColumnMetadata> metadata, String columnName) {
+        if (metadata == null) return "string"; // Default fallback
+        for (ColumnMetadata col : metadata) {
+            if (col.getColumnName().equalsIgnoreCase(columnName)) {
+                return col.getDataType();
+            }
+        }
+        return "string";
+    }
 
     private String findMatchingKey(Set<String> keys, String target) {
         for (String key : keys) {
@@ -118,15 +151,10 @@ public class DataMaskingService {
 
         // Handle specific types first
         if (originalValue instanceof byte[]) {
-            // Mask byte array (e.g., images, binary data)
-            // Return a random byte array of same length or fixed dummy content
             return "MASKED_BLOB".getBytes(StandardCharsets.UTF_8);
         } else if (originalValue instanceof UUID) {
             return UUID.randomUUID();
         } else if (originalValue instanceof java.sql.Array) {
-            // Masking arrays is complex as it depends on the underlying type.
-            // For now, returning null or empty might be safer, or we need to unpack it.
-            // A simple strategy is to return null to avoid type mismatch if we can't easily construct a new java.sql.Array
             log.warn("Masking java.sql.Array is not fully supported yet. Returning null for column: {}", columnName);
             return null;
         } else if (originalValue instanceof PGobject) {
@@ -147,9 +175,6 @@ public class DataMaskingService {
 
         // Handle JSON/JSONB (usually comes as String or PGObject)
         if (originalValue.toString().trim().startsWith("{") || originalValue.toString().trim().startsWith("[")) {
-            // Simple JSON masking: return an empty JSON object
-            // But we should return it as PGobject if the original was PGobject, handled above.
-            // If it's a string, return string.
             return "{\"masked\": true}";
         }
 

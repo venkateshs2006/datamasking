@@ -10,7 +10,10 @@ import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -24,7 +27,7 @@ public class TableDiscoveryService {
     private final DataSource sourceDataSource;
     private final JdbcTemplate sourceJdbcTemplate;
 
-    @Value("${migration.source.schema}")
+    @Value("${seedm.migration.source.schema}")
     private String sourceSchema;
 
     @Value("${spring.batch.jdbc.table-prefix:BATCH_}")
@@ -103,6 +106,7 @@ public class TableDiscoveryService {
 
     /**
      * Get all constraints (PK, FK, Unique) for a specific table
+     * Handles composite keys by aggregating columns for the same constraint name.
      */
     public List<ConstraintMetadata> getTableConstraints(String tableName) {
         String sql = """
@@ -124,16 +128,47 @@ public class TableDiscoveryService {
             WHERE tc.constraint_type IN ('PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE') 
             AND tc.table_schema = ?
             AND tc.table_name = ?
+            ORDER BY tc.constraint_name, kcu.ordinal_position
             """;
 
-        return sourceJdbcTemplate.query(sql, (rs, rowNum) -> new ConstraintMetadata(
-                rs.getString("constraint_name"),
-                rs.getString("constraint_type"),
-                rs.getString("table_name"),
-                rs.getString("column_name"),
-                rs.getString("foreign_table_name"),
-                rs.getString("foreign_column_name")
-        ), sourceSchema, tableName);
+        List<Map<String, Object>> rows = sourceJdbcTemplate.queryForList(sql, sourceSchema, tableName);
+        
+        // Use a map to aggregate columns for composite keys
+        Map<String, ConstraintMetadata> constraintMap = new LinkedHashMap<>();
+
+        for (Map<String, Object> row : rows) {
+            String constraintName = (String) row.get("constraint_name");
+            String columnName = (String) row.get("column_name");
+            String foreignColumnName = (String) row.get("foreign_column_name");
+
+            if (constraintMap.containsKey(constraintName)) {
+                // Append to existing constraint (Composite Key)
+                ConstraintMetadata existing = constraintMap.get(constraintName);
+                
+                // Check if column already exists in the list to avoid duplicates
+                // This can happen because of the join with constraint_column_usage which might return multiple rows for composite FKs
+                if (!existing.getColumnName().contains(columnName)) {
+                     existing.setColumnName(existing.getColumnName() + ", " + columnName);
+                }
+                
+                if (foreignColumnName != null && existing.getForeignColumnName() != null && !existing.getForeignColumnName().contains(foreignColumnName)) {
+                    existing.setForeignColumnName(existing.getForeignColumnName() + ", " + foreignColumnName);
+                }
+            } else {
+                // New constraint
+                ConstraintMetadata metadata = new ConstraintMetadata(
+                        constraintName,
+                        (String) row.get("constraint_type"),
+                        (String) row.get("table_name"),
+                        columnName,
+                        (String) row.get("foreign_table_name"),
+                        foreignColumnName
+                );
+                constraintMap.put(constraintName, metadata);
+            }
+        }
+
+        return new ArrayList<>(constraintMap.values());
     }
 
     /**

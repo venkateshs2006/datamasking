@@ -9,7 +9,10 @@ import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Tasklet to create constraints (PK, FK, Unique) on destination tables
@@ -32,18 +35,33 @@ public class ConstraintCreationTasklet implements Tasklet {
         log.info("Starting constraint creation task...");
 
         List<String> tables = tableDiscoveryService.discoverTables();
-
+        
+        // 1. First, create all Primary Keys and Unique Constraints for all tables
+        // This ensures that when we create Foreign Keys later, the referenced unique/PK constraints exist.
         for (String tableName : tables) {
-            log.info("Processing constraints for table: {}", tableName);
+            log.info("Creating PK/Unique constraints for table: {}", tableName);
+            List<ConstraintMetadata> allConstraints = tableDiscoveryService.getTableConstraints(tableName);
             
-            // Fetch constraints from source
-            List<ConstraintMetadata> constraints = tableDiscoveryService.getTableConstraints(tableName);
+            List<ConstraintMetadata> pkAndUnique = allConstraints.stream()
+                    .filter(c -> "PRIMARY KEY".equals(c.getConstraintType()) || "UNIQUE".equals(c.getConstraintType()))
+                    .collect(Collectors.toList());
             
-            if (!constraints.isEmpty()) {
-                // Apply constraints to destination
-                destinationSchemaService.createConstraints(tableName, constraints);
-            } else {
-                log.debug("No constraints found for table: {}", tableName);
+            if (!pkAndUnique.isEmpty()) {
+                destinationSchemaService.createConstraints(tableName, pkAndUnique);
+            }
+        }
+
+        // 2. Then, create Foreign Keys
+        for (String tableName : tables) {
+            log.info("Creating Foreign Keys for table: {}", tableName);
+            List<ConstraintMetadata> allConstraints = tableDiscoveryService.getTableConstraints(tableName);
+            
+            List<ConstraintMetadata> foreignKeys = allConstraints.stream()
+                    .filter(c -> "FOREIGN KEY".equals(c.getConstraintType()))
+                    .collect(Collectors.toList());
+            
+            if (!foreignKeys.isEmpty()) {
+                destinationSchemaService.createConstraints(tableName, foreignKeys);
             }
         }
 

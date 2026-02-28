@@ -1,0 +1,84 @@
+package com.enterprise.seedm.service;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.UUID;
+
+import static com.enterprise.seedm.service.UltimateDeterministicEncryptor.*;
+
+public class tester {
+    public static void main(String[] args) {
+        try {
+            String key = "master_key_12345";
+            String salt = "shared_salt_99";
+
+            System.out.println("--- Primitive-Style (Limit Preserving) ---");
+
+            // int / Integer
+            int originalInt = 10;
+            int encInt = encryptInt(originalInt, key, salt);
+            System.out.println("Int: " + originalInt + " -> Encrypted: " + encInt + " (Back: " + decryptInt(encInt, key, salt) + ")");
+            // int / Integer
+            originalInt = 10;
+            encInt = Integer.parseInt(encryptIntFixed(originalInt, 2,key, salt));
+            System.out.println("Int: " + originalInt + " -> Encrypted: " + encInt + " (Back: " + decryptInt(encInt, key, salt) + ")");
+
+            // long / Long
+            long originalLong = 9L;
+            long encLong = encryptLong(originalLong, key, salt);
+            System.out.println("Long: " + originalLong + " -> Encrypted: " + encLong + " (Back: " + decryptLong(encLong, key, salt) + ")");
+
+            // float / Float
+            float originalFloat = 3.14f;
+            float encFloat = encryptFloat(originalFloat, key, salt);
+            System.out.println("Float: " + originalFloat + " -> Encrypted: " + encFloat + " (Back: " + decryptFloat(encFloat, key, salt) + ")");
+
+            // double / Double
+            double originalDouble = 123.456789;
+            double encDouble = encryptDouble(originalDouble, key, salt);
+            System.out.println("Double: " + originalDouble + " -> Encrypted: " + encDouble + " (Back: " + decryptDouble(encDouble, key, salt) + ")");
+
+            // character
+            char originalChar = 'A';
+            char encChar = encryptChar(originalChar, key, salt);
+            System.out.println("Char: " + originalChar + " -> Encrypted: " + encChar + " (Back: " + decryptChar(encChar, key, salt) + ")");
+
+            System.out.println("\n--- Object-Style (Deterministic AES) ---");
+
+            // String
+
+            String originalStr = "Hello World";
+            String encStr = encryptObject(originalStr, key, salt);
+            System.out.println("String: " + originalStr + " -> Encrypted: " + encStr);
+
+            // String
+            originalStr = "Hello";
+            encStr = encryptStringFixed(originalStr, 5, key, salt);
+            System.out.println("String: " + originalStr + " -> Encrypted: " + encStr);
+
+            // UUID
+            UUID originalUuid = UUID.randomUUID();
+            UUID encUuid = encryptUUID(originalUuid, key, salt);
+            System.out.println("UUID: " + originalUuid + " -> Encrypted: " + encUuid.toString());
+
+            // BigInteger & BigDecimal
+            BigInteger bigInt = new BigInteger("999999999999999999999999");
+            BigDecimal bigDec = new BigDecimal("12345.67890123456789");
+            System.out.println("BigInt Encrypted: " + encryptObject(bigInt, key, salt));
+            System.out.println("BigDec Encrypted: " + encryptObject(bigDec, key, salt));
+
+            // JSON (Simulated as a String)
+            String json = "{\"id\":1, \"name\":\"Gemini\"}";
+            String encJson = encryptObject(json, key, salt);
+            System.out.println("JSON Encrypted: " + encJson);
+
+            System.out.println("\n--- Determinism Check (Same Input + Same Salt) ---");
+            String check1 = encryptObject("TestValue", key, salt);
+            String check2 = encryptObject("TestValue", key, salt);
+            System.out.println("Do results match? " + check1.equals(check2));
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}

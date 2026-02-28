@@ -5,15 +5,16 @@ import com.enterprise.seedm.service.TableDiscoveryService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.batch.core.BatchStatus;
-import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.JobParametersBuilder;
-import org.springframework.batch.core.StepExecution;
+import org.springframework.batch.core.*;
 import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
+import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
+import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -21,11 +22,13 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.OperatingSystemMXBean;
+import java.security.SecureRandom;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Migration Controller
@@ -46,6 +49,28 @@ public class MigrationController {
     private DestinationTableDiscoveryService destinationTableDiscoveryService;
     @Autowired
     private JobExplorer jobExplorer;
+    @Qualifier("applicationTaskExecutor")
+    @Autowired
+    private TaskExecutor taskExecutor;
+    private SecureRandom random;
+    private JobExecution jobExecution=null;
+
+    @Value("${spring.datasource.source.url}")
+    private String sourceDbUrl;
+
+    @Value("${spring.datasource.destination.url}")
+    private String destinationDbUrl;
+
+    /**
+     * Get connection details
+     */
+    @GetMapping("/connection-details")
+    public Map<String, String> getConnectionDetails() {
+        Map<String, String> details = new HashMap<>();
+        details.put("sourceUrl", sourceDbUrl);
+        details.put("destinationUrl", destinationDbUrl);
+        return details;
+    }
 
     /**
      * Get list of tables to be migrated
@@ -90,31 +115,53 @@ public class MigrationController {
     @PostMapping("/start")
     public void startMigration(HttpServletResponse response) throws IOException {
         try {
+            random = new SecureRandom();
             log.info("Starting migration job manually...");
-
+            int uniqueId=random.nextInt();
+            String jobName="DBMigrationJob";
             JobParameters jobParameters = new JobParametersBuilder()
+                    .addString("jobName",jobName)
+                    .addString("name",jobName)
                     .addLong("startTime", System.currentTimeMillis())
                     .toJobParameters();
+            taskExecutor.execute(()->{
+                try {
+                    jobExecution = jobLauncher.run(migrationJob, jobParameters);
+                } catch (JobInstanceAlreadyCompleteException e) {
+                    throw new RuntimeException(e);
+                } catch (JobExecutionAlreadyRunningException e) {
+                    throw new RuntimeException(e);
+                } catch (JobParametersInvalidException e) {
+                    throw new RuntimeException(e);
+                } catch (JobRestartException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            // We need to get the execution ID *before* we return, but the job runs async.
+            // Since we configured the JobLauncher to be async in BatchConfig, jobLauncher.run() returns immediately
+            // with the JobExecution that has been persisted to the DB (status STARTING/STARTED).
+            if(jobExecution==null){
+                jobExecution=jobExplorer.findRunningJobExecutions(jobName).stream().findFirst().get();
+            }
 
-            // Launch the job
-            JobExecution execution = jobLauncher.run(migrationJob, jobParameters);
+            log.info("Job launched with Execution ID: {}", jobExecution.getId()+1);
 
-            // Redirect to the dashboard page with the execution ID
-            response.sendRedirect("/index.html?executionId=" + execution.getId());
+            // Redirect to the dashboard page with the execution ID immediately
+            response.sendRedirect("/index.html?executionId=" + (jobExecution.getId()+1L));
 
         } catch (Exception e) {
             log.error("Failed to start migration", e);
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to start migration: " + e.getMessage());
         }
     }
-    
+
     @GetMapping("/status/{executionId}")
     public Map<String, Object> getJobStatus(@PathVariable Long executionId) {
         JobExecution execution = jobExplorer.getJobExecution(executionId);
         if (execution == null) {
-             Map<String, Object> response = new HashMap<>();
-             response.put("status", "NOT_FOUND");
-             return response;
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "NOT_FOUND");
+            return response;
         }
         return getJobStatusResponse(execution);
     }
@@ -126,6 +173,25 @@ public class MigrationController {
         response.put("startTime", execution.getStartTime());
         response.put("endTime", execution.getEndTime());
         response.put("exitStatus", execution.getExitStatus().getExitCode());
+        
+        // Add failure exceptions if any
+        if (execution.getStatus() == BatchStatus.FAILED) {
+            List<String> errors = new ArrayList<>();
+            
+            // 1. Get Exit Description (often contains the main error message)
+            String exitDescription = execution.getExitStatus().getExitDescription();
+            if (exitDescription != null && !exitDescription.isEmpty()) {
+                errors.add(exitDescription);
+            }
+            
+            // 2. Get Failure Exceptions
+            List<String> exceptionErrors = execution.getAllFailureExceptions().stream()
+                    .map(this::formatExceptionMessage)
+                    .collect(Collectors.toList());
+            errors.addAll(exceptionErrors);
+            
+            response.put("errors", errors);
+        }
 
         // System Metrics
         Map<String, Object> systemMetrics = new HashMap<>();
@@ -137,17 +203,17 @@ public class MigrationController {
         systemMetrics.put("heapMaxMB", heapUsage.getMax() / (1024 * 1024));
         systemMetrics.put("systemLoadAverage", osBean.getSystemLoadAverage());
         systemMetrics.put("availableProcessors", osBean.getAvailableProcessors());
-        
+
         response.put("systemMetrics", systemMetrics);
 
         // Table Progress
         List<Map<String, Object>> tableProgress = new ArrayList<>();
         List<String> completedTables = new ArrayList<>();
-        
+
         for (StepExecution stepExecution : execution.getStepExecutions()) {
             Map<String, Object> stepInfo = new HashMap<>();
             String stepName = stepExecution.getStepName();
-            
+
             // Only include table migration steps in the progress list
             if (stepName.startsWith("migrate_")) {
                 String tableName = stepName.substring("migrate_".length());
@@ -155,18 +221,47 @@ public class MigrationController {
                 stepInfo.put("readCount", stepExecution.getReadCount());
                 stepInfo.put("writeCount", stepExecution.getWriteCount());
                 stepInfo.put("status", stepExecution.getStatus().toString());
-                
+
                 if (stepExecution.getStatus() == BatchStatus.COMPLETED) {
                     completedTables.add(tableName);
                 }
                 tableProgress.add(stepInfo);
+            } else if (stepExecution.getStatus() == BatchStatus.FAILED) {
+                 // Capture constraint creation failure specifically
+                 List<String> stepErrors = new ArrayList<>();
+                 
+                 // Add exit description for the step
+//                 String stepExitDesc = stepExecution.getExitStatus().getExitDescription();
+//                 if (stepExitDesc != null && !stepExitDesc.isEmpty()) {
+//                     stepErrors.add(stepExitDesc);
+//                 }
+
+                 // Add exceptions
+                 stepErrors.addAll(stepExecution.getFailureExceptions().stream()
+                         .map(this::formatExceptionMessage)
+                         .collect(Collectors.toList()));
+                         
+                 response.put("constraintErrors", stepErrors);
             }
         }
-        
+
         response.put("completedTables", completedTables);
         response.put("tableProgress", tableProgress);
 
         return response;
+    }
+    
+    private String formatExceptionMessage(Throwable t) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(t.getMessage());
+        
+        // Traverse the cause chain to get all nested causes
+        Throwable cause = t.getCause();
+        while (cause != null) {
+            sb.append(" | Caused by: ").append(cause.getMessage());
+            cause = cause.getCause();
+        }
+        return sb.toString();
     }
 
     /**

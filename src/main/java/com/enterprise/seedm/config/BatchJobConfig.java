@@ -46,13 +46,13 @@ public class BatchJobConfig {
     private final DestinationSchemaService destinationSchemaService;
     private final DataMaskingService dataMaskingService;
 
-    @Value("${migration.source.schema}")
+    @Value("${seedm.migration.source.schema}")
     private String sourceSchema;
 
-    @Value("${migration.destination.schema}")
+    @Value("${seedm.migration.destination.schema}")
     private String destinationSchema;
 
-    @Value("${migration.chunk-size:1000}")
+    @Value("${seedm.migration.chunk-size:1000}")
     private int chunkSize;
 
     public BatchJobConfig(@Qualifier("sourceDataSource") DataSource sourceDataSource,
@@ -88,7 +88,7 @@ public class BatchJobConfig {
         }
 
         // Create job builder
-        JobBuilder jobBuilder = new JobBuilder("schemaMigrationJob", jobRepository)
+        JobBuilder jobBuilder = new JobBuilder("DBMigrationJob", jobRepository)
                 .incrementer(new RunIdIncrementer());
 
         SimpleJobBuilder simpleJobBuilder = null;
