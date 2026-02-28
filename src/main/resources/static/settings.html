@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SeEDM - Masking Configuration</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .list-item { cursor: pointer; padding: 8px 12px; border-radius: 6px; transition: background-color 0.2s; }
+        .list-item:hover { background-color: #f3f4f6; }
+        .list-item.active { background-color: #e0e7ff; color: #4338ca; font-weight: 500; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <!-- Sidebar -->
+    <div class="fixed inset-y-0 left-0 w-64 bg-gray-900 text-white transition-transform duration-300 transform z-30">
+        <div class="flex items-center justify-center h-16 border-b border-gray-800">
+            <h1 class="text-2xl font-bold tracking-wider"><i class="fas fa-database mr-2 text-blue-500"></i>SeEDM</h1>
+        </div>
+        <nav class="mt-6">
+            <a href="index.html" class="flex items-center px-6 py-3 hover:bg-gray-800 hover:text-gray-100 transition-colors text-gray-400">
+                <i class="fas fa-tachometer-alt w-6"></i>
+                <span class="mx-3">Dashboard</span>
+            </a>
+            <a href="tables.html" class="flex items-center px-6 py-3 hover:bg-gray-800 hover:text-gray-100 transition-colors text-gray-400">
+                <i class="fas fa-table w-6"></i>
+                <span class="mx-3">Tables</span>
+            </a>
+            <a href="settings.html" class="flex items-center px-6 py-3 bg-gray-800 border-l-4 border-blue-500 text-gray-100">
+                <i class="fas fa-cogs w-6"></i>
+                <span class="mx-3">Settings</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="ml-64 p-8">
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h2 class="text-3xl font-bold text-gray-800">Masking Configuration</h2>
+                <p class="text-gray-500 mt-1">Configure data masking rules and encryption keys</p>
+            </div>
+            <button onclick="saveConfig()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg shadow-lg transition duration-300 flex items-center">
+                <i class="fas fa-save mr-2"></i> Save Configuration
+            </button>
+        </div>
+
+        <!-- Secret Key Section -->
+        <div class="card p-6 mb-8">
+            <h3 class="text-lg font-semibold mb-4 text-gray-700">Encryption Settings</h3>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Secret Key (Salt)</label>
+                <input type="text" id="secretKey" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="Enter secret key for deterministic encryption">
+                <p class="text-xs text-gray-500 mt-1">This key is used to salt the deterministic encryption for constraints.</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Standard Masking -->
+            <div class="card p-6">
+                <h3 class="text-lg font-semibold mb-4 text-gray-700 flex items-center">
+                    <i class="fas fa-mask mr-2 text-blue-500"></i> Standard Masking (PII)
+                </h3>
+                <p class="text-sm text-gray-500 mb-4">Select columns to mask with fake data (e.g., names, emails).</p>
+
+                <div class="grid grid-cols-2 gap-4 h-96">
+                    <!-- Tables List -->
+                    <div class="border rounded-lg overflow-hidden flex flex-col">
+                        <div class="bg-gray-50 p-2 border-b font-medium text-sm">Tables</div>
+                        <div class="overflow-y-auto flex-1 p-2 space-y-1" id="maskingTablesList">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Columns List -->
+                    <div class="border rounded-lg overflow-hidden flex flex-col">
+                        <div class="bg-gray-50 p-2 border-b font-medium text-sm">Columns</div>
+                        <div class="overflow-y-auto flex-1 p-2 space-y-1" id="maskingColumnsList">
+                            <div class="text-gray-400 text-sm text-center mt-4">Select a table</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <h4 class="text-sm font-medium text-gray-700 mb-2">Selected Columns:</h4>
+                    <div class="flex flex-wrap gap-2" id="selectedMaskingColumns">
+                        <!-- Tags go here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Constraint Masking -->
+            <div class="card p-6">
+                <h3 class="text-lg font-semibold mb-4 text-gray-700 flex items-center">
+                    <i class="fas fa-key mr-2 text-purple-500"></i> Constraint Encryption
+                </h3>
+                <p class="text-sm text-gray-500 mb-4">Select ID columns (PK/FK) to encrypt deterministically.</p>
+
+                <div class="grid grid-cols-2 gap-4 h-96">
+                    <!-- Tables List -->
+                    <div class="border rounded-lg overflow-hidden flex flex-col">
+                        <div class="bg-gray-50 p-2 border-b font-medium text-sm">Tables</div>
+                        <div class="overflow-y-auto flex-1 p-2 space-y-1" id="constraintTablesList">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Columns List -->
+                    <div class="border rounded-lg overflow-hidden flex flex-col">
+                        <div class="bg-gray-50 p-2 border-b font-medium text-sm">Columns</div>
+                        <div class="overflow-y-auto flex-1 p-2 space-y-1" id="constraintColumnsList">
+                            <div class="text-gray-400 text-sm text-center mt-4">Select a table</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <h4 class="text-sm font-medium text-gray-700 mb-2">Selected Constraints:</h4>
+                    <div class="flex flex-wrap gap-2" id="selectedConstraintColumns">
+                        <!-- Tags go here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let tables = [];
+        let currentMaskingTable = null;
+        let currentConstraintTable = null;
+
+        // State for selected columns
+        let config = {
+            maskingColumns: [],
+            constraintColumns: [],
+            maskingKey: ''
+        };
+
+        async function init() {
+            await fetchConfig();
+            await fetchTables();
+        }
+
+        async function fetchConfig() {
+            try {
+                const res = await fetch('/api/config');
+                const data = await res.json();
+                config = data;
+                document.getElementById('secretKey').value = config.maskingKey;
+                renderSelectedTags('masking');
+                renderSelectedTags('constraint');
+            } catch (e) {
+                console.error('Failed to fetch config', e);
+            }
+        }
+
+        async function fetchTables() {
+            try {
+                const res = await fetch('/api/config/tables');
+                tables = await res.json();
+                renderTableList('masking');
+                renderTableList('constraint');
+            } catch (e) {
+                console.error('Failed to fetch tables', e);
+            }
+        }
+
+        function renderTableList(type) {
+            const container = document.getElementById(`${type}TablesList`);
+            container.innerHTML = '';
+            tables.forEach(table => {
+                const div = document.createElement('div');
+                div.className = 'list-item text-sm';
+                div.textContent = table;
+                div.onclick = () => loadColumns(table, type, div);
+                container.appendChild(div);
+            });
+        }
+
+        async function loadColumns(table, type, element) {
+            // Highlight active table
+            const container = document.getElementById(`${type}TablesList`);
+            Array.from(container.children).forEach(c => c.classList.remove('active'));
+            element.classList.add('active');
+
+            if (type === 'masking') currentMaskingTable = table;
+            else currentConstraintTable = table;
+
+            try {
+                const res = await fetch(`/api/config/columns/${table}`);
+                const columns = await res.json();
+                renderColumnList(columns, type, table);
+            } catch (e) {
+                console.error('Failed to fetch columns', e);
+            }
+        }
+
+        function renderColumnList(columns, type, table) {
+            const container = document.getElementById(`${type}ColumnsList`);
+            container.innerHTML = '';
+
+            const selectedList = type === 'masking' ? config.maskingColumns : config.constraintColumns;
+
+            columns.forEach(col => {
+                const fullColName = `${table}.${col}`;
+                const isSelected = selectedList.includes(fullColName);
+
+                const div = document.createElement('div');
+                div.className = `list-item text-sm flex items-center justify-between ${isSelected ? 'bg-blue-50 text-blue-700' : ''}`;
+                div.innerHTML = `
+                    <span>${col}</span>
+                    ${isSelected ? '<i class="fas fa-check text-blue-500"></i>' : ''}
+                `;
+                div.onclick = () => toggleColumn(fullColName, type);
+                container.appendChild(div);
+            });
+        }
+
+        function toggleColumn(fullColName, type) {
+            const list = type === 'masking' ? config.maskingColumns : config.constraintColumns;
+            const index = list.indexOf(fullColName);
+
+            if (index === -1) {
+                list.push(fullColName);
+            } else {
+                list.splice(index, 1);
+            }
+
+            // Re-render columns list to update checkmarks
+            const currentTable = type === 'masking' ? currentMaskingTable : currentConstraintTable;
+            // Trigger reload of columns view if we are on that table
+            // Ideally we just update UI, but reloading is easier logic
+            const activeTableEl = document.querySelector(`#${type}TablesList .active`);
+            if (activeTableEl && activeTableEl.textContent === currentTable) {
+                // We need to fetch columns again or just re-render if we stored them.
+                // For simplicity, let's just re-trigger the click logic or fetch.
+                // Better: just re-fetch columns for current table
+                loadColumns(currentTable, type, activeTableEl);
+            }
+
+            renderSelectedTags(type);
+        }
+
+        function renderSelectedTags(type) {
+            const container = document.getElementById(type === 'masking' ? 'selectedMaskingColumns' : 'selectedConstraintColumns');
+            container.innerHTML = '';
+            const list = type === 'masking' ? config.maskingColumns : config.constraintColumns;
+            const color = type === 'masking' ? 'blue' : 'purple';
+
+            list.forEach(item => {
+                const tag = document.createElement('span');
+                tag.className = `inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${color}-100 text-${color}-800`;
+                tag.innerHTML = `
+                    ${item}
+                    <button onclick="removeTag('${item}', '${type}')" class="ml-1.5 text-${color}-600 hover:text-${color}-800 focus:outline-none">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                container.appendChild(tag);
+            });
+        }
+
+        window.removeTag = function(item, type) {
+            toggleColumn(item, type);
+        }
+
+        window.saveConfig = async function() {
+            config.maskingKey = document.getElementById('secretKey').value;
+
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+
+                if (res.ok) {
+                    alert('Configuration saved successfully!');
+                } else {
+                    alert('Failed to save configuration.');
+                }
+            } catch (e) {
+                console.error('Save failed', e);
+                alert('Error saving configuration');
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

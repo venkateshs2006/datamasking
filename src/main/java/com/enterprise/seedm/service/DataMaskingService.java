@@ -1,10 +1,10 @@
 package com.enterprise.seedm.service;
 
 import com.enterprise.seedm.model.ColumnMetadata;
+import com.enterprise.seedm.model.MaskingConfig;
 import lombok.extern.slf4j.Slf4j;
 import net.datafaker.Faker;
 import org.postgresql.util.PGobject;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -25,23 +25,17 @@ import java.util.UUID;
 public class DataMaskingService {
 
     private final Faker faker;
-    private final Map<String, Set<String>> maskingRules;
-    private final Map<String, Set<String>> constraintRules;
     private final FormatPreservingEncryptionService fpeService;
     private final TableDiscoveryService tableDiscoveryService;
+    private final MaskingConfigService maskingConfigService;
     
-    public DataMaskingService(@Value("${seedm.migration.masking-columns:}") List<String> maskingColumns,
-                              @Value("${seedm.migration.masking-constraints:}") List<String> maskingConstraints,
-                              FormatPreservingEncryptionService fpeService,
-                              TableDiscoveryService tableDiscoveryService) {
+    public DataMaskingService(FormatPreservingEncryptionService fpeService,
+                              TableDiscoveryService tableDiscoveryService,
+                              MaskingConfigService maskingConfigService) {
         this.faker = new Faker();
         this.fpeService = fpeService;
         this.tableDiscoveryService = tableDiscoveryService;
-        this.maskingRules = parseRules(maskingColumns);
-        this.constraintRules = parseRules(maskingConstraints);
-
-        log.info("Initialized DataMaskingService with {} masking rules and {} constraint rules",
-                maskingRules.size(), constraintRules.size());
+        this.maskingConfigService = maskingConfigService;
     }
 
     private Map<String, Set<String>> parseRules(List<String> rules) {
@@ -66,6 +60,11 @@ public class DataMaskingService {
      */
     public Map<String, Object> maskData(String tableName, Map<String, Object> row) {
         String lowerTableName = tableName.toLowerCase();
+        
+        // Fetch current config dynamically
+        MaskingConfig config = maskingConfigService.getConfig();
+        Map<String, Set<String>> maskingRules = parseRules(config.getMaskingColumns());
+        Map<String, Set<String>> constraintRules = parseRules(config.getConstraintColumns());
 
         // Check if we need to do anything for this table
         boolean hasMasking = maskingRules.containsKey(lowerTableName);
