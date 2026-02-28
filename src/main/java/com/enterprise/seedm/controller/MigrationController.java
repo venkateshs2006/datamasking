@@ -1,7 +1,10 @@
 package com.enterprise.seedm.controller;
 
+import com.enterprise.seedm.config.SwappableDataSource;
 import com.enterprise.seedm.service.DestinationTableDiscoveryService;
+import com.enterprise.seedm.service.MigrationJobFactory;
 import com.enterprise.seedm.service.TableDiscoveryService;
+import com.zaxxer.hikari.HikariDataSource;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.web.bind.annotation.*;
 
+import javax.sql.DataSource;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
@@ -25,6 +29,7 @@ import java.lang.management.OperatingSystemMXBean;
 import java.security.SecureRandom;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,8 +46,10 @@ import java.util.stream.Collectors;
 public class MigrationController {
     @Autowired
     private  JobLauncher jobLauncher;
+    
     @Autowired
-    private  Job migrationJob;
+    private MigrationJobFactory migrationJobFactory;
+
     @Autowired
     private TableDiscoveryService tableDiscoveryService;
     @Autowired
@@ -55,21 +62,33 @@ public class MigrationController {
     private SecureRandom random;
     private JobExecution jobExecution=null;
 
-    @Value("${spring.datasource.source.url}")
-    private String sourceDbUrl;
+    @Qualifier("sourceDataSource")
+    @Autowired
+    private SwappableDataSource sourceDataSource;
 
-    @Value("${spring.datasource.destination.url}")
-    private String destinationDbUrl;
+    @Qualifier("destinationDataSource")
+    @Autowired
+    private SwappableDataSource destinationDataSource;
 
     /**
-     * Get connection details
+     * Get connection details from the active datasources
      */
     @GetMapping("/connection-details")
     public Map<String, String> getConnectionDetails() {
         Map<String, String> details = new HashMap<>();
-        details.put("sourceUrl", sourceDbUrl);
-        details.put("destinationUrl", destinationDbUrl);
+        
+        details.put("sourceUrl", getUrlFromDataSource(sourceDataSource));
+        details.put("destinationUrl", getUrlFromDataSource(destinationDataSource));
+        
         return details;
+    }
+
+    private String getUrlFromDataSource(SwappableDataSource swappableDataSource) {
+        DataSource target = swappableDataSource.getTargetDataSource();
+        if (target instanceof HikariDataSource) {
+            return ((HikariDataSource) target).getJdbcUrl();
+        }
+        return "Unknown DataSource Type";
     }
 
     /**
@@ -117,6 +136,10 @@ public class MigrationController {
         try {
             random = new SecureRandom();
             log.info("Starting migration job manually...");
+            
+            // Create a fresh job instance based on current DB connection/schema
+            Job migrationJob = migrationJobFactory.createMigrationJob();
+            
             int uniqueId=random.nextInt();
             String jobName="DBMigrationJob";
             JobParameters jobParameters = new JobParametersBuilder()
@@ -141,13 +164,34 @@ public class MigrationController {
             // Since we configured the JobLauncher to be async in BatchConfig, jobLauncher.run() returns immediately
             // with the JobExecution that has been persisted to the DB (status STARTING/STARTED).
             if(jobExecution==null){
-                jobExecution=jobExplorer.findRunningJobExecutions(jobName).stream().findFirst().get();
+                // Wait briefly for the async thread to start the job
+                Thread.sleep(500); 
+                if (jobExecution == null) {
+                     // Fallback: try to find it, get the latest one
+                     jobExecution = jobExplorer.findRunningJobExecutions(jobName).stream()
+                             .max(Comparator.comparing(JobExecution::getId))
+                             .orElse(null);
+                }
             }
-
-            log.info("Job launched with Execution ID: {}", jobExecution.getId()+1);
-
-            // Redirect to the dashboard page with the execution ID immediately
-            response.sendRedirect("/index.html?executionId=" + (jobExecution.getId()+1L));
+            
+            if (jobExecution != null) {
+                log.info("Job launched with Execution ID: {}", (jobExecution.getId()+1));
+                // Redirect to the dashboard page with the execution ID immediately
+                response.sendRedirect("/index.html?executionId=" + (jobExecution.getId()+1));
+            } else {
+                // If we still can't find it, maybe it finished very quickly or failed to start.
+                // Try to find the most recent execution regardless of status
+                JobInstance lastInstance = jobExplorer.getLastJobInstance(jobName);
+                if (lastInstance != null) {
+                    jobExecution = jobExplorer.getLastJobExecution(lastInstance);
+                    if (jobExecution != null) {
+                        log.info("Found recent job execution ID: {}", (jobExecution.getId()+1));
+                        response.sendRedirect("/index.html?executionId=" + (jobExecution.getId()+1));
+                        return;
+                    }
+                }
+                throw new RuntimeException("Failed to obtain JobExecution ID. Job might not have started yet.");
+            }
 
         } catch (Exception e) {
             log.error("Failed to start migration", e);
@@ -231,10 +275,10 @@ public class MigrationController {
                  List<String> stepErrors = new ArrayList<>();
                  
                  // Add exit description for the step
-//                 String stepExitDesc = stepExecution.getExitStatus().getExitDescription();
-//                 if (stepExitDesc != null && !stepExitDesc.isEmpty()) {
-//                     stepErrors.add(stepExitDesc);
-//                 }
+                 String stepExitDesc = stepExecution.getExitStatus().getExitDescription();
+                 if (stepExitDesc != null && !stepExitDesc.isEmpty()) {
+                     stepErrors.add(stepExitDesc);
+                 }
 
                  // Add exceptions
                  stepErrors.addAll(stepExecution.getFailureExceptions().stream()

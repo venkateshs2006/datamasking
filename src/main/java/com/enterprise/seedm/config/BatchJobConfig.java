@@ -1,34 +1,13 @@
 package com.enterprise.seedm.config;
 
-
-import com.enterprise.seedm.batch.ConstraintCreationTasklet;
-import com.enterprise.seedm.batch.TableItemProcessor;
-import com.enterprise.seedm.batch.TableItemReader;
-import com.enterprise.seedm.batch.TableItemWriter;
-import com.enterprise.seedm.batch.TablePreparationTasklet;
-import com.enterprise.seedm.model.ColumnMetadata;
-import com.enterprise.seedm.service.DataMaskingService;
-import com.enterprise.seedm.service.DestinationSchemaService;
-import com.enterprise.seedm.service.TableDiscoveryService;
+import com.enterprise.seedm.service.MigrationJobFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
-import org.springframework.batch.core.Step;
-import org.springframework.batch.core.job.builder.JobBuilder;
-import org.springframework.batch.core.job.builder.SimpleJobBuilder;
-import org.springframework.batch.core.launch.support.RunIdIncrementer;
-import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.batch.core.step.builder.StepBuilder;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.transaction.PlatformTransactionManager;
 
-import javax.sql.DataSource;
 import java.sql.SQLException;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Batch Job Configuration
@@ -37,160 +16,36 @@ import java.util.stream.Collectors;
 @Configuration
 @Slf4j
 public class BatchJobConfig {
-    private final DataSource sourceDataSource;
-    private final DataSource destinationDataSource;
-    private final JobRepository jobRepository;
-    private final PlatformTransactionManager transactionManager;
-    private final PlatformTransactionManager destinationTransactionManager;
-    private final TableDiscoveryService tableDiscoveryService;
-    private final DestinationSchemaService destinationSchemaService;
-    private final DataMaskingService dataMaskingService;
 
-    @Value("${seedm.migration.source.schema}")
-    private String sourceSchema;
+    private final MigrationJobFactory migrationJobFactory;
 
-    @Value("${seedm.migration.destination.schema}")
-    private String destinationSchema;
-
-    @Value("${seedm.migration.chunk-size:1000}")
-    private int chunkSize;
-
-    public BatchJobConfig(@Qualifier("sourceDataSource") DataSource sourceDataSource,
-                          @Qualifier("destinationDataSource") DataSource destinationDataSource,
-                          JobRepository jobRepository,
-                          PlatformTransactionManager transactionManager,
-                          @Qualifier("destinationTransactionManager") PlatformTransactionManager destinationTransactionManager,
-                          TableDiscoveryService tableDiscoveryService,
-                          DestinationSchemaService destinationSchemaService,
-                          DataMaskingService dataMaskingService) {
-        this.sourceDataSource = sourceDataSource;
-        this.destinationDataSource = destinationDataSource;
-        this.jobRepository = jobRepository;
-        this.transactionManager = transactionManager;
-        this.destinationTransactionManager = destinationTransactionManager;
-        this.tableDiscoveryService = tableDiscoveryService;
-        this.destinationSchemaService = destinationSchemaService;
-        this.dataMaskingService = dataMaskingService;
+    public BatchJobConfig(MigrationJobFactory migrationJobFactory) {
+        this.migrationJobFactory = migrationJobFactory;
     }
 
     /**
      * Main migration job
+     * Note: This bean is created at startup. If the DB connection changes,
+     * this bean might hold stale steps if not re-created or if steps are not dynamic.
+     * However, since we are using a SwappableDataSource and dynamic SchemaConfig,
+     * the steps created here will use those references.
+     * BUT, the list of tables (steps) is determined at creation time.
+     * To support dynamic table lists after connection change, we should probably
+     * not define the Job as a singleton bean here, or use a JobFactory.
+     * 
+     * For now, let's keep it simple. If the user changes the DB, they might need to restart 
+     * or we need a way to refresh this bean.
+     * 
+     * BETTER APPROACH: The controller should ask the factory for a NEW job instance 
+     * every time "Start Migration" is clicked, instead of injecting a singleton Job.
+     * 
+     * So, we will REMOVE the @Bean definition for the Job here, and let the Controller
+     * call migrationJobFactory.createMigrationJob() directly.
      */
-    @Bean
-    public Job migrationJob() throws SQLException {
-        log.info("Creating migration job...");
-
-        // Discover all tables from source schema
-        List<String> tables = tableDiscoveryService.discoverTables();
-
-        if (tables.isEmpty()) {
-            log.warn("No tables found in source schema: {}", sourceSchema);
-        }
-
-        // Create job builder
-        JobBuilder jobBuilder = new JobBuilder("DBMigrationJob", jobRepository)
-                .incrementer(new RunIdIncrementer());
-
-        SimpleJobBuilder simpleJobBuilder = null;
-
-        // 1. Create steps for each table migration
-        for (String tableName : tables) {
-            // Step 1.1: Prepare table (Drop & Create without constraints)
-            Step prepareStep = createTablePreparationStep(tableName);
-            
-            // Step 1.2: Migrate data (Read -> Mask -> Write)
-            Step migrateStep = createTableMigrationStep(tableName);
-
-            if (simpleJobBuilder == null) {
-                simpleJobBuilder = jobBuilder.start(prepareStep);
-            } else {
-                simpleJobBuilder.next(prepareStep);
-            }
-            simpleJobBuilder.next(migrateStep);
-        }
-
-        // 2. Create a final step for constraint creation (PK, FK, Unique)
-        Step constraintStep = createConstraintCreationStep();
-
-        if (simpleJobBuilder == null) {
-            log.error("No steps created - no tables to migrate!");
-            // Create a dummy step
-            Step noTablesStep = new StepBuilder("noTablesStep", jobRepository)
-                    .tasklet((contribution, chunkContext) -> {
-                        log.info("No tables to migrate");
-                        return null;
-                    }, transactionManager)
-                    .build();
-            simpleJobBuilder = jobBuilder.start(noTablesStep);
-        } else {
-            // Add constraint step at the end
-            simpleJobBuilder.next(constraintStep);
-        }
-
-        return simpleJobBuilder.build();
-    }
-
-    /**
-     * Create a step for preparing a single table (Drop & Create)
-     */
-    private Step createTablePreparationStep(String tableName) {
-        // Get detailed column metadata for this table
-        List<ColumnMetadata> columnMetadata = tableDiscoveryService.getTableColumnMetadata(tableName);
-        
-        return new StepBuilder("prepare_" + tableName, jobRepository)
-                .tasklet(new TablePreparationTasklet(destinationSchemaService, tableName, columnMetadata), transactionManager)
-                .build();
-    }
-
-    /**
-     * Create a step for migrating a single table (Data only)
-     */
-    private Step createTableMigrationStep(String tableName) {
-        log.info("Creating migration step for table: {}", tableName);
-
-        // Get detailed column metadata for this table
-        List<ColumnMetadata> columnMetadata = tableDiscoveryService.getTableColumnMetadata(tableName);
-        
-        // Extract column names for reader
-        List<String> columns = columnMetadata.stream()
-                .map(ColumnMetadata::getColumnName)
-                .collect(Collectors.toList());
-
-        // Create reader
-        TableItemReader reader = new TableItemReader(
-                sourceDataSource,
-                sourceSchema,
-                tableName,
-                columns,
-                chunkSize
-        );
-        reader.setName(tableName + "Reader");
-
-        // Create processor
-        TableItemProcessor processor = new TableItemProcessor(tableName, dataMaskingService);
-
-        // Create writer
-        TableItemWriter writer = new TableItemWriter(
-                destinationDataSource,
-                destinationSchema,
-                tableName
-        );
-
-        // Build step
-        return new StepBuilder("migrate_" + tableName, jobRepository)
-                .<Map<String, Object>, Map<String, Object>>chunk(chunkSize, destinationTransactionManager)
-                .reader(reader)
-                .processor(processor)
-                .writer(writer)
-                .build();
-    }
-
-    /**
-     * Create a step for creating constraints after data migration
-     */
-    private Step createConstraintCreationStep() {
-        return new StepBuilder("createConstraintsStep", jobRepository)
-                .tasklet(new ConstraintCreationTasklet(tableDiscoveryService, destinationSchemaService), transactionManager)
-                .build();
-    }
+    
+    // Removing the singleton Job bean to allow dynamic creation based on current DB state.
+    // @Bean
+    // public Job migrationJob() throws SQLException {
+    //     return migrationJobFactory.createMigrationJob();
+    // }
 }

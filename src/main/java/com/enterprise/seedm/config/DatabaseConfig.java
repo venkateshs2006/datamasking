@@ -47,12 +47,14 @@ public class DatabaseConfig {
         return new DataSourceProperties();
     }
 
+    // Wrap the actual source datasource in a SwappableDataSource
     @Bean(name = "sourceDataSource")
-    public DataSource sourceDataSource() {
-        return sourceDataSourceProperties()
+    public SwappableDataSource sourceDataSource() {
+        DataSource initialDataSource = sourceDataSourceProperties()
                 .initializeDataSourceBuilder()
                 .type(HikariDataSource.class)
                 .build();
+        return new SwappableDataSource(initialDataSource);
     }
 
     @Bean(name = "sourceTransactionManager")
@@ -68,12 +70,14 @@ public class DatabaseConfig {
         return new DataSourceProperties();
     }
 
+    // Wrap the actual destination datasource in a SwappableDataSource
     @Bean(name = "destinationDataSource")
-    public DataSource destinationDataSource() {
-        return destinationDataSourceProperties()
+    public SwappableDataSource destinationDataSource() {
+        DataSource initialDataSource = destinationDataSourceProperties()
                 .initializeDataSourceBuilder()
                 .type(HikariDataSource.class)
                 .build();
+        return new SwappableDataSource(initialDataSource);
     }
 
     @Bean(name = "destinationTransactionManager")

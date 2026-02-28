@@ -26,16 +26,15 @@ public class TableDiscoveryService {
 
     private final DataSource sourceDataSource;
     private final JdbcTemplate sourceJdbcTemplate;
-
-    @Value("${seedm.migration.source.schema}")
-    private String sourceSchema;
+    private final SchemaConfig schemaConfig;
 
     @Value("${spring.batch.jdbc.table-prefix:BATCH_}")
     private String batchTablePrefix;
 
-    public TableDiscoveryService(@Qualifier("sourceDataSource") DataSource sourceDataSource) {
+    public TableDiscoveryService(@Qualifier("sourceDataSource") DataSource sourceDataSource, SchemaConfig schemaConfig) {
         this.sourceDataSource = sourceDataSource;
         this.sourceJdbcTemplate = new JdbcTemplate(sourceDataSource);
+        this.schemaConfig = schemaConfig;
     }
 
     /**
@@ -50,7 +49,7 @@ public class TableDiscoveryService {
             ORDER BY table_name
             """;
 
-        List<String> tables = sourceJdbcTemplate.queryForList(sql, String.class, sourceSchema);
+        List<String> tables = sourceJdbcTemplate.queryForList(sql, String.class, schemaConfig.getSourceSchema());
 
         // Filter out Spring Batch tables
         List<String> filteredTables = tables.stream()
@@ -58,7 +57,7 @@ public class TableDiscoveryService {
                 .collect(Collectors.toList());
 
         log.info("Discovered {} tables in schema '{}' ({} filtered out)",
-                filteredTables.size(), sourceSchema, tables.size() - filteredTables.size());
+                filteredTables.size(), schemaConfig.getSourceSchema(), tables.size() - filteredTables.size());
         filteredTables.forEach(table -> log.debug("  - {}", table));
 
         return filteredTables;
@@ -76,7 +75,7 @@ public class TableDiscoveryService {
             ORDER BY ordinal_position
             """;
 
-        List<String> columns = sourceJdbcTemplate.queryForList(sql, String.class, sourceSchema, tableName);
+        List<String> columns = sourceJdbcTemplate.queryForList(sql, String.class, schemaConfig.getSourceSchema(), tableName);
         log.debug("Table '{}' has {} columns", tableName, columns.size());
         return columns;
     }
@@ -101,7 +100,7 @@ public class TableDiscoveryService {
                 rs.getObject("character_maximum_length") != null ? rs.getInt("character_maximum_length") : null,
                 rs.getObject("numeric_precision") != null ? rs.getInt("numeric_precision") : null,
                 rs.getObject("numeric_scale") != null ? rs.getInt("numeric_scale") : null
-        ), sourceSchema, tableName);
+        ), schemaConfig.getSourceSchema(), tableName);
     }
 
     /**
@@ -131,7 +130,7 @@ public class TableDiscoveryService {
             ORDER BY tc.constraint_name, kcu.ordinal_position
             """;
 
-        List<Map<String, Object>> rows = sourceJdbcTemplate.queryForList(sql, sourceSchema, tableName);
+        List<Map<String, Object>> rows = sourceJdbcTemplate.queryForList(sql, schemaConfig.getSourceSchema(), tableName);
         
         // Use a map to aggregate columns for composite keys
         Map<String, ConstraintMetadata> constraintMap = new LinkedHashMap<>();
@@ -146,7 +145,6 @@ public class TableDiscoveryService {
                 ConstraintMetadata existing = constraintMap.get(constraintName);
                 
                 // Check if column already exists in the list to avoid duplicates
-                // This can happen because of the join with constraint_column_usage which might return multiple rows for composite FKs
                 if (!existing.getColumnName().contains(columnName)) {
                      existing.setColumnName(existing.getColumnName() + ", " + columnName);
                 }
@@ -175,7 +173,7 @@ public class TableDiscoveryService {
      * Get row count for a table
      */
     public long getTableRowCount(String tableName) {
-        String sql = String.format("SELECT COUNT(*) FROM %s.%s", sourceSchema, tableName);
+        String sql = String.format("SELECT COUNT(*) FROM %s.%s", schemaConfig.getSourceSchema(), tableName);
         Long count = sourceJdbcTemplate.queryForObject(sql, Long.class);
         return count != null ? count : 0;
     }

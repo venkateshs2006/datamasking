@@ -18,25 +18,24 @@ import java.util.List;
 public class DestinationSchemaService {
 
     private final JdbcTemplate destinationJdbcTemplate;
+    private final SchemaConfig schemaConfig;
 
-    @Value("${seedm.migration.destination.schema}")
-    private String destinationSchema;
-
-    public DestinationSchemaService(@Qualifier("destinationDataSource") DataSource destinationDataSource) {
+    public DestinationSchemaService(@Qualifier("destinationDataSource") DataSource destinationDataSource, SchemaConfig schemaConfig) {
         this.destinationJdbcTemplate = new JdbcTemplate(destinationDataSource);
+        this.schemaConfig = schemaConfig;
     }
 
     @Transactional
     public void recreateTable(String tableName, List<ColumnMetadata> columns) {
-        log.info("Recreating table {}.{}", destinationSchema, tableName);
+        log.info("Recreating table {}.{}", schemaConfig.getDestinationSchema(), tableName);
 
         // Drop table if exists
-        String dropSql = String.format("DROP TABLE IF EXISTS %s.%s CASCADE", destinationSchema, tableName);
+        String dropSql = String.format("DROP TABLE IF EXISTS %s.%s CASCADE", schemaConfig.getDestinationSchema(), tableName);
         destinationJdbcTemplate.execute(dropSql);
 
         // Create table
         StringBuilder createSql = new StringBuilder();
-        createSql.append(String.format("CREATE TABLE %s.%s (", destinationSchema, tableName));
+        createSql.append(String.format("CREATE TABLE %s.%s (", schemaConfig.getDestinationSchema(), tableName));
 
         for (int i = 0; i < columns.size(); i++) {
             ColumnMetadata col = columns.get(i);
@@ -59,26 +58,46 @@ public class DestinationSchemaService {
 
     @Transactional
     public void createConstraints(String tableName, List<ConstraintMetadata> constraints) {
-        log.info("Creating constraints for table {}.{}", destinationSchema, tableName);
+        log.info("Creating constraints for table {}.{}", schemaConfig.getDestinationSchema(), tableName);
 
         for (ConstraintMetadata constraint : constraints) {
-            try {
-                if (constraintExists(tableName, constraint.getConstraintName())) {
-                    log.info("Constraint {} on table {} already exists. Skipping.", constraint.getConstraintName(), tableName);
-                    continue;
-                }
+            boolean success = false;
+            int attempts = 0;
+            int maxRetries = 3;
 
-                String sql = generateConstraintSql(tableName, constraint);
-                if (sql != null) {
-                    log.debug("Executing constraint SQL: {}", sql);
-                    destinationJdbcTemplate.execute(sql);
-                    log.info("Successfully created constraint {} on table {}", constraint.getConstraintName(), tableName);
+            while (!success && attempts < maxRetries) {
+                try {
+                    attempts++;
+                    if (constraintExists(tableName, constraint.getConstraintName())) {
+                        log.info("Constraint {} on table {} already exists. Skipping.", constraint.getConstraintName(), tableName);
+                        success = true;
+                        continue;
+                    }
+
+                    String sql = generateConstraintSql(tableName, constraint);
+                    if (sql != null) {
+                        log.debug("Executing constraint SQL (Attempt {}): {}", attempts, sql);
+                        destinationJdbcTemplate.execute(sql);
+                        success = true;
+                        log.info("Successfully created constraint {} on table {}", constraint.getConstraintName(), tableName);
+                    }
+                } catch (DataAccessException e) {
+                    log.warn("Failed to create constraint {} on table {} (Attempt {}/{}): {}", 
+                            constraint.getConstraintName(), tableName, attempts, maxRetries, e.getMessage());
+                    
+                    if (attempts < maxRetries) {
+                        try {
+                            Thread.sleep(1000); // Wait before retry
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    } else {
+                        log.error("Permanently failed to create constraint {} on table {} after {} attempts.", 
+                                constraint.getConstraintName(), tableName, maxRetries);
+                        // We don't rethrow here to allow other constraints to be processed
+                    }
                 }
-            } catch (DataAccessException e) {
-                log.error("Failed to create constraint {} on table {}: {}", 
-                        constraint.getConstraintName(), tableName, e.getMessage());
-                // Re-throw exception to let Spring Batch handle the retry at the step level
-                throw e;
             }
         }
     }
@@ -91,7 +110,7 @@ public class DestinationSchemaService {
             AND table_name = ? 
             AND constraint_name = ?
             """;
-        Integer count = destinationJdbcTemplate.queryForObject(sql, Integer.class, destinationSchema, tableName, constraintName);
+        Integer count = destinationJdbcTemplate.queryForObject(sql, Integer.class, schemaConfig.getDestinationSchema(), tableName, constraintName);
         return count != null && count > 0;
     }
 
@@ -101,16 +120,16 @@ public class DestinationSchemaService {
         switch (constraint.getConstraintType()) {
             case "PRIMARY KEY":
                 return String.format("ALTER TABLE %s.%s ADD CONSTRAINT %s PRIMARY KEY (%s)",
-                        destinationSchema, tableName, constraintName, constraint.getColumnName());
+                        schemaConfig.getDestinationSchema(), tableName, constraintName, constraint.getColumnName());
             
             case "UNIQUE":
                 return String.format("ALTER TABLE %s.%s ADD CONSTRAINT %s UNIQUE (%s)",
-                        destinationSchema, tableName, constraintName, constraint.getColumnName());
+                        schemaConfig.getDestinationSchema(), tableName, constraintName, constraint.getColumnName());
             
             case "FOREIGN KEY":
                 return String.format("ALTER TABLE %s.%s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s.%s (%s)",
-                        destinationSchema, tableName, constraintName, constraint.getColumnName(),
-                        destinationSchema, constraint.getForeignTableName(), constraint.getForeignColumnName());
+                        schemaConfig.getDestinationSchema(), tableName, constraintName, constraint.getColumnName(),
+                        schemaConfig.getDestinationSchema(), constraint.getForeignTableName(), constraint.getForeignColumnName());
                 
             default:
                 return null;
