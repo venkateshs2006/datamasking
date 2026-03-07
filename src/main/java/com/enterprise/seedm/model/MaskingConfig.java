@@ -8,5 +8,6 @@ import java.util.List;
 public class MaskingConfig {
     private List<String> maskingColumns = new ArrayList<>();
     private List<String> constraintColumns = new ArrayList<>();
+    private List<String> partialMaskingColumns = new ArrayList<>();
     private String maskingKey = "DefaultSecretKey123";
 }

@@ -50,17 +50,7 @@
             </button>
         </div>
 
-        <!-- Secret Key Section -->
-        <div class="card p-6 mb-8">
-            <h3 class="text-lg font-semibold mb-4 text-gray-700">Encryption Settings</h3>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Secret Key (Salt)</label>
-                <input type="text" id="secretKey" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="Enter secret key for deterministic encryption">
-                <p class="text-xs text-gray-500 mt-1">This key is used to salt the deterministic encryption for constraints.</p>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <!-- Standard Masking -->
             <div class="card p-6">
                 <h3 class="text-lg font-semibold mb-4 text-gray-700 flex items-center">
@@ -72,9 +62,7 @@
                     <!-- Tables List -->
                     <div class="border rounded-lg overflow-hidden flex flex-col">
                         <div class="bg-gray-50 p-2 border-b font-medium text-sm">Tables</div>
-                        <div class="overflow-y-auto flex-1 p-2 space-y-1" id="maskingTablesList">
-                            <!-- Populated via JS -->
-                        </div>
+                        <div class="overflow-y-auto flex-1 p-2 space-y-1" id="maskingTablesList"></div>
                     </div>
 
                     <!-- Columns List -->
@@ -88,9 +76,7 @@
 
                 <div class="mt-4">
                     <h4 class="text-sm font-medium text-gray-700 mb-2">Selected Columns:</h4>
-                    <div class="flex flex-wrap gap-2" id="selectedMaskingColumns">
-                        <!-- Tags go here -->
-                    </div>
+                    <div class="flex flex-wrap gap-2" id="selectedMaskingColumns"></div>
                 </div>
             </div>
 
@@ -101,13 +87,17 @@
                 </h3>
                 <p class="text-sm text-gray-500 mb-4">Select ID columns (PK/FK) to encrypt deterministically.</p>
 
-                <div class="grid grid-cols-2 gap-4 h-96">
+                <!-- Secret Key Input (Moved Here) -->
+                <div class="mb-4">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Secret Key (Salt)</label>
+                    <input type="text" id="secretKey" class="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500" placeholder="Enter secret key">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 h-80"> <!-- Adjusted height to fit key input -->
                     <!-- Tables List -->
                     <div class="border rounded-lg overflow-hidden flex flex-col">
                         <div class="bg-gray-50 p-2 border-b font-medium text-sm">Tables</div>
-                        <div class="overflow-y-auto flex-1 p-2 space-y-1" id="constraintTablesList">
-                            <!-- Populated via JS -->
-                        </div>
+                        <div class="overflow-y-auto flex-1 p-2 space-y-1" id="constraintTablesList"></div>
                     </div>
 
                     <!-- Columns List -->
@@ -121,9 +111,36 @@
 
                 <div class="mt-4">
                     <h4 class="text-sm font-medium text-gray-700 mb-2">Selected Constraints:</h4>
-                    <div class="flex flex-wrap gap-2" id="selectedConstraintColumns">
-                        <!-- Tags go here -->
+                    <div class="flex flex-wrap gap-2" id="selectedConstraintColumns"></div>
+                </div>
+            </div>
+
+            <!-- Partial Masking -->
+            <div class="card p-6">
+                <h3 class="text-lg font-semibold mb-4 text-gray-700 flex items-center">
+                    <i class="fas fa-eye-slash mr-2 text-orange-500"></i> Partial Masking
+                </h3>
+                <p class="text-sm text-gray-500 mb-4">Select columns to partially mask (e.g., Credit Cards, Phones).</p>
+
+                <div class="grid grid-cols-2 gap-4 h-96">
+                    <!-- Tables List -->
+                    <div class="border rounded-lg overflow-hidden flex flex-col">
+                        <div class="bg-gray-50 p-2 border-b font-medium text-sm">Tables</div>
+                        <div class="overflow-y-auto flex-1 p-2 space-y-1" id="partialTablesList"></div>
                     </div>
+
+                    <!-- Columns List -->
+                    <div class="border rounded-lg overflow-hidden flex flex-col">
+                        <div class="bg-gray-50 p-2 border-b font-medium text-sm">Columns</div>
+                        <div class="overflow-y-auto flex-1 p-2 space-y-1" id="partialColumnsList">
+                            <div class="text-gray-400 text-sm text-center mt-4">Select a table</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <h4 class="text-sm font-medium text-gray-700 mb-2">Selected Partial:</h4>
+                    <div class="flex flex-wrap gap-2" id="selectedPartialColumns"></div>
                 </div>
             </div>
         </div>
@@ -131,13 +148,17 @@
 
     <script>
         let tables = [];
-        let currentMaskingTable = null;
-        let currentConstraintTable = null;
+        let currentTables = {
+            masking: null,
+            constraint: null,
+            partial: null
+        };
 
         // State for selected columns
         let config = {
             maskingColumns: [],
             constraintColumns: [],
+            partialMaskingColumns: [],
             maskingKey: ''
         };
 
@@ -154,6 +175,7 @@
                 document.getElementById('secretKey').value = config.maskingKey;
                 renderSelectedTags('masking');
                 renderSelectedTags('constraint');
+                renderSelectedTags('partial');
             } catch (e) {
                 console.error('Failed to fetch config', e);
             }
@@ -165,6 +187,7 @@
                 tables = await res.json();
                 renderTableList('masking');
                 renderTableList('constraint');
+                renderTableList('partial');
             } catch (e) {
                 console.error('Failed to fetch tables', e);
             }
@@ -188,8 +211,7 @@
             Array.from(container.children).forEach(c => c.classList.remove('active'));
             element.classList.add('active');
 
-            if (type === 'masking') currentMaskingTable = table;
-            else currentConstraintTable = table;
+            currentTables[type] = table;
 
             try {
                 const res = await fetch(`/api/config/columns/${table}`);
@@ -204,7 +226,10 @@
             const container = document.getElementById(`${type}ColumnsList`);
             container.innerHTML = '';
 
-            const selectedList = type === 'masking' ? config.maskingColumns : config.constraintColumns;
+            let selectedList;
+            if (type === 'masking') selectedList = config.maskingColumns;
+            else if (type === 'constraint') selectedList = config.constraintColumns;
+            else selectedList = config.partialMaskingColumns;
 
             columns.forEach(col => {
                 const fullColName = `${table}.${col}`;
@@ -222,7 +247,11 @@
         }
 
         function toggleColumn(fullColName, type) {
-            const list = type === 'masking' ? config.maskingColumns : config.constraintColumns;
+            let list;
+            if (type === 'masking') list = config.maskingColumns;
+            else if (type === 'constraint') list = config.constraintColumns;
+            else list = config.partialMaskingColumns;
+
             const index = list.indexOf(fullColName);
 
             if (index === -1) {
@@ -232,14 +261,9 @@
             }
 
             // Re-render columns list to update checkmarks
-            const currentTable = type === 'masking' ? currentMaskingTable : currentConstraintTable;
-            // Trigger reload of columns view if we are on that table
-            // Ideally we just update UI, but reloading is easier logic
+            const currentTable = currentTables[type];
             const activeTableEl = document.querySelector(`#${type}TablesList .active`);
             if (activeTableEl && activeTableEl.textContent === currentTable) {
-                // We need to fetch columns again or just re-render if we stored them.
-                // For simplicity, let's just re-trigger the click logic or fetch.
-                // Better: just re-fetch columns for current table
                 loadColumns(currentTable, type, activeTableEl);
             }
 
@@ -247,10 +271,16 @@
         }
 
         function renderSelectedTags(type) {
-            const container = document.getElementById(type === 'masking' ? 'selectedMaskingColumns' : 'selectedConstraintColumns');
+            const containerId = type === 'masking' ? 'selectedMaskingColumns' :
+                               (type === 'constraint' ? 'selectedConstraintColumns' : 'selectedPartialColumns');
+            const container = document.getElementById(containerId);
             container.innerHTML = '';
-            const list = type === 'masking' ? config.maskingColumns : config.constraintColumns;
-            const color = type === 'masking' ? 'blue' : 'purple';
+
+            let list;
+            let color;
+            if (type === 'masking') { list = config.maskingColumns; color = 'blue'; }
+            else if (type === 'constraint') { list = config.constraintColumns; color = 'purple'; }
+            else { list = config.partialMaskingColumns; color = 'orange'; }
 
             list.forEach(item => {
                 const tag = document.createElement('span');

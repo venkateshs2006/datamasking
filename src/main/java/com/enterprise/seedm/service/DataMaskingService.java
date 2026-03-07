@@ -65,12 +65,14 @@ public class DataMaskingService {
         MaskingConfig config = maskingConfigService.getConfig();
         Map<String, Set<String>> maskingRules = parseRules(config.getMaskingColumns());
         Map<String, Set<String>> constraintRules = parseRules(config.getConstraintColumns());
+        Map<String, Set<String>> partialMaskingRules = parseRules(config.getPartialMaskingColumns());
 
         // Check if we need to do anything for this table
         boolean hasMasking = maskingRules.containsKey(lowerTableName);
         boolean hasConstraints = constraintRules.containsKey(lowerTableName);
+        boolean hasPartialMasking = partialMaskingRules.containsKey(lowerTableName);
 
-        if (!hasMasking && !hasConstraints) {
+        if (!hasMasking && !hasConstraints && !hasPartialMasking) {
             return row;
         }
 
@@ -82,7 +84,7 @@ public class DataMaskingService {
              metadata = getCachedMetadata(tableName);
         }
 
-        // Apply Constraint Masking (Deterministic Encryption) first
+        // 1. Apply Constraint Masking (Deterministic Encryption)
         if (hasConstraints) {
             Set<String> constraintColumns = constraintRules.get(lowerTableName);
             for (String column : constraintColumns) {
@@ -92,7 +94,6 @@ public class DataMaskingService {
                     if (originalValue != null) {
                         String dataType = getColumnType(metadata, matchingKey);
                         try {
-                            // Use FPE Service for constraints
                             maskedRow.put(matchingKey, fpeService.encrypt(originalValue, dataType));
                         } catch (Exception e) {
                             log.error("Encryption failed for {}.{}", tableName, column, e);
@@ -102,7 +103,21 @@ public class DataMaskingService {
             }
         }
 
-        // Apply Standard Masking (Faker)
+        // 2. Apply Partial Masking (Redaction)
+        if (hasPartialMasking) {
+            Set<String> partialColumns = partialMaskingRules.get(lowerTableName);
+            for (String column : partialColumns) {
+                String matchingKey = findMatchingKey(maskedRow.keySet(), column);
+                if (matchingKey != null) {
+                    Object originalValue = maskedRow.get(matchingKey);
+                    if (originalValue != null) {
+                        maskedRow.put(matchingKey, applyPartialMasking(originalValue.toString()));
+                    }
+                }
+            }
+        }
+
+        // 3. Apply Standard Masking (Faker)
         if (hasMasking) {
             Set<String> columnsToMask = maskingRules.get(lowerTableName);
             for (String column : columnsToMask) {
@@ -143,6 +158,31 @@ public class DataMaskingService {
             }
         }
         return null;
+    }
+
+    private String applyPartialMasking(String value) {
+        if (value == null || value.isEmpty()) return value;
+        
+        // Simple heuristic: keep last 4 chars visible
+        int length = value.length();
+        if (length <= 4) {
+            return value; // Too short to mask
+        }
+        
+        int visibleCount = 4;
+        int maskCount = length - visibleCount;
+        
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < maskCount; i++) {
+            char c = value.charAt(i);
+            if (Character.isDigit(c) || Character.isLetter(c)) {
+                sb.append('X');
+            } else {
+                sb.append(c); // Preserve separators like - or space
+            }
+        }
+        sb.append(value.substring(maskCount));
+        return sb.toString();
     }
 
     private Object generateMaskedValue(String columnName, Object originalValue) {

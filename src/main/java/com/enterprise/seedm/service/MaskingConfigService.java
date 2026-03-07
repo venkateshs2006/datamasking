@@ -14,11 +14,13 @@ public class MaskingConfigService {
     public MaskingConfigService(
             @Value("${seedm.migration.masking-columns:}") List<String> initialMaskingColumns,
             @Value("${seedm.migration.masking-constraints:}") List<String> initialConstraintColumns,
+            @Value("${seedm.migration.partial-masking-columns:}") List<String> initialPartialMaskingColumns,
             @Value("${seedm.migration.masking-key:DefaultSecretKey123}") String initialKey) {
         
         this.currentConfig = new MaskingConfig();
         this.currentConfig.setMaskingColumns(initialMaskingColumns);
         this.currentConfig.setConstraintColumns(initialConstraintColumns);
+        this.currentConfig.setPartialMaskingColumns(initialPartialMaskingColumns);
         this.currentConfig.setMaskingKey(initialKey);
     }
 
