@@ -27,18 +27,23 @@ public class TableDiscoveryService {
     private final DataSource sourceDataSource;
     private final JdbcTemplate sourceJdbcTemplate;
     private final SchemaConfig schemaConfig;
+    private final MaskingConfigService maskingConfigService;
 
     @Value("${spring.batch.jdbc.table-prefix:BATCH_}")
     private String batchTablePrefix;
 
-    public TableDiscoveryService(@Qualifier("sourceDataSource") DataSource sourceDataSource, SchemaConfig schemaConfig) {
+    public TableDiscoveryService(@Qualifier("sourceDataSource") DataSource sourceDataSource, 
+                                 SchemaConfig schemaConfig,
+                                 MaskingConfigService maskingConfigService) {
         this.sourceDataSource = sourceDataSource;
         this.sourceJdbcTemplate = new JdbcTemplate(sourceDataSource);
         this.schemaConfig = schemaConfig;
+        this.maskingConfigService = maskingConfigService;
     }
 
     /**
      * Get all table names from source schema, excluding Spring Batch tables.
+     * If targetTables are defined in config, filter the result.
      */
     public List<String> discoverTables() throws SQLException {
         String sql = """
@@ -55,6 +60,14 @@ public class TableDiscoveryService {
         List<String> filteredTables = tables.stream()
                 .filter(tableName -> !tableName.toLowerCase().startsWith(batchTablePrefix.toLowerCase()))
                 .collect(Collectors.toList());
+                
+        // Filter by user selection if provided
+        List<String> targetTables = maskingConfigService.getConfig().getTargetTables();
+        if (targetTables != null && !targetTables.isEmpty()) {
+             filteredTables = filteredTables.stream()
+                     .filter(targetTables::contains)
+                     .collect(Collectors.toList());
+        }
 
         log.info("Discovered {} tables in schema '{}' ({} filtered out)",
                 filteredTables.size(), schemaConfig.getSourceSchema(), tables.size() - filteredTables.size());

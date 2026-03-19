@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SeEDM - New Migration Workflow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f9fafb; }
+        .step-container { display: none !important; }
+        .step-container.active { display: block !important; animation: fadeIn 0.5s; }
+        #step2.step-container.active { display: flex !important; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .stepper-item.completed .stepper-circle { background-color: #10b981; color: white; border-color: #10b981; }
+        .stepper-item.active .stepper-circle { background-color: #3b82f6; color: white; border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2); }
+        .stepper-line { flex: 1; height: 2px; background-color: #e5e7eb; margin: 0 10px; }
+        .stepper-item.completed + .stepper-line { background-color: #10b981; }
+        .list-item { cursor: pointer; transition: background-color 0.2s; }
+        .list-item:hover { background-color: #f3f4f6; }
+        .list-item.selected { background-color: #eff6ff; border-left: 4px solid #3b82f6; }
+    </style>
+</head>
+<body class="text-gray-800 h-screen flex flex-col">
+
+    <!-- Top Navigation -->
+    <nav class="bg-white shadow-sm px-6 py-4 flex justify-between items-center z-10">
+        <div class="flex items-center">
+            <i class="fas fa-shield-alt text-blue-600 text-2xl mr-2"></i>
+            <span class="text-xl font-bold">SeEDM Workspace</span>
+        </div>
+        <div class="flex items-center space-x-4">
+            <a href="/index.html" class="text-gray-600 hover:text-blue-600"><i class="fas fa-chart-line mr-1"></i> Dashboard</a>
+            <button onclick="logout()" class="text-gray-600 hover:text-red-600"><i class="fas fa-sign-out-alt mr-1"></i> Logout</button>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 overflow-hidden flex flex-col max-w-6xl mx-auto w-full px-4 py-8">
+
+        <!-- Stepper -->
+        <div class="flex items-center justify-between mb-8 px-12">
+            <div class="stepper-item active flex flex-col items-center" id="step1-indicator">
+                <div class="stepper-circle w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center font-bold text-gray-500 bg-white z-10 transition-all duration-300">1</div>
+                <span class="text-xs font-medium mt-2 text-gray-600">Connections</span>
+            </div>
+            <div class="stepper-line" id="line1"></div>
+
+            <div class="stepper-item flex flex-col items-center" id="step2-indicator">
+                <div class="stepper-circle w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center font-bold text-gray-500 bg-white z-10 transition-all duration-300">2</div>
+                <span class="text-xs font-medium mt-2 text-gray-600">Tables</span>
+            </div>
+            <div class="stepper-line" id="line2"></div>
+
+            <div class="stepper-item flex flex-col items-center" id="step3-indicator">
+                <div class="stepper-circle w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center font-bold text-gray-500 bg-white z-10 transition-all duration-300">3</div>
+                <span class="text-xs font-medium mt-2 text-gray-600">Masking Rules</span>
+            </div>
+            <div class="stepper-line" id="line3"></div>
+
+            <div class="stepper-item flex flex-col items-center" id="step4-indicator">
+                <div class="stepper-circle w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center font-bold text-gray-500 bg-white z-10 transition-all duration-300">4</div>
+                <span class="text-xs font-medium mt-2 text-gray-600">Preview & Run</span>
+            </div>
+        </div>
+
+        <!-- Content Box -->
+        <div class="bg-white rounded-xl shadow-md border border-gray-100 flex-1 flex flex-col overflow-hidden">
+
+            <!-- Step 1: Connections -->
+            <div id="step1" class="step-container active flex-1 overflow-y-auto p-8">
+                <h2 class="text-2xl font-bold mb-6 text-gray-800">Database Connections</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Source -->
+                    <div class="bg-blue-50 p-6 rounded-lg border border-blue-100 flex flex-col">
+                        <h3 class="font-semibold text-blue-800 mb-4 flex items-center"><i class="fas fa-database mr-2"></i> Source Database</h3>
+                        <form id="sourceForm" class="space-y-4 flex-1">
+                            <input type="hidden" name="type" value="source">
+                            <div><label class="block text-sm font-medium text-gray-700">JDBC URL</label><input type="text" name="url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" required></div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="block text-sm font-medium text-gray-700">Username</label><input type="text" name="username" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" required></div>
+                                <div><label class="block text-sm font-medium text-gray-700">Password</label><input type="password" name="password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" required></div>
+                            </div>
+                            <div class="flex space-x-2 items-end mt-4">
+                                <div class="flex-1">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Schema</label>
+                                    <select name="schema" id="sourceSchema" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border bg-gray-100" required disabled>
+                                        <option value="">Fetch schemas first...</option>
+                                    </select>
+                                </div>
+                                <button type="button" onclick="fetchSchemas('source')" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm transition h-10 whitespace-nowrap">Load Schemas</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Destination -->
+                    <div class="bg-green-50 p-6 rounded-lg border border-green-100 flex flex-col">
+                        <h3 class="font-semibold text-green-800 mb-4 flex items-center"><i class="fas fa-server mr-2"></i> Destination Database</h3>
+                        <form id="destForm" class="space-y-4 flex-1">
+                            <input type="hidden" name="type" value="destination">
+                            <div><label class="block text-sm font-medium text-gray-700">JDBC URL</label><input type="text" name="url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border" required></div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="block text-sm font-medium text-gray-700">Username</label><input type="text" name="username" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border" required></div>
+                                <div><label class="block text-sm font-medium text-gray-700">Password</label><input type="password" name="password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border" required></div>
+                            </div>
+                            <div class="flex space-x-2 items-end mt-4">
+                                <div class="flex-1">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Schema</label>
+                                    <select name="schema" id="destSchema" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border bg-gray-100" required disabled>
+                                        <option value="">Fetch schemas first...</option>
+                                    </select>
+                                </div>
+                                <button type="button" onclick="fetchSchemas('dest')" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm transition h-10 whitespace-nowrap">Load Schemas</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Tables -->
+            <div id="step2" class="step-container flex-1 flex-col p-8 h-full">
+                <h2 class="text-2xl font-bold mb-2 text-gray-800">Select Tables</h2>
+                <p class="text-sm text-gray-500 mb-4">Choose the tables you want to migrate from the source schema.</p>
+
+                <div class="flex flex-1 border border-gray-200 rounded-lg overflow-hidden min-h-0">
+                    <div class="w-1/2 border-r border-gray-200 flex flex-col bg-gray-50">
+                        <div class="p-3 border-b border-gray-200 bg-white flex justify-between items-center">
+                            <span class="font-semibold text-gray-700">Available Tables</span>
+                            <button onclick="selectAllTables()" class="text-xs text-blue-600 hover:underline">Select All</button>
+                        </div>
+                        <div class="flex-1 overflow-y-auto p-2 space-y-1" id="availableTables">
+                            <!-- Populated dynamically -->
+                            <div class="p-4 text-center text-gray-400 text-sm">Loading tables...</div>
+                        </div>
+                    </div>
+                    <div class="w-1/2 flex flex-col bg-white">
+                        <div class="p-3 border-b border-gray-200 bg-blue-50 flex justify-between items-center">
+                            <span class="font-semibold text-blue-800">Selected for Migration</span>
+                            <span class="text-xs font-bold bg-blue-200 text-blue-800 px-2 py-1 rounded-full" id="selectedTableCount">0</span>
+                        </div>
+                        <div class="flex-1 overflow-y-auto p-2 space-y-1" id="selectedTablesList">
+                            <div class="p-4 text-center text-gray-400 text-sm italic">No tables selected</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Masking Rules -->
+            <div id="step3" class="step-container flex-1 overflow-y-auto p-8 bg-gray-50">
+                <div class="flex justify-between items-end mb-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800">Configure Masking Rules</h2>
+                        <p class="text-sm text-gray-500 mt-1">Define how sensitive data should be transformed.</p>
+                    </div>
+                    <div class="w-1/3">
+                        <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1">Secret Key (for Encryption)</label>
+                        <input type="text" id="workflowSecretKey" class="w-full p-2 text-sm border border-gray-300 rounded focus:ring-purple-500 focus:border-purple-500 shadow-sm" value="DefaultSecretKey123">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-6">
+                    <!-- Tables Panel -->
+                    <div class="bg-white border border-gray-200 rounded-lg flex flex-col h-[400px] shadow-sm">
+                        <div class="p-3 border-b bg-gray-100 font-semibold text-gray-700 text-sm"><i class="fas fa-list mr-2"></i>Selected Tables</div>
+                        <div class="flex-1 overflow-y-auto p-2" id="ruleTablesList"></div>
+                    </div>
+
+                    <!-- Columns Panel -->
+                    <div class="bg-white border border-gray-200 rounded-lg flex flex-col h-[400px] shadow-sm">
+                        <div class="p-3 border-b bg-gray-100 font-semibold text-gray-700 text-sm flex justify-between items-center">
+                            <span><i class="fas fa-columns mr-2"></i>Columns</span>
+                            <span id="activeTableName" class="text-xs font-mono bg-white px-2 py-1 rounded border">Select table</span>
+                        </div>
+                        <div class="flex-1 overflow-y-auto p-2" id="ruleColumnsList">
+                            <div class="text-center text-gray-400 mt-10 text-sm">Select a table from the left to view columns</div>
+                        </div>
+                    </div>
+
+                    <!-- Active Rules Panel -->
+                    <div class="bg-white border border-gray-200 rounded-lg flex flex-col h-[400px] shadow-sm">
+                        <div class="p-3 border-b bg-gray-100 font-semibold text-gray-700 text-sm"><i class="fas fa-clipboard-check mr-2"></i>Rules for Table</div>
+                        <div class="flex-1 overflow-y-auto p-4 space-y-6">
+
+                            <div>
+                                <h4 class="text-xs font-bold text-blue-600 uppercase mb-2 border-b pb-1">Standard Masking (PII)</h4>
+                                <div id="tags-masking" class="flex flex-wrap gap-2 min-h-[30px] p-2 bg-gray-50 rounded border border-dashed border-gray-300"></div>
+                            </div>
+
+                            <div>
+                                <h4 class="text-xs font-bold text-orange-600 uppercase mb-2 border-b pb-1">Partial Masking (Keep last 4)</h4>
+                                <div id="tags-partial" class="flex flex-wrap gap-2 min-h-[30px] p-2 bg-gray-50 rounded border border-dashed border-gray-300"></div>
+                            </div>
+
+                            <div>
+                                <h4 class="text-xs font-bold text-purple-600 uppercase mb-2 border-b pb-1">Deterministic Encryption (IDs)</h4>
+                                <div id="tags-constraint" class="flex flex-wrap gap-2 min-h-[30px] p-2 bg-gray-50 rounded border border-dashed border-gray-300"></div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Preview -->
+            <div id="step4" class="step-container flex-1 overflow-y-auto p-8">
+                <h2 class="text-2xl font-bold mb-6 text-gray-800">Review & Initiate</h2>
+
+                <div class="grid grid-cols-2 gap-6 mb-6">
+                    <div class="bg-gray-50 p-4 rounded border">
+                        <h4 class="font-semibold text-gray-700 mb-2 border-b pb-1">Connections</h4>
+                        <p class="text-sm"><span class="font-medium">Source:</span> <span id="previewSrc" class="font-mono text-blue-600"></span></p>
+                        <p class="text-sm mt-1"><span class="font-medium">Target:</span> <span id="previewDest" class="font-mono text-green-600"></span></p>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded border">
+                        <h4 class="font-semibold text-gray-700 mb-2 border-b pb-1">Summary</h4>
+                        <p class="text-sm"><span class="font-medium">Tables to Migrate:</span> <span id="previewTableCount" class="font-bold text-lg text-blue-600">0</span></p>
+                        <p class="text-sm mt-1"><span class="font-medium">Total Masking Rules:</span> <span id="previewRuleCount" class="font-bold text-lg text-purple-600">0</span></p>
+                    </div>
+                </div>
+
+                <div class="bg-white border rounded-lg overflow-hidden">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-gray-100 text-gray-600">
+                            <tr>
+                                <th class="p-3 font-semibold w-1/3">Table Name</th>
+                                <th class="p-3 font-semibold w-2/3">Applied Rules</th>
+                            </tr>
+                        </thead>
+                        <tbody id="previewRulesTable" class="divide-y">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Footer Navigation -->
+            <div class="p-4 border-t border-gray-200 bg-gray-50 flex justify-between mt-auto">
+                <button id="btnPrev" onclick="prevStep()" class="px-6 py-2 border border-gray-300 rounded text-gray-700 bg-white hover:bg-gray-100 hidden transition font-medium">Back</button>
+                <div class="flex-1"></div> <!-- Spacer -->
+                <button id="btnNext" onclick="nextStep()" class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition font-medium shadow hidden">Next Step <i class="fas fa-arrow-right ml-2"></i></button>
+                <button id="btnStart" onclick="submitWorkflow()" class="px-8 py-2 bg-green-600 text-white rounded hover:bg-green-700 hidden transition font-bold shadow-lg animate-pulse">Start Migration <i class="fas fa-rocket ml-2"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Authentication Check
+        fetch('/api/auth/check').then(r => r.json()).then(data => {
+            if(!data.authenticated) window.location.href = '/login.html';
+        });
+
+        function logout() {
+            fetch('/api/auth/logout', {method: 'POST'}).then(() => window.location.href = '/login.html');
+        }
+
+        // --- Workflow State ---
+        let currentStep = 1;
+        const totalSteps = 4;
+
+        let state = {
+            tables: [],
+            selectedTables: [],
+            columnsCache: {}, // {tableName: ['col1', 'col2']}
+            rules: {
+                maskingColumns: [],
+                constraintColumns: [],
+                partialMaskingColumns: [],
+                maskingKey: 'DefaultSecretKey123',
+                targetTables: []
+            }
+        };
+
+        // --- Step Navigation ---
+        function updateUI() {
+            // Update containers
+            document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active'));
+            document.getElementById(`step${currentStep}`).classList.add('active');
+
+            // Update Stepper
+            for(let i=1; i<=totalSteps; i++) {
+                const item = document.getElementById(`step${i}-indicator`);
+                if(item) {
+                    item.classList.remove('active', 'completed');
+                    if(i < currentStep) item.classList.add('completed');
+                    else if(i === currentStep) item.classList.add('active');
+                }
+            }
+
+            // Update Buttons
+            document.getElementById('btnPrev').style.display = currentStep > 1 ? 'block' : 'none';
+            document.getElementById('btnStart').style.display = 'none';
+            document.getElementById('btnNext').style.display = 'none';
+
+            if (currentStep === totalSteps) {
+                document.getElementById('btnStart').style.display = 'block';
+                populatePreview();
+            } else {
+                document.getElementById('btnNext').style.display = 'block';
+            }
+
+            // Check if step 1 schemas are loaded to show next button
+            if (currentStep === 1) {
+                checkSchemasLoaded();
+            }
+        }
+
+        async function fetchSchemas(type) {
+            const formId = type === 'source' ? 'sourceForm' : 'destForm';
+            const selectId = type === 'source' ? 'sourceSchema' : 'destSchema';
+            const form = document.getElementById(formId);
+            const select = document.getElementById(selectId);
+
+            if(!form.url.value || !form.username.value || !form.password.value) {
+                alert('Please enter URL, Username, and Password first.');
+                return;
+            }
+
+            const data = Object.fromEntries(new FormData(form).entries());
+
+            try {
+                select.innerHTML = '<option value="">Loading...</option>';
+                select.disabled = true;
+                const response = await fetch('/api/connection/schemas', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch schemas');
+
+                const schemas = await response.json();
+                select.innerHTML = '<option value="">Select Schema</option>';
+                schemas.forEach(s => select.add(new Option(s, s)));
+                select.classList.remove('bg-gray-100');
+                select.disabled = false;
+
+                checkSchemasLoaded();
+            } catch (e) {
+                select.innerHTML = '<option value="">Error loading</option>';
+                alert('Error fetching schemas. Please check credentials.');
+            }
+        }
+
+        function checkSchemasLoaded() {
+             const srcSchema = document.getElementById('sourceSchema').value;
+             const destSchema = document.getElementById('destSchema').value;
+             if (srcSchema && destSchema) {
+                 document.getElementById('btnNext').style.display = 'block';
+             } else {
+                 document.getElementById('btnNext').style.display = 'none';
+             }
+        }
+
+        // Add event listeners to schema selects to show next button
+        document.getElementById('sourceSchema').addEventListener('change', checkSchemasLoaded);
+        document.getElementById('destSchema').addEventListener('change', checkSchemasLoaded);
+
+        async function nextStep() {
+            if (currentStep === 1) {
+                const srcForm = document.getElementById('sourceForm');
+                const destForm = document.getElementById('destForm');
+
+                const srcSchema = document.getElementById('sourceSchema').value;
+                const destSchema = document.getElementById('destSchema').value;
+
+                if(!srcForm.checkValidity() || !destForm.checkValidity() || !srcSchema || !destSchema) {
+                    alert('Please fill out all connection details and load/select schemas.');
+                    return;
+                }
+
+                const btn = document.getElementById('btnNext');
+                const origHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                btn.disabled = true;
+
+                try {
+                    // Prepare data with selected schemas
+                    const srcData = Object.fromEntries(new FormData(srcForm).entries());
+                    srcData.schema = srcSchema;
+
+                    const destData = Object.fromEntries(new FormData(destForm).entries());
+                    destData.schema = destSchema;
+
+                    // Update connections in backend
+                    await fetch('/api/connection/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(srcData) });
+                    await fetch('/api/connection/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(destData) });
+
+                    // Clear target tables filter to get all
+                    await fetch('/api/config/target-tables', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify([]) });
+
+                    // Fetch tables for Step 2
+                    const tableRes = await fetch('/api/config/tables');
+                    if (!tableRes.ok) throw new Error("Failed to fetch tables.");
+                    state.tables = await tableRes.json();
+                    renderAvailableTables();
+
+                    currentStep++;
+                    updateUI();
+                } catch (e) {
+                    console.error("Connection Error:", e);
+                    alert('Failed to connect or fetch tables. Check details and try again.');
+                } finally {
+                    btn.innerHTML = origHtml;
+                    btn.disabled = false;
+                }
+            }
+            else if (currentStep === 2) {
+                if(state.selectedTables.length === 0) {
+                    alert('Please select at least one table to migrate.');
+                    return;
+                }
+                renderRuleTables();
+                currentStep++;
+                updateUI();
+            }
+            else if (currentStep === 3) {
+                state.rules.maskingKey = document.getElementById('workflowSecretKey').value;
+                currentStep++;
+                updateUI();
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                updateUI();
+            }
+        }
+
+        // --- Step 2 Functions ---
+        function renderAvailableTables() {
+            const container = document.getElementById('availableTables');
+            container.innerHTML = '';
+
+            const unselected = state.tables.filter(t => !state.selectedTables.includes(t));
+
+            unselected.forEach(t => {
+                const div = document.createElement('div');
+                div.className = 'list-item p-2 text-sm border border-transparent rounded hover:border-gray-300 flex justify-between items-center';
+                div.innerHTML = `<span>${t}</span> <i class="fas fa-plus text-green-500 opacity-0 group-hover:opacity-100"></i>`;
+                div.onclick = () => selectTable(t);
+                container.appendChild(div);
+            });
+        }
+
+        function renderSelectedTables() {
+            const container = document.getElementById('selectedTablesList');
+            container.innerHTML = '';
+
+            document.getElementById('selectedTableCount').textContent = state.selectedTables.length;
+
+            if(state.selectedTables.length === 0) {
+                container.innerHTML = '<div class="p-4 text-center text-gray-400 text-sm italic">No tables selected</div>';
+                return;
+            }
+
+            state.selectedTables.forEach(t => {
+                const div = document.createElement('div');
+                div.className = 'list-item p-2 text-sm bg-white border border-gray-200 rounded shadow-sm flex justify-between items-center mb-1';
+                div.innerHTML = `<span class="font-medium text-blue-800">${t}</span> <button class="text-red-400 hover:text-red-600 p-1"><i class="fas fa-times"></i></button>`;
+                div.querySelector('button').onclick = (e) => { e.stopPropagation(); deselectTable(t); };
+                container.appendChild(div);
+            });
+        }
+
+        function selectTable(table) {
+            state.selectedTables.push(table);
+            renderAvailableTables();
+            renderSelectedTables();
+        }
+
+        function deselectTable(table) {
+            state.selectedTables = state.selectedTables.filter(t => t !== table);
+            // Also clean up rules related to this table
+            const prefix = `${table}.`;
+            state.rules.maskingColumns = state.rules.maskingColumns.filter(c => !c.startsWith(prefix));
+            state.rules.constraintColumns = state.rules.constraintColumns.filter(c => !c.startsWith(prefix));
+            state.rules.partialMaskingColumns = state.rules.partialMaskingColumns.filter(c => !c.startsWith(prefix));
+
+            renderAvailableTables();
+            renderSelectedTables();
+        }
+
+        function selectAllTables() {
+            state.selectedTables = [...state.tables];
+            renderAvailableTables();
+            renderSelectedTables();
+        }
+
+        // --- Step 3 Functions ---
+        let activeRuleTable = null;
+
+        function renderRuleTables() {
+            const container = document.getElementById('ruleTablesList');
+            container.innerHTML = '';
+
+            state.selectedTables.forEach(t => {
+                const div = document.createElement('div');
+                div.className = 'list-item p-2 text-sm border-b border-gray-100';
+                div.textContent = t;
+                div.onclick = () => loadColumnsForRule(t, div);
+                container.appendChild(div);
+            });
+
+            if(state.selectedTables.length > 0) {
+                loadColumnsForRule(state.selectedTables[0], container.firstChild);
+            }
+        }
+
+        async function loadColumnsForRule(table, el) {
+            const container = document.getElementById('ruleTablesList');
+            Array.from(container.children).forEach(c => c.classList.remove('selected'));
+            el.classList.add('selected');
+
+            activeRuleTable = table;
+            document.getElementById('activeTableName').textContent = table;
+
+            if (!state.columnsCache[table]) {
+                const res = await fetch(`/api/config/columns/${table}`);
+                state.columnsCache[table] = await res.json();
+            }
+
+            renderRuleColumns(state.columnsCache[table]);
+            renderActiveRulesTags();
+        }
+
+        function renderRuleColumns(columns) {
+            const container = document.getElementById('ruleColumnsList');
+            container.innerHTML = '';
+
+            columns.forEach(col => {
+                const fullColName = `${activeRuleTable}.${col}`;
+
+                const div = document.createElement('div');
+                div.className = 'p-2 text-sm border-b border-gray-100 flex flex-col gap-1 hover:bg-gray-50';
+
+                // Column name and type indicator (simplified)
+                div.innerHTML = `
+                    <div class="font-medium text-gray-800">${col}</div>
+                    <div class="flex space-x-1 mt-1">
+                        <button class="text-[10px] px-2 py-1 rounded bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition" onclick="toggleRule('${fullColName}', 'maskingColumns')">Standard Mask</button>
+                        <button class="text-[10px] px-2 py-1 rounded bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100 transition" onclick="toggleRule('${fullColName}', 'partialMaskingColumns')">Partial Mask</button>
+                        <button class="text-[10px] px-2 py-1 rounded bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100 transition" onclick="toggleRule('${fullColName}', 'constraintColumns')">Encrypt ID</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function toggleRule(fullColName, ruleType) {
+            // A column should ideally only have one rule type applied.
+            // So we remove it from others first.
+            if(ruleType !== 'maskingColumns') state.rules.maskingColumns = state.rules.maskingColumns.filter(c => c !== fullColName);
+            if(ruleType !== 'constraintColumns') state.rules.constraintColumns = state.rules.constraintColumns.filter(c => c !== fullColName);
+            if(ruleType !== 'partialMaskingColumns') state.rules.partialMaskingColumns = state.rules.partialMaskingColumns.filter(c => c !== fullColName);
+
+            const list = state.rules[ruleType];
+            const idx = list.indexOf(fullColName);
+
+            if(idx === -1) {
+                list.push(fullColName);
+            } else {
+                list.splice(idx, 1);
+            }
+
+            renderActiveRulesTags();
+        }
+
+        function renderActiveRulesTags() {
+            if(!activeRuleTable) return;
+
+            const renderTags = (ruleType, containerId, color) => {
+                const container = document.getElementById(containerId);
+                container.innerHTML = '';
+                // Filter rules for active table
+                const tableRules = state.rules[ruleType].filter(c => c.startsWith(`${activeRuleTable}.`));
+
+                if(tableRules.length === 0) {
+                    container.innerHTML = '<span class="text-xs text-gray-400 italic py-1">No rules set</span>';
+                    return;
+                }
+
+                tableRules.forEach(fullColName => {
+                    const colName = fullColName.split('.')[1];
+                    const tag = document.createElement('span');
+                    tag.className = `inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-${color}-100 text-${color}-800 border border-${color}-200`;
+                    tag.innerHTML = `
+                        ${colName}
+                        <button onclick="toggleRule('${fullColName}', '${ruleType}')" class="ml-1.5 text-${color}-600 hover:text-${color}-900 focus:outline-none"><i class="fas fa-times"></i></button>
+                    `;
+                    container.appendChild(tag);
+                });
+            };
+
+            renderTags('maskingColumns', 'tags-masking', 'blue');
+            renderTags('partialMaskingColumns', 'tags-partial', 'orange');
+            renderTags('constraintColumns', 'tags-constraint', 'purple');
+        }
+
+        // --- Step 4 Functions ---
+        function populatePreview() {
+            document.getElementById('previewSrc').textContent = document.getElementById('sourceForm').url.value;
+            document.getElementById('previewDest').textContent = document.getElementById('destForm').url.value;
+            document.getElementById('previewTableCount').textContent = state.selectedTables.length;
+
+            const totalRules = state.rules.maskingColumns.length + state.rules.constraintColumns.length + state.rules.partialMaskingColumns.length;
+            document.getElementById('previewRuleCount').textContent = totalRules;
+
+            const tbody = document.getElementById('previewRulesTable');
+            tbody.innerHTML = '';
+
+            state.selectedTables.forEach(t => {
+                const tr = document.createElement('tr');
+
+                let ruleText = [];
+                const masks = state.rules.maskingColumns.filter(c => c.startsWith(t+'.')).map(c=>c.split('.')[1]);
+                const parts = state.rules.partialMaskingColumns.filter(c => c.startsWith(t+'.')).map(c=>c.split('.')[1]);
+                const encs = state.rules.constraintColumns.filter(c => c.startsWith(t+'.')).map(c=>c.split('.')[1]);
+
+                if(masks.length) ruleText.push(`<span class="text-blue-600 text-xs mr-2 font-medium">STD:</span> ${masks.join(', ')}`);
+                if(parts.length) ruleText.push(`<span class="text-orange-600 text-xs mr-2 font-medium">PRT:</span> ${parts.join(', ')}`);
+                if(encs.length) ruleText.push(`<span class="text-purple-600 text-xs mr-2 font-medium">ENC:</span> ${encs.join(', ')}`);
+
+                const rulesDisplay = ruleText.length > 0 ? ruleText.join('<br>') : '<span class="text-gray-400 italic">Copy Data Only</span>';
+
+                tr.innerHTML = `
+                    <td class="p-3 font-medium text-gray-800 border-b align-top">${t}</td>
+                    <td class="p-3 text-sm text-gray-600 border-b leading-relaxed">${rulesDisplay}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function submitWorkflow() {
+            const btn = document.getElementById('btnStart');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Initializing...';
+            btn.disabled = true;
+
+            try {
+                // Prepare final config with selected target tables
+                state.rules.targetTables = state.selectedTables;
+
+                // 1. Save Config
+                await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(state.rules)
+                });
+
+                // 2. Start Job
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/api/migration/start';
+                document.body.appendChild(form);
+                form.submit();
+
+            } catch (e) {
+                console.error(e);
+                alert('Error starting migration.');
+                btn.innerHTML = 'Start Migration <i class="fas fa-rocket ml-2"></i>';
+                btn.disabled = false;
+            }
+        }
+
+        // Init UI
+        updateUI();
+    </script>
+</body>
+</html>

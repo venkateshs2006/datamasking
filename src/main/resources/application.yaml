@@ -17,7 +17,7 @@ spring:
 
     # Source Database Configuration (Read-only)
     source:
-      url: jdbc:postgresql://localhost:5432/employeedb
+      url: jdbc:postgresql://localhost:5432/source_db
       username: postgres
       password: Mannit@12345
       driver-class-name: org.postgresql.Driver
@@ -50,7 +50,13 @@ spring:
       ddl-auto: none
     show-sql: false
 
-
+# Migration Configuration
+migration:
+  source:
+    schema: public  # Source schema name
+  destination:
+    schema: public  # Destination schema name
+  chunk-size: 1000  # Number of rows per batch
 
 # Server Configuration
 server:
@@ -72,17 +78,19 @@ logging:
 
 # Application Specific Configuration
 seedm:
-  # Migration Configuration
+  admin:
+    username: admin
+    password: password
   migration:
     source:
-      schema: employees  # Source schema name
+      schema: public
     destination:
-      schema: public  # Destination schema name
-    chunk-size: 1000  # Number of rows per batchmigration:
+      schema: public
     default-chunk-size: 1000
     default-thread-count: 50
     max-retry-attempts: 3
     checkpoint-interval: 1000
-    masking-columns: actor.first_name
-    masking-constraints: actor.actor_id
+    masking-columns: testing.name,data.name
+    masking-constraints: testing.id,testing.mydata_id,data.id
+    partial-masking-columns:
     masking-key: SecretKey123

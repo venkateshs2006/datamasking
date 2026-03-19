@@ -10,4 +10,5 @@ public class MaskingConfig {
     private List<String> constraintColumns = new ArrayList<>();
     private List<String> partialMaskingColumns = new ArrayList<>();
     private String maskingKey = "DefaultSecretKey123";
+    private List<String> targetTables = new ArrayList<>(); // Added for specific table selection
 }

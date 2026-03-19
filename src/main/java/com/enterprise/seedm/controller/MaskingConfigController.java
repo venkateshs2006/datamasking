@@ -26,6 +26,13 @@ public class MaskingConfigController {
     public void updateConfig(@RequestBody MaskingConfig config) {
         maskingConfigService.updateConfig(config);
     }
+    
+    @PostMapping("/target-tables")
+    public void updateTargetTables(@RequestBody List<String> tables) {
+        MaskingConfig current = maskingConfigService.getConfig();
+        current.setTargetTables(tables);
+        maskingConfigService.updateConfig(current);
+    }
 
     @GetMapping("/tables")
     public List<String> getTables() throws SQLException {
