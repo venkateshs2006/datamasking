@@ -8,42 +8,51 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .login-card { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
     </style>
 </head>
-<body class="h-screen flex items-center justify-center">
+<body class="h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
 
-    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-800"><i class="fas fa-shield-alt text-blue-600 mr-2"></i>SeEDM</h1>
-            <p class="text-gray-500 mt-2">Secure Enterprise Data Masking</p>
+    <div class="bg-white p-10 rounded-2xl login-card w-full max-w-md border border-slate-100 relative overflow-hidden">
+        <!-- Decorative element -->
+        <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-emerald-400"></div>
+
+        <div class="text-center mb-10 mt-2">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-blue-50 text-blue-600 mb-4 shadow-inner">
+                <i class="fas fa-shield-alt text-3xl"></i>
+            </div>
+            <h1 class="text-3xl font-black text-slate-800 tracking-tight">SeEDM</h1>
+            <p class="text-slate-500 mt-2 text-sm font-medium tracking-wide uppercase">Data Migration Platform</p>
         </div>
 
-        <form id="loginForm" onsubmit="handleLogin(event)">
-            <div id="errorMsg" class="hidden mb-4 p-3 bg-red-100 text-red-700 rounded text-sm text-center"></div>
+        <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-6">
+            <div id="errorMsg" class="hidden p-3 bg-rose-50 border border-rose-100 text-rose-600 rounded-lg text-sm text-center font-medium flex items-center justify-center">
+                <i class="fas fa-exclamation-circle mr-2"></i> <span></span>
+            </div>
 
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            <div>
+                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Username</label>
                 <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <i class="fas fa-user text-gray-400"></i>
+                        <i class="fas fa-user text-slate-400"></i>
                     </div>
-                    <input type="text" id="username" class="pl-10 w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>
+                    <input type="text" id="username" class="pl-10 w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all outline-none" required placeholder="Enter your username">
                 </div>
             </div>
 
-            <div class="mb-6">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <div>
+                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Password</label>
                 <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <i class="fas fa-lock text-gray-400"></i>
+                        <i class="fas fa-lock text-slate-400"></i>
                     </div>
-                    <input type="password" id="password" class="pl-10 w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>
+                    <input type="password" id="password" class="pl-10 w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all outline-none" required placeholder="••••••••">
                 </div>
             </div>
 
-            <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
-                Sign In
+            <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center justify-center">
+                <span>Sign In</span> <i class="fas fa-arrow-right ml-2 text-sm"></i>
             </button>
         </form>
     </div>
@@ -52,11 +61,12 @@
         async function handleLogin(e) {
             e.preventDefault();
             const btn = document.getElementById('submitBtn');
-            const err = document.getElementById('errorMsg');
+            const errBox = document.getElementById('errorMsg');
+            const errSpan = errBox.querySelector('span');
 
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Authenticating...';
-            err.classList.add('hidden');
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
+            errBox.classList.add('hidden');
 
             const payload = {
                 username: document.getElementById('username').value,
@@ -73,23 +83,24 @@
                 const data = await response.json();
 
                 if (response.ok && data.status === 'SUCCESS') {
-                    window.location.href = data.redirect;
+                    // Redirect to a landing page to choose DB type instead of straight to workflow
+                    window.location.href = '/select-db.html';
                 } else {
-                    err.textContent = data.message || 'Login failed';
-                    err.classList.remove('hidden');
+                    errSpan.textContent = data.message || 'Invalid credentials';
+                    errBox.classList.remove('hidden');
                 }
             } catch (error) {
-                err.textContent = 'Server connection error';
-                err.classList.remove('hidden');
+                errSpan.textContent = 'Server connection error';
+                errBox.classList.remove('hidden');
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = 'Sign In';
+                btn.innerHTML = '<span>Sign In</span> <i class="fas fa-arrow-right ml-2 text-sm"></i>';
             }
         }
 
         // Check if already logged in
         fetch('/api/auth/check').then(r => r.json()).then(data => {
-            if(data.authenticated) window.location.href = '/workflow.html';
+            if(data.authenticated) window.location.href = '/select-db.html';
         });
     </script>
 </body>

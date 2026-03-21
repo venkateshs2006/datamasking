@@ -175,9 +175,9 @@ public class MigrationController {
             }
             
             if (jobExecution != null) {
-                log.info("Job launched with Execution ID: {}", (jobExecution.getId()+1));
+                log.info("Job launched with Execution ID: {}", jobExecution.getId());
                 // Redirect to the dashboard page with the execution ID immediately
-                response.sendRedirect("/index.html?executionId=" + (jobExecution.getId()+1));
+                response.sendRedirect("/index.html?executionId=" + jobExecution.getId());
             } else {
                 // If we still can't find it, maybe it finished very quickly or failed to start.
                 // Try to find the most recent execution regardless of status
@@ -185,8 +185,8 @@ public class MigrationController {
                 if (lastInstance != null) {
                     jobExecution = jobExplorer.getLastJobExecution(lastInstance);
                     if (jobExecution != null) {
-                        log.info("Found recent job execution ID: {}", (jobExecution.getId()+1));
-                        response.sendRedirect("/index.html?executionId=" + (jobExecution.getId()+1));
+                        log.info("Found recent job execution ID: {}", (jobExecution.getId()));
+                        response.sendRedirect("/index.html?executionId=" + (jobExecution.getId()));
                         return;
                     }
                 }
@@ -197,6 +197,39 @@ public class MigrationController {
             log.error("Failed to start migration", e);
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to start migration: " + e.getMessage());
         }
+    }
+
+    /**
+     * Get a list of all recent job executions for the dropdown
+     */
+    @GetMapping("/executions")
+    public List<Map<String, Object>> getRecentExecutions() {
+        String jobName = "DBMigrationJob";
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        try {
+            // Get last few instances
+            List<JobInstance> instances = jobExplorer.getJobInstances(jobName, 0, 20);
+            
+            for (JobInstance instance : instances) {
+                List<JobExecution> executions = jobExplorer.getJobExecutions(instance);
+                for (JobExecution execution : executions) {
+                    Map<String, Object> execMap = new HashMap<>();
+                    execMap.put("id", execution.getId());
+                    execMap.put("status", execution.getStatus().toString());
+                    execMap.put("startTime", execution.getStartTime());
+                    result.add(execMap);
+                }
+            }
+            
+            // Sort descending by ID
+            result.sort((m1, m2) -> ((Long) m2.get("id")).compareTo((Long) m1.get("id")));
+            
+        } catch (Exception e) {
+            log.error("Failed to fetch executions", e);
+        }
+        
+        return result;
     }
 
     @GetMapping("/status/{executionId}")

@@ -25,7 +25,7 @@ public class AuthController {
         if (adminUsername.equals(loginRequest.getUsername()) && adminPassword.equals(loginRequest.getPassword())) {
             HttpSession session = request.getSession(true);
             session.setAttribute("user", loginRequest.getUsername());
-            return ResponseEntity.ok(Map.of("status", "SUCCESS", "redirect", "/workflow.html"));
+            return ResponseEntity.ok(Map.of("status", "SUCCESS", "redirect", "/select-db.html"));
         }
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("status", "FAILED", "message", "Invalid credentials"));
     }

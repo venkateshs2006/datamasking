@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SeEDM - Select Database Type</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; }
+
+        .db-card {
+            background: white;
+            border-radius: 16px;
+            border: 2px solid #e2e8f0;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .db-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.15), 0 8px 10px -6px rgba(59, 130, 246, 0.1);
+            transform: translateY(-4px);
+        }
+
+        .db-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 4px;
+            background: transparent;
+            transition: background 0.3s ease;
+        }
+
+        .db-card.postgres:hover::before { background: #336791; }
+        .db-card.mongo:hover::before { background: #47A248; }
+
+        .icon-container {
+            width: 80px; height: 80px;
+            border-radius: 20px;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 1.5rem auto;
+            font-size: 2.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .db-card.postgres .icon-container { background: #f1f5f9; color: #64748b; }
+        .db-card.postgres:hover .icon-container { background: #e0f2fe; color: #336791; }
+
+        .db-card.mongo .icon-container { background: #f1f5f9; color: #64748b; }
+        .db-card.mongo:hover .icon-container { background: #dcfce7; color: #47A248; }
+
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+<nav class="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center z-20 shrink-0 shadow-sm">
+    <div class="flex items-center">
+        <div class="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center mr-3 shadow-md">
+            <i class="fas fa-shield-alt text-white text-lg"></i>
+        </div>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 tracking-tight leading-none">SeEDM</h1>
+            <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Platform</p>
+        </div>
+    </div>
+    <button onclick="logout()" class="text-sm text-gray-500 hover:text-red-600 font-semibold flex items-center transition">
+        <i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out
+    </button>
+</nav>
+
+<div class="flex-1 flex flex-col items-center justify-center p-8">
+
+    <div class="text-center mb-12">
+        <h2 class="text-3xl font-black text-gray-900 tracking-tight">Select Migration Type</h2>
+        <p class="text-gray-500 mt-3 font-medium">Choose the database engine you want to migrate and mask.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl">
+
+        <!-- PostgreSQL Card -->
+        <div class="db-card postgres p-8 text-center" onclick="selectDbType('postgres')">
+            <div class="icon-container shadow-inner">
+                <i class="fas fa-database"></i>
+            </div>
+            <h3 class="text-xl font-bold text-gray-800 mb-2">Relational SQL</h3>
+            <p class="text-sm text-gray-500 mb-6">PostgreSQL, Oracle, DB2, etc.</p>
+
+            <div class="flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-blue-600 transition-colors">
+                Configure Workflow <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
+            </div>
+        </div>
+
+        <!-- MongoDB Card -->
+        <div class="db-card mongo p-8 text-center" onclick="selectDbType('mongo')">
+            <div class="icon-container shadow-inner">
+                <i class="fas fa-leaf"></i>
+            </div>
+            <h3 class="text-xl font-bold text-gray-800 mb-2">NoSQL Document</h3>
+            <p class="text-sm text-gray-500 mb-6">MongoDB Clusters & Replica Sets</p>
+
+            <div class="flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-green-600 transition-colors">
+                Configure Workflow <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // Authentication Check
+    fetch('/api/auth/check').then(r => r.json()).then(data => {
+        if(!data.authenticated) window.location.href = '/login.html';
+    });
+
+    async function logout() {
+        await fetch('/api/auth/logout', {method: 'POST'});
+        window.location.href = '/login.html';
+    }
+
+    function selectDbType(type) {
+        // Store selected type in sessionStorage to use in workflow
+        sessionStorage.setItem('migrationDbType', type);
+
+        if (type === 'postgres') {
+            window.location.href = '/workflow.html';
+        } else if (type === 'mongo') {
+            // For now, redirecting to a placeholder or same workflow if unified
+            // You can create a workflow-mongo.html or dynamically adapt workflow.html
+            window.location.href = '/workflow-mongo.html';
+        }
+    }
+</script>
+</body>
+</html>

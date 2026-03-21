@@ -9,287 +9,178 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
-        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); transition: transform 0.2s; }
+        body { font-family: 'Inter', sans-serif; background-color: #f4f7f6; color: #333; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9; transition: transform 0.2s; }
         .card:hover { transform: translateY(-2px); }
-        .status-badge { padding: 4px 12px; border-radius: 9999px; font-weight: 600; font-size: 0.875rem; }
-        .status-completed { background-color: #d1fae5; color: #065f46; }
-        .status-running { background-color: #dbeafe; color: #1e40af; }
-        .status-failed { background-color: #fee2e2; color: #991b1b; }
+        .status-badge { padding: 4px 12px; border-radius: 9999px; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .status-completed { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+        .status-running { background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .status-failed { background-color: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
         .progress-bar { transition: width 0.5s ease-in-out; }
+
         /* Modal Styles */
-        .modal { display: none; position: fixed; z-index: 50; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
-        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px; }
-        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
-        .close:hover, .close:focus { color: black; text-decoration: none; cursor: pointer; }
-        .error-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 400px; display: inline-block; vertical-align: middle; }
-        .error-full { display: none; white-space: pre-wrap; word-break: break-word; margin-top: 10px; padding: 10px; background: #fff; border: 1px solid #eee; border-radius: 4px; }
+        .modal { display: none; position: fixed; z-index: 50; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); }
+        .modal-content { background-color: #fff; margin: 10% auto; padding: 24px; width: 90%; max-width: 700px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+        .close { color: #94a3b8; float: right; font-size: 24px; font-weight: bold; cursor: pointer; transition: color 0.2s; }
+        .close:hover, .close:focus { color: #0f172a; text-decoration: none; }
+        .error-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 500px; display: inline-block; vertical-align: middle; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+        .error-full { display: none; white-space: pre-wrap; word-break: break-word; margin-top: 12px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; color: #475569; }
     </style>
 </head>
-<body class="text-gray-800">
+<body class="h-screen flex flex-col">
 
-    <!-- Sidebar -->
-    <div class="fixed inset-y-0 left-0 w-64 bg-gray-900 text-white transition-transform duration-300 transform z-30" id="sidebar">
-        <div class="flex items-center justify-center h-16 border-b border-gray-800">
-            <h1 class="text-2xl font-bold tracking-wider"><i class="fas fa-database mr-2 text-blue-500"></i>SeEDM</h1>
+    <!-- Top Navigation -->
+    <nav class="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center z-20 shrink-0">
+        <div class="flex items-center">
+            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mr-3 shadow-sm">
+                <i class="fas fa-shield-alt text-white text-sm"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold text-gray-800 leading-tight">SeEDM</h1>
+                <p class="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Job Monitor</p>
+            </div>
         </div>
-        <nav class="mt-6">
-            <a href="#" class="flex items-center px-6 py-3 bg-gray-800 border-l-4 border-blue-500 text-gray-100">
-                <i class="fas fa-tachometer-alt w-6"></i>
-                <span class="mx-3">Dashboard</span>
-            </a>
-            <a href="tables.html" id="navTables" class="flex items-center px-6 py-3 hover:bg-gray-800 hover:text-gray-100 transition-colors text-gray-400">
-                <i class="fas fa-table w-6"></i>
-                <span class="mx-3">Tables</span>
-            </a>
-            <a href="settings.html" class="flex items-center px-6 py-3 bg-gray-800 border-l-4 border-blue-500 text-gray-100">
-                <i class="fas fa-cogs w-6"></i>
-                <span class="mx-3">Settings</span>
-            </a>
-        </nav>
-    </div>
+        <div class="flex items-center space-x-6">
+            <a href="/workflow.html" class="text-sm font-medium text-blue-600 hover:text-blue-800 transition"><i class="fas fa-plus mr-1"></i> New Migration</a>
+            <button onclick="logout()" class="text-sm text-gray-500 hover:text-gray-800 font-medium flex items-center transition">
+                <i class="fas fa-sign-out-alt mr-2 text-gray-400"></i> Sign Out
+            </button>
+        </div>
+    </nav>
 
     <!-- Main Content -->
-    <div class="ml-64 p-8">
-        <!-- Header -->
-        <div class="flex justify-between items-center mb-8">
-            <div>
-                <h2 class="text-3xl font-bold text-gray-800">Migration Dashboard</h2>
-                <p class="text-gray-500 mt-1">Real-time monitoring of database migration jobs</p>
-            </div>
-            <div class="flex space-x-4">
-                <button onclick="openConfigModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-6 rounded-lg shadow-lg transition duration-300 flex items-center">
-                    <i class="fas fa-plug mr-2"></i> Configure DB
-                </button>
-                <form action="/api/migration/start" method="POST">
-                    <button type="submit" id="startBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg shadow-lg transition duration-300 flex items-center">
-                        <i class="fas fa-play mr-2"></i> Start Migration
-                    </button>
-                </form>
-            </div>
-        </div>
+    <div class="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
+        <div class="max-w-7xl mx-auto">
 
-        <!-- Connection Details Card -->
-        <div class="card p-6 mb-8 border-l-4 border-indigo-500" id="connectionCard">
-            <h3 class="text-lg font-semibold mb-4 text-gray-700"><i class="fas fa-network-wired mr-2"></i>Connection Details</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <div class="flex items-center mb-2">
-                        <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3">
-                            <i class="fas fa-database"></i>
-                        </div>
-                        <span class="font-semibold text-gray-700">Source Database</span>
-                    </div>
-                    <div id="sourceUrl" class="text-sm text-gray-600 break-all font-mono bg-white p-2 rounded border border-gray-100">
-                        Loading...
-                    </div>
+            <div class="flex justify-between items-end mb-8">
+                <div>
+                    <h2 class="text-3xl font-bold text-gray-900 tracking-tight">Active Job Status</h2>
+                    <p class="text-sm text-gray-500 mt-2 flex items-center">
+                        <span id="executionIdDisplay" class="font-mono bg-gray-100 px-2 py-1 rounded border border-gray-200 mr-2">ID: -</span>
+                        Real-time monitoring of data movement
+                    </p>
                 </div>
-                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <div class="flex items-center mb-2">
-                        <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 mr-3">
-                            <i class="fas fa-server"></i>
-                        </div>
-                        <span class="font-semibold text-gray-700">Destination Database</span>
-                    </div>
-                    <div id="destinationUrl" class="text-sm text-gray-600 break-all font-mono bg-white p-2 rounded border border-gray-100">
-                        Loading...
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- KPI Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div class="card p-6 border-l-4 border-blue-500">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <p class="text-sm font-medium text-gray-500">Job Status</p>
-                        <h3 class="text-2xl font-bold mt-1" id="jobStatus">Ready</h3>
-                    </div>
-                    <div class="p-2 bg-blue-100 rounded-lg text-blue-600">
-                        <i class="fas fa-tasks"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="card p-6 border-l-4 border-green-500">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <p class="text-sm font-medium text-gray-500">Tables Completed</p>
-                        <h3 class="text-2xl font-bold mt-1" id="completedCount">0</h3>
-                    </div>
-                    <div class="p-2 bg-green-100 rounded-lg text-green-600">
-                        <i class="fas fa-check-circle"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="card p-6 border-l-4 border-purple-500">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <p class="text-sm font-medium text-gray-500">Total Records</p>
-                        <h3 class="text-2xl font-bold mt-1" id="totalRecords">0</h3>
-                    </div>
-                    <div class="p-2 bg-purple-100 rounded-lg text-purple-600">
-                        <i class="fas fa-list-ol"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="card p-6 border-l-4 border-yellow-500">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <p class="text-sm font-medium text-gray-500">Duration</p>
-                        <h3 class="text-2xl font-bold mt-1" id="duration">0s</h3>
-                    </div>
-                    <div class="p-2 bg-yellow-100 rounded-lg text-yellow-600">
-                        <i class="fas fa-clock"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Charts & Metrics -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            <!-- System Metrics -->
-            <div class="card p-6 lg:col-span-1">
-                <h3 class="text-lg font-semibold mb-4 text-gray-700">System Health</h3>
-                <div class="space-y-6">
-                    <div>
-                        <div class="flex justify-between mb-1">
-                            <span class="text-sm font-medium text-gray-600">Heap Memory</span>
-                            <span class="text-sm font-medium text-gray-600" id="heapText">0 / 0 MB</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-2.5">
-                            <div class="bg-blue-600 h-2.5 rounded-full progress-bar" id="heapBar" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="flex justify-between mb-1">
-                            <span class="text-sm font-medium text-gray-600">CPU Load</span>
-                            <span class="text-sm font-medium text-gray-600" id="cpuText">0%</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-2.5">
-                            <div class="bg-green-500 h-2.5 rounded-full progress-bar" id="cpuBar" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <div class="pt-4 border-t border-gray-100">
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm text-gray-500">Available Processors</span>
-                            <span class="font-semibold text-gray-700" id="processors">0</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Progress Chart -->
-            <div class="card p-6 lg:col-span-2">
-                <h3 class="text-lg font-semibold mb-4 text-gray-700">Migration Throughput</h3>
-                <div class="relative h-64">
-                    <canvas id="throughputChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Table Details -->
-        <div class="card overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                <h3 class="text-lg font-semibold text-gray-700">Table Migration Details</h3>
-                <span class="text-sm text-gray-500" id="executionIdDisplay">Execution ID: -</span>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-gray-50 text-gray-600 text-sm uppercase tracking-wider">
-                            <th class="px-6 py-3 font-medium">Table Name</th>
-                            <th class="px-6 py-3 font-medium">Read Count</th>
-                            <th class="px-6 py-3 font-medium">Write Count</th>
-                            <th class="px-6 py-3 font-medium">Status</th>
-                            <th class="px-6 py-3 font-medium">Progress</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100" id="tableBody">
-                        <!-- Rows will be populated here -->
-                        <tr>
-                            <td colspan="5" class="px-6 py-8 text-center text-gray-500">
-                                No migration data available. Click "Start Migration" to begin.
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- DB Config Modal -->
-    <div id="configModal" class="modal">
-        <div class="modal-content w-full max-w-4xl">
-            <span class="close" onclick="closeConfigModal()">&times;</span>
-            <h2 class="text-2xl font-bold text-gray-800 mb-6"><i class="fas fa-database mr-2"></i>Configure Database Connections</h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <!-- Source Config -->
-                <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                    <h3 class="text-lg font-semibold text-blue-700 mb-4 border-b pb-2">Source Database</h3>
-                    <form id="sourceForm" class="space-y-4">
-                        <input type="hidden" name="type" value="source">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">JDBC URL</label>
-                            <input type="text" name="url" placeholder="jdbc:postgresql://host:port/db" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" required>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Username</label>
-                                <input type="text" name="username" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Password</label>
-                                <input type="password" name="password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" required>
-                            </div>
-                        </div>
-                        <div class="flex space-x-2">
-                            <button type="button" onclick="fetchSchemas('source')" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm">Fetch Schemas</button>
-                            <select name="schema" id="sourceSchema" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" disabled>
-                                <option value="">Select Schema</option>
-                            </select>
-                        </div>
-                        <button type="button" onclick="updateConnection('source')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                            Update Source
+                <!-- ID Selector Dropdown -->
+                <div class="w-64">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">View Job Execution ID</label>
+                    <div class="flex gap-2">
+                        <select id="executionIdSelector" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm cursor-pointer" onchange="changeExecutionId()">
+                            <option value="">Loading IDs...</option>
+                        </select>
+                        <button onclick="fetchExecutions()" class="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 shadow-sm" title="Refresh List">
+                            <i class="fas fa-sync-alt"></i>
                         </button>
-                    </form>
-                </div>
-
-                <!-- Destination Config -->
-                <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                    <h3 class="text-lg font-semibold text-green-700 mb-4 border-b pb-2">Destination Database</h3>
-                    <form id="destForm" class="space-y-4">
-                        <input type="hidden" name="type" value="destination">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">JDBC URL</label>
-                            <input type="text" name="url" placeholder="jdbc:postgresql://host:port/db" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border" required>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Username</label>
-                                <input type="text" name="username" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Password</label>
-                                <input type="password" name="password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border" required>
-                            </div>
-                        </div>
-                        <div class="flex space-x-2">
-                            <button type="button" onclick="fetchSchemas('dest')" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm">Fetch Schemas</button>
-                            <select name="schema" id="destSchema" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border" disabled>
-                                <option value="">Select Schema</option>
-                            </select>
-                        </div>
-                        <button type="button" onclick="updateConnection('dest')" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
-                            Update Destination
-                        </button>
-                    </form>
+                    </div>
                 </div>
             </div>
 
-            <div class="mt-6 text-right">
-                <button onclick="closeConfigModal()" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded">Close</button>
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="card p-5 border-l-4 border-blue-500 relative overflow-hidden">
+                    <div class="absolute right-0 top-0 opacity-5 text-6xl -mt-2 -mr-2"><i class="fas fa-tasks"></i></div>
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Job Status</p>
+                    <h3 class="text-2xl font-black text-gray-800 mt-2" id="jobStatus">Wait...</h3>
+                </div>
+
+                <div class="card p-5 border-l-4 border-green-500 relative overflow-hidden">
+                    <div class="absolute right-0 top-0 opacity-5 text-6xl -mt-2 -mr-2"><i class="fas fa-check-circle"></i></div>
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Tables Completed</p>
+                    <div class="flex items-baseline mt-2">
+                        <h3 class="text-2xl font-black text-gray-800" id="completedCount">0</h3>
+                        <span class="text-sm font-medium text-gray-400 ml-1">/ <span id="totalTableCount">0</span></span>
+                    </div>
+                </div>
+
+                <div class="card p-5 border-l-4 border-purple-500 relative overflow-hidden">
+                    <div class="absolute right-0 top-0 opacity-5 text-6xl -mt-2 -mr-2"><i class="fas fa-database"></i></div>
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Records Migrated</p>
+                    <h3 class="text-2xl font-black text-gray-800 mt-2 font-mono" id="totalRecords">0</h3>
+                </div>
+
+                <div class="card p-5 border-l-4 border-yellow-500 relative overflow-hidden">
+                    <div class="absolute right-0 top-0 opacity-5 text-6xl -mt-2 -mr-2"><i class="fas fa-stopwatch"></i></div>
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Elapsed Time</p>
+                    <h3 class="text-2xl font-black text-gray-800 mt-2 font-mono" id="duration">00:00</h3>
+                </div>
+            </div>
+
+            <!-- Charts & Metrics -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                <!-- Progress Chart -->
+                <div class="card p-6 lg:col-span-2 flex flex-col">
+                    <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">Migration Throughput</h3>
+                    <div class="relative flex-1 min-h-[250px]">
+                        <canvas id="throughputChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- System Metrics -->
+                <div class="card p-6 lg:col-span-1 bg-gradient-to-br from-slate-800 to-slate-900 text-white border-none shadow-xl">
+                    <h3 class="text-sm font-bold text-slate-300 uppercase tracking-wider mb-6 flex items-center">
+                        <i class="fas fa-server mr-2"></i> System Health
+                    </h3>
+
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between mb-2">
+                                <span class="text-xs font-medium text-slate-400">JVM Heap Memory</span>
+                                <span class="text-xs font-mono text-slate-300" id="heapText">0 / 0 MB</span>
+                            </div>
+                            <div class="w-full bg-slate-700/50 rounded-full h-2 overflow-hidden">
+                                <div class="bg-blue-400 h-2 rounded-full progress-bar shadow-[0_0_10px_rgba(96,165,250,0.5)]" id="heapBar" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between mb-2">
+                                <span class="text-xs font-medium text-slate-400">CPU Load Average</span>
+                                <span class="text-xs font-mono text-slate-300" id="cpuText">0.00</span>
+                            </div>
+                            <div class="w-full bg-slate-700/50 rounded-full h-2 overflow-hidden">
+                                <div class="bg-emerald-400 h-2 rounded-full progress-bar shadow-[0_0_10px_rgba(52,211,153,0.5)]" id="cpuBar" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="pt-4 mt-4 border-t border-slate-700/50">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-medium text-slate-400">Available Cores</span>
+                                <span class="text-lg font-bold text-slate-200" id="processors">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Table Details -->
+            <div class="card overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100 bg-white flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Table Execution Log</h3>
+                    <div class="flex space-x-2" id="tableFilters">
+                        <!-- Filters could go here -->
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider border-b border-gray-200">
+                                <th class="px-6 py-3 font-semibold w-1/3">Table Name</th>
+                                <th class="px-6 py-3 font-semibold text-right">Read</th>
+                                <th class="px-6 py-3 font-semibold text-right">Written</th>
+                                <th class="px-6 py-3 font-semibold text-center w-32">Status</th>
+                                <th class="px-6 py-3 font-semibold w-1/4">Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100" id="tableBody">
+                            <tr>
+                                <td colspan="5" class="px-6 py-12 text-center text-gray-400">
+                                    <i class="fas fa-inbox text-4xl mb-3 text-gray-200"></i>
+                                    <p>No job execution context found.</p>
+                                    <a href="/workflow.html" class="inline-block mt-4 text-blue-600 hover:underline font-medium">Start a new migration</a>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -297,17 +188,38 @@
     <!-- Error Modal -->
     <div id="errorModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeModal()">&times;</span>
-            <h2 class="text-xl font-bold text-red-600 mb-4"><i class="fas fa-exclamation-triangle mr-2"></i>Job Failed</h2>
-            <div id="errorDetails" class="text-gray-700 space-y-2">
+            <div class="flex justify-between items-center mb-5 border-b border-gray-100 pb-3">
+                <h2 class="text-xl font-bold text-red-600 flex items-center">
+                    <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center mr-3">
+                        <i class="fas fa-exclamation-triangle text-sm"></i>
+                    </div>
+                    Job Execution Failed
+                </h2>
+                <span class="close" onclick="closeModal()">&times;</span>
+            </div>
+
+            <div id="errorDetails" class="text-gray-800 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                 <!-- Error messages will be injected here -->
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-gray-100 text-right">
+                <button onclick="closeModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2 px-6 rounded-lg transition">Close</button>
             </div>
         </div>
     </div>
 
     <script>
-        // ... (Existing Chart and Polling Logic) ...
+        // Authentication Check
+        fetch('/api/auth/check').then(r => r.json()).then(data => {
+            if(!data.authenticated) window.location.href = '/login.html';
+        });
+
+        function logout() {
+            fetch('/api/auth/logout', {method: 'POST'}).then(() => window.location.href = '/login.html');
+        }
+
         // Chart Initialization
+        Chart.defaults.font.family = "'Inter', sans-serif";
         const ctx = document.getElementById('throughputChart').getContext('2d');
         const throughputChart = new Chart(ctx, {
             type: 'bar',
@@ -315,20 +227,18 @@
                 labels: [],
                 datasets: [
                     {
-                        label: 'Read Count',
+                        label: 'Rows Read',
                         data: [],
-                        backgroundColor: 'rgba(59, 130, 246, 0.6)',
-                        borderColor: 'rgba(59, 130, 246, 1)',
-                        borderWidth: 1,
-                        borderRadius: 4
+                        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                        borderRadius: 4,
+                        barPercentage: 0.6
                     },
                     {
-                        label: 'Write Count',
+                        label: 'Rows Written',
                         data: [],
-                        backgroundColor: 'rgba(16, 185, 129, 0.6)',
-                        borderColor: 'rgba(16, 185, 129, 1)',
-                        borderWidth: 1,
-                        borderRadius: 4
+                        backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                        borderRadius: 4,
+                        barPercentage: 0.6
                     }
                 ]
             },
@@ -336,46 +246,122 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: 'top' },
+                    legend: { position: 'top', align: 'end', labels: { boxWidth: 12, usePointStyle: true } },
+                    tooltip: { mode: 'index', intersect: false }
                 },
                 scales: {
-                    y: { beginAtZero: true, grid: { color: '#f3f4f6' } },
-                    x: { grid: { display: false } }
-                }
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#f1f5f9', drawBorder: false },
+                        ticks: { font: { size: 10 }, color: '#94a3b8' }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { size: 10 }, color: '#64748b' }
+                    }
+                },
+                interaction: { mode: 'nearest', axis: 'x', intersect: false }
             }
         });
 
-        // Check for executionId in URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const executionId = urlParams.get('executionId');
+        // Fetch execution IDs for dropdown
+        async function fetchExecutions() {
+            try {
+                const response = await fetch('/api/migration/executions');
+                if (!response.ok) throw new Error('Failed to fetch executions');
+                const executions = await response.json();
+
+                const selector = document.getElementById('executionIdSelector');
+                selector.innerHTML = '';
+
+                if (executions.length === 0) {
+                    selector.innerHTML = '<option value="">No executions found</option>';
+                    return;
+                }
+
+                // Populate dropdown
+                executions.forEach(ex => {
+                    const date = new Date(ex.startTime).toLocaleString();
+                    const option = new Option(`ID: ${ex.id} - ${ex.status} (${date})`, ex.id);
+                    selector.add(option);
+                });
+
+                // Set selected value based on URL param or default to most recent
+                const urlParams = new URLSearchParams(window.location.search);
+                const currentId = urlParams.get('executionId');
+
+                if (currentId && executions.some(e => e.id == currentId)) {
+                    selector.value = currentId;
+                } else if (executions.length > 0) {
+                    // Default to the first (most recent) if no param or invalid param
+                    selector.value = executions[0].id;
+                    // Update URL to match
+                    const url = new URL(window.location);
+                    url.searchParams.set('executionId', executions[0].id);
+                    window.history.pushState({}, '', url);
+                }
+
+                // Start polling for the selected ID
+                if (selector.value) {
+                    startPolling(selector.value);
+                }
+
+            } catch (error) {
+                console.error('Error fetching executions:', error);
+                document.getElementById('executionIdSelector').innerHTML = '<option value="">Error loading IDs</option>';
+            }
+        }
+
+        // Handle dropdown change
+        function changeExecutionId() {
+            const selector = document.getElementById('executionIdSelector');
+            const newId = selector.value;
+            if (newId) {
+                // Update URL
+                const url = new URL(window.location);
+                url.searchParams.set('executionId', newId);
+                window.history.pushState({}, '', url);
+
+                // Restart polling
+                startPolling(newId);
+            }
+        }
+
+        // Polling Logic
         let pollingInterval;
         let errorShown = false;
+        let currentExecutionId = null;
 
-        if (executionId) {
-            // Update Tables Link
-            document.getElementById('navTables').href = `tables.html?executionId=${executionId}`;
+        function startPolling(executionId) {
+            // Clear existing interval
+            if (pollingInterval) clearInterval(pollingInterval);
 
-            // If executionId is present, start polling immediately
-            document.getElementById('startBtn').disabled = true;
-            document.getElementById('startBtn').classList.add('opacity-50', 'cursor-not-allowed');
-            document.getElementById('startBtn').innerHTML = '<i class="fas fa-sync fa-spin mr-2"></i> Migration Running...';
+            // Reset state
+            errorShown = false;
+            currentExecutionId = executionId;
 
+            // Initial poll
             pollStatus(executionId);
-            // Poll every 5 seconds
-            pollingInterval = setInterval(() => pollStatus(executionId), 5000);
+
+            // Setup regular polling
+            pollingInterval = setInterval(() => {
+                if (currentExecutionId === executionId) {
+                    pollStatus(executionId);
+                }
+            }, 3000);
         }
 
         async function pollStatus(id) {
             try {
                 const response = await fetch(`/api/migration/status/${id}`);
                 const data = await response.json();
+
+                if(data.status === 'NOT_FOUND') return;
+
                 updateDashboard(data);
 
                 if (data.status === 'COMPLETED' || data.status === 'FAILED') {
                     clearInterval(pollingInterval);
-                    document.getElementById('startBtn').disabled = false;
-                    document.getElementById('startBtn').classList.remove('opacity-50', 'cursor-not-allowed');
-                    document.getElementById('startBtn').innerHTML = '<i class="fas fa-play mr-2"></i> Start New Migration';
 
                     if (data.status === 'FAILED' && !errorShown) {
                         showErrorModal(data);
@@ -387,14 +373,30 @@
             }
         }
 
+        function formatTime(seconds) {
+            if (isNaN(seconds) || seconds < 0) return "00:00";
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
         function updateDashboard(data) {
             // Update KPI Cards
             const statusEl = document.getElementById('jobStatus');
             statusEl.textContent = data.status;
-            statusEl.className = `text-2xl font-bold mt-1 ${getStatusColor(data.status)}`;
 
-            document.getElementById('executionIdDisplay').textContent = `Execution ID: ${data.executionId}`;
+            // Colorize status
+            statusEl.className = 'text-2xl font-black mt-2 ';
+            if(data.status === 'COMPLETED') statusEl.classList.add('text-emerald-600');
+            else if(data.status === 'FAILED') statusEl.classList.add('text-rose-600');
+            else statusEl.classList.add('text-blue-600', 'animate-pulse');
+
+            document.getElementById('executionIdDisplay').textContent = `ID: ${data.executionId}`;
+
+            // Total tables info (assuming we can derive total from progress array)
+            const totalTables = data.tableProgress ? data.tableProgress.length : 0;
             document.getElementById('completedCount').textContent = data.completedTables ? data.completedTables.length : 0;
+            document.getElementById('totalTableCount').textContent = totalTables;
 
             // Calculate total records
             let totalWrites = 0;
@@ -407,8 +409,10 @@
             if (data.startTime) {
                 const start = new Date(data.startTime);
                 const end = data.endTime ? new Date(data.endTime) : new Date();
-                const diff = Math.floor((end - start) / 1000);
-                document.getElementById('duration').textContent = `${diff}s`;
+                const diffSecs = Math.floor((end - start) / 1000);
+                document.getElementById('duration').textContent = formatTime(diffSecs);
+            } else {
+                document.getElementById('duration').textContent = "00:00";
             }
 
             // Update System Metrics
@@ -423,12 +427,14 @@
                 // CPU Load
                 let load = data.systemMetrics.systemLoadAverage;
                 if (load < 0) load = 0;
-                const cpuPercent = Math.min(Math.round(load * 100), 100);
+                // Assuming load avg roughly correlates to core count for percentage. Simplified visual.
+                const cores = data.systemMetrics.availableProcessors || 1;
+                const cpuPercent = Math.min(Math.round((load / cores) * 100), 100);
 
-                document.getElementById('cpuText').textContent = `${load.toFixed(2)}`;
+                document.getElementById('cpuText').textContent = load.toFixed(2);
                 document.getElementById('cpuBar').style.width = `${cpuPercent}%`;
 
-                document.getElementById('processors').textContent = data.systemMetrics.availableProcessors;
+                document.getElementById('processors').textContent = cores;
             }
 
             // Update Table
@@ -441,38 +447,43 @@
 
             if (data.tableProgress && data.tableProgress.length > 0) {
                 data.tableProgress.forEach(row => {
-                    // Update Chart Data
                     labels.push(row.tableName);
                     readData.push(row.readCount);
                     writeData.push(row.writeCount);
 
-                    // Update Table Row
                     const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50 transition-colors border-b border-gray-100';
+                    tr.className = 'hover:bg-slate-50 transition-colors group';
 
                     let progress = 0;
                     if (row.status === 'COMPLETED') progress = 100;
-                    else if (row.readCount > 0) progress = 50;
+                    else if (row.status === 'FAILED') progress = 100; // Show full bar for failed, but red
+                    else if (row.readCount > 0) progress = 50; // Indeterminate running
+
+                    let pColor = 'bg-blue-500';
+                    if(row.status === 'COMPLETED') pColor = 'bg-emerald-500';
+                    if(row.status === 'FAILED') pColor = 'bg-rose-500';
 
                     tr.innerHTML = `
-                        <td class="px-6 py-4 font-medium text-gray-900">${row.tableName}</td>
-                        <td class="px-6 py-4 text-gray-600">${row.readCount.toLocaleString()}</td>
-                        <td class="px-6 py-4 text-gray-600">${row.writeCount.toLocaleString()}</td>
-                        <td class="px-6 py-4">
+                        <td class="px-6 py-4 font-medium text-slate-800">${row.tableName}</td>
+                        <td class="px-6 py-4 text-slate-600 font-mono text-right">${row.readCount.toLocaleString()}</td>
+                        <td class="px-6 py-4 text-slate-600 font-mono text-right">${row.writeCount.toLocaleString()}</td>
+                        <td class="px-6 py-4 text-center">
                             <span class="status-badge ${getStatusBadgeClass(row.status)}">
                                 ${row.status}
                             </span>
                         </td>
                         <td class="px-6 py-4">
-                            <div class="w-full bg-gray-200 rounded-full h-2">
-                                <div class="bg-blue-600 h-2 rounded-full" style="width: ${progress}%"></div>
+                            <div class="flex items-center">
+                                <div class="w-full bg-slate-200 rounded-full h-1.5 mr-2 overflow-hidden">
+                                    <div class="${pColor} h-1.5 rounded-full transition-all duration-500" style="width: ${progress}%"></div>
+                                </div>
                             </div>
                         </td>
                     `;
                     tbody.appendChild(tr);
                 });
-            } else {
-                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Job started, waiting for step execution...</td></tr>`;
+            } else if (data.status !== 'STARTING') {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">No table steps found in this job.</td></tr>`;
             }
 
             // Update Chart
@@ -482,23 +493,13 @@
             throughputChart.update();
         }
 
-        function getStatusColor(status) {
-            switch(status) {
-                case 'COMPLETED': return 'text-green-600';
-                case 'STARTED':
-                case 'STARTING': return 'text-blue-600';
-                case 'FAILED': return 'text-red-600';
-                default: return 'text-gray-600';
-            }
-        }
-
         function getStatusBadgeClass(status) {
             switch(status) {
                 case 'COMPLETED': return 'status-completed';
                 case 'STARTED':
                 case 'STARTING': return 'status-running';
                 case 'FAILED': return 'status-failed';
-                default: return 'bg-gray-100 text-gray-600';
+                default: return 'bg-slate-100 text-slate-600 border border-slate-200';
             }
         }
 
@@ -507,63 +508,87 @@
             const details = document.getElementById('errorDetails');
             details.innerHTML = '';
 
-            const createErrorElement = (err, index) => {
+            const createErrorElement = (title, errText, index) => {
                 const container = document.createElement('div');
-                container.className = 'mb-2';
+                container.className = 'bg-white border border-red-200 rounded-lg overflow-hidden shadow-sm';
 
                 const summary = document.createElement('div');
-                summary.className = 'flex justify-between items-center bg-red-50 border-l-4 border-red-500 p-2 text-sm';
+                summary.className = 'flex justify-between items-center bg-red-50 p-3';
 
-                const text = document.createElement('span');
-                text.className = 'error-summary';
-                text.textContent = err.split('|')[0] || err; // Show first part as summary
+                const titleSpan = document.createElement('span');
+                titleSpan.className = 'font-semibold text-red-800 text-sm';
+                titleSpan.innerHTML = `<i class="fas fa-bug mr-2 opacity-50"></i>${title}`;
 
                 const btn = document.createElement('button');
-                btn.className = 'text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded ml-2 transition-colors';
-                btn.textContent = 'Show More';
+                btn.className = 'text-xs bg-white border border-red-200 hover:bg-red-100 text-red-700 px-3 py-1 rounded transition-colors font-medium shadow-sm';
+                btn.textContent = 'View Details';
                 btn.onclick = () => {
                     const full = document.getElementById(`error-full-${index}`);
                     if (full.style.display === 'none' || full.style.display === '') {
                         full.style.display = 'block';
-                        btn.textContent = 'Show Less';
+                        btn.textContent = 'Hide Details';
                     } else {
                         full.style.display = 'none';
-                        btn.textContent = 'Show More';
+                        btn.textContent = 'View Details';
                     }
                 };
 
-                summary.appendChild(text);
+                summary.appendChild(titleSpan);
                 summary.appendChild(btn);
                 container.appendChild(summary);
 
+                // Try to extract a clean summary from the stacktrace
+                let cleanSummary = errText.split('\n')[0];
+                if(cleanSummary.includes('Exception:')) {
+                    cleanSummary = cleanSummary.substring(cleanSummary.indexOf('Exception:') + 10).trim();
+                }
+
+                const shortText = document.createElement('div');
+                shortText.className = 'p-3 text-sm text-gray-700 border-t border-red-100 error-summary';
+                shortText.textContent = cleanSummary || errText.substring(0, 100) + '...';
+                container.appendChild(shortText);
+
                 const fullText = document.createElement('div');
                 fullText.id = `error-full-${index}`;
-                fullText.className = 'error-full text-xs text-gray-600';
-                fullText.textContent = err; // Full error message
+                fullText.className = 'error-full m-3';
+                fullText.textContent = errText;
                 container.appendChild(fullText);
 
                 return container;
             };
 
+            let errIdx = 0;
+
             if (data.errors && data.errors.length > 0) {
-                data.errors.forEach((err, index) => {
-                    details.appendChild(createErrorElement(err, 'job-' + index));
+                const h = document.createElement('h4');
+                h.className = 'font-bold text-gray-800 text-sm uppercase tracking-wider mt-2 mb-3';
+                h.textContent = 'Core Job Errors';
+                details.appendChild(h);
+
+                data.errors.forEach(err => {
+                    details.appendChild(createErrorElement('Job Execution Error', err, errIdx++));
                 });
             }
 
             if (data.constraintErrors && data.constraintErrors.length > 0) {
                  const h = document.createElement('h4');
-                 h.className = 'font-bold mt-4 mb-2';
-                 h.textContent = 'Constraint Creation Errors:';
+                 h.className = 'font-bold text-gray-800 text-sm uppercase tracking-wider mt-6 mb-3 flex items-center';
+                 h.innerHTML = 'Constraint Creation Errors <span class="ml-2 text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Phase 2</span>';
                  details.appendChild(h);
 
-                 data.constraintErrors.forEach((err, index) => {
-                    details.appendChild(createErrorElement(err, 'constraint-' + index));
+                 data.constraintErrors.forEach(err => {
+                    // Try to guess table from constraint error string
+                    let tblHint = 'Constraint Application';
+                    if(err.includes('table')) {
+                        const match = err.match(/table "([^"]+)"/);
+                        if(match) tblHint += ` on ${match[1]}`;
+                    }
+                    details.appendChild(createErrorElement(tblHint, err, errIdx++));
                 });
             }
 
             if (details.innerHTML === '') {
-                details.innerHTML = '<p>Unknown error occurred. Check logs for details.</p>';
+                details.innerHTML = '<div class="p-4 bg-gray-50 rounded text-gray-600 text-center">Unknown error occurred. Check server logs.</div>';
             }
 
             modal.style.display = "block";
@@ -573,7 +598,6 @@
             document.getElementById('errorModal').style.display = "none";
         }
 
-        // Close modal when clicking outside
         window.onclick = function(event) {
             const modal = document.getElementById('errorModal');
             if (event.target == modal) {
@@ -581,92 +605,10 @@
             }
         }
 
-        // --- New DB Config Logic ---
-        function openConfigModal() {
-            document.getElementById('configModal').style.display = 'block';
-        }
-
-        function closeConfigModal() {
-            document.getElementById('configModal').style.display = 'none';
-        }
-
-        async function fetchSchemas(type) {
-            const formId = type === 'source' ? 'sourceForm' : 'destForm';
-            const selectId = type === 'source' ? 'sourceSchema' : 'destSchema';
-            const form = document.getElementById(formId);
-            const select = document.getElementById(selectId);
-
-            const formData = new FormData(form);
-            const data = Object.fromEntries(formData.entries());
-
-            try {
-                const response = await fetch('/api/connection/schemas', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-
-                if (!response.ok) throw new Error('Failed to fetch schemas');
-
-                const schemas = await response.json();
-                select.innerHTML = '<option value="">Select Schema</option>';
-                schemas.forEach(s => {
-                    const opt = document.createElement('option');
-                    opt.value = s;
-                    opt.textContent = s;
-                    select.appendChild(opt);
-                });
-                select.disabled = false;
-            } catch (e) {
-                alert('Error fetching schemas: ' + e.message);
-            }
-        }
-
-        async function updateConnection(type) {
-            const formId = type === 'source' ? 'sourceForm' : 'destForm';
-            const form = document.getElementById(formId);
-            const formData = new FormData(form);
-            const data = Object.fromEntries(formData.entries());
-
-            if (!data.schema) {
-                alert('Please select a schema');
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/connection/update', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-
-                if (!response.ok) throw new Error('Failed to update connection');
-
-                alert(type.charAt(0).toUpperCase() + type.slice(1) + ' connection updated successfully!');
-
-                // Update display
-                const displayId = type === 'source' ? 'sourceUrl' : 'destinationUrl';
-                document.getElementById(displayId).textContent = data.url;
-
-                // If both updated, maybe close modal?
-            } catch (e) {
-                alert('Error updating connection: ' + e.message);
-            }
-        }
-
-        // Fetch initial connection details
-        async function fetchConnectionDetails() {
-            try {
-                const response = await fetch('/api/migration/connection-details');
-                const data = await response.json();
-                document.getElementById('sourceUrl').textContent = data.sourceUrl || 'Not configured';
-                document.getElementById('destinationUrl').textContent = data.destinationUrl || 'Not configured';
-            } catch (error) {
-                console.error('Failed to fetch connection details:', error);
-            }
-        }
-
-        fetchConnectionDetails();
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchExecutions();
+        });
     </script>
 </body>
 </html>
