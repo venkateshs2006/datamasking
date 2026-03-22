@@ -78,12 +78,12 @@
     </div>
 </nav>
 
-<div class="flex-1 flex flex-col overflow-hidden">
+<div class="flex-1 flex flex-col overflow-hidden bg-[#f8fafc]">
     <div class="w-full max-w-6xl mx-auto px-6 py-8 flex flex-col h-full">
 
         <div class="mb-8 shrink-0 text-center">
             <h2 class="text-3xl font-bold text-gray-900">Configure NoSQL Migration</h2>
-            <p class="text-sm text-gray-500 mt-2">Connect to MongoDB clusters and map collections for migration.</p>
+            <p class="text-sm text-gray-500 mt-2">Connect to MongoDB clusters, map collections, and apply masking rules.</p>
         </div>
 
         <!-- Stepper -->
@@ -95,17 +95,170 @@
         </div>
 
         <!-- Main Card -->
-        <div class="card flex-1 flex flex-col overflow-hidden relative shadow-md">
-            <!-- Content will be adapted for MongoDB in next steps, using placeholder for now -->
-            <div class="flex-1 flex items-center justify-center text-gray-500 flex-col">
-                <i class="fas fa-tools text-6xl mb-4 text-gray-300"></i>
-                <h3 class="text-xl font-bold text-gray-700">MongoDB Integration in Progress</h3>
-                <p class="mt-2">The UI for MongoDB configuration is being prepared.</p>
+        <div class="card flex-1 flex flex-col overflow-hidden relative shadow-md bg-white rounded-xl">
+
+            <!-- STEP 1: CONNECTIONS -->
+            <div id="step1" class="step-container active p-8">
+                <div class="flex flex-col md:flex-row flex-1 gap-12 relative h-full">
+                    <!-- Source Form -->
+                    <div class="flex-1 flex flex-col">
+                        <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
+                            <div class="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center text-green-600 mr-4 border border-green-100"><i class="fas fa-database text-lg"></i></div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Source Cluster</h3>
+                                <p class="text-xs text-gray-500">MongoDB to read data from</p>
+                            </div>
+                        </div>
+                        <form id="sourceForm" class="space-y-5 flex-1 flex flex-col">
+                            <input type="hidden" name="type" value="source">
+                            <div>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Connection URI</label>
+                                <input type="text" name="url" class="input-field" placeholder="mongodb://user:pass@host:port/admin" oninput="validateStep1()">
+                            </div>
+                            <div class="mt-auto pt-6 border-t border-gray-50">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
+                                    Target Database
+                                    <button type="button" id="btnFetchSrc" onclick="fetchSchemas('source')" class="text-xs text-green-600 hover:text-green-800 normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch Databases</button>
+                                </label>
+                                <select name="schema" id="sourceSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
+                                    <option value="">Fetch databases first...</option>
+                                </select>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Divider -->
+                    <div class="hidden md:block absolute left-1/2 top-4 bottom-4 w-px bg-gray-200 transform -translate-x-1/2"></div>
+
+                    <!-- Destination Form -->
+                    <div class="flex-1 flex flex-col pl-2">
+                        <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
+                            <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 mr-4 border border-emerald-100"><i class="fas fa-server text-lg"></i></div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Destination Cluster</h3>
+                                <p class="text-xs text-gray-500">MongoDB to write masked data to</p>
+                            </div>
+                        </div>
+                        <form id="destForm" class="space-y-5 flex-1 flex flex-col">
+                            <input type="hidden" name="type" value="destination">
+                            <div>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Connection URI</label>
+                                <input type="text" name="url" class="input-field" placeholder="mongodb://user:pass@host:port/admin" oninput="validateStep1()">
+                            </div>
+                            <div class="mt-auto pt-6 border-t border-gray-50">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
+                                    Target Database
+                                    <button type="button" id="btnFetchDest" onclick="fetchSchemas('dest')" class="text-xs text-emerald-600 hover:text-emerald-800 normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch Databases</button>
+                                </label>
+                                <select name="schema" id="destSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
+                                    <option value="">Fetch databases first...</option>
+                                </select>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
 
-            <div class="mt-auto border-t border-gray-200 px-8 py-4 bg-gray-50 flex justify-between items-center shrink-0 rounded-b-xl z-10 relative">
-                <a href="/select-db.html" class="btn btn-secondary text-sm font-bold tracking-wide"><i class="fas fa-chevron-left mr-2 text-xs"></i> BACK</a>
+            <!-- STEP 2: COLLECTIONS -->
+            <div id="step2" class="step-container p-6 h-full flex flex-col">
+                <div class="mb-4 shrink-0">
+                    <h3 class="text-lg font-semibold text-gray-800">Select Collections</h3>
+                    <p class="text-sm text-gray-500">Move collections from left to right to include them in the job.</p>
+                </div>
+
+                <div class="flex flex-1 gap-6 min-h-0">
+                    <!-- Available -->
+                    <div class="list-container w-1/2">
+                        <div class="list-header">
+                            <span>Available Source Collections</span>
+                            <button onclick="selectAllTables()" class="text-xs text-green-600 hover:underline font-medium">Select All</button>
+                        </div>
+                        <div class="list-body" id="availableTables">
+                            <div class="p-8 text-center text-gray-400 text-sm"><i class="fas fa-circle-notch fa-spin mb-2 text-xl"></i><br>Loading collections...</div>
+                        </div>
+                    </div>
+
+                    <!-- Selected -->
+                    <div class="list-container w-1/2 border-green-200">
+                        <div class="list-header bg-green-50 text-green-800">
+                            <span>Selected for Migration</span>
+                            <span class="bg-white text-green-600 px-2 py-0.5 rounded text-xs border border-green-200" id="selectedTableCount">0</span>
+                        </div>
+                        <div class="list-body bg-gray-50/50" id="selectedTablesList">
+                            <div class="flex flex-col items-center justify-center h-full text-gray-400 text-sm">
+                                <i class="fas fa-arrow-right text-3xl mb-3 text-gray-300"></i>
+                                <p>Select collections to migrate</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
+
+            <!-- STEP 3: RULES -->
+            <div id="step3" class="step-container p-6 h-full flex flex-col">
+                <div class="flex justify-between items-center mb-4 shrink-0">
+                    <h3 class="font-bold text-gray-800">Assign Masking Rules</h3>
+                    <div class="w-64">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Encryption Salt</label>
+                        <input type="text" id="workflowSecretKey" class="input-field py-1" value="DefaultSecretKey123" oninput="validateStep3()">
+                    </div>
+                </div>
+                <div class="flex flex-1 gap-4 min-h-0">
+                    <div class="list-container w-1/4">
+                        <div class="bg-gray-50 p-2 border-b text-xs font-bold">COLLECTIONS</div>
+                        <div id="ruleTablesList" class="list-body overflow-y-auto"></div>
+                    </div>
+                    <div class="list-container w-1/3">
+                        <div class="bg-gray-50 p-2 border-b text-xs font-bold">FIELDS <span id="activeTableName" class="ml-2 text-green-500"></span></div>
+                        <div id="ruleColumnsList" class="list-body overflow-y-auto"></div>
+                    </div>
+                    <div class="list-container w-5/12 bg-gray-50/30 p-4 border-none">
+                        <h4 class="text-xs font-bold text-gray-500 mb-4">APPLIED RULES</h4>
+                        <div class="space-y-3 overflow-y-auto">
+                            <div class="bg-white p-3 rounded border border-green-100"><h5 class="text-[10px] font-bold text-green-600 mb-2 uppercase">Standard Fake</h5><div id="tags-masking" class="flex flex-wrap gap-1"></div></div>
+                            <div class="bg-white p-3 rounded border border-orange-100"><h5 class="text-[10px] font-bold text-orange-600 mb-2 uppercase">Partial Mask</h5><div id="tags-partial" class="flex flex-wrap gap-1"></div></div>
+                            <div class="bg-white p-3 rounded border border-purple-100"><h5 class="text-[10px] font-bold text-purple-600 mb-2 uppercase">Deterministic ID</h5><div id="tags-constraint" class="flex flex-wrap gap-1"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 4: PREVIEW -->
+            <div id="step4" class="step-container p-8 h-full overflow-y-auto">
+                <div class="text-center mb-8 shrink-0">
+                    <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-emerald-50">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900">Ready to Launch</h3>
+                    <p class="text-sm text-gray-500 mt-2">Review your configuration summary before initiating the migration.</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-6 shrink-0">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <label class="text-[10px] font-bold text-gray-400 block mb-1 uppercase">Source Connection</label>
+                        <div id="previewSrc" class="text-xs font-mono break-all"></div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <label class="text-[10px] font-bold text-gray-400 block mb-1 uppercase">Destination Connection</label>
+                        <div id="previewDest" class="text-xs font-mono break-all"></div>
+                    </div>
+                </div>
+                <div class="border rounded-lg overflow-hidden flex-1 overflow-y-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-gray-100 text-[11px] font-bold uppercase sticky top-0"><tr><th class="p-3">Collection</th><th class="p-3">Rules Applied</th></tr></thead>
+                        <tbody id="previewRulesTable" class="divide-y"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Card Footer -->
+            <div class="mt-auto border-t p-4 bg-gray-50 flex justify-between items-center shrink-0 rounded-b-xl z-10 relative">
+                <button id="btnPrev" onclick="prevStep()" class="btn btn-secondary text-sm hidden">Back</button>
+                <div class="flex-1"></div>
+                <button id="btnNext" onclick="nextStep()" class="btn btn-primary text-sm shadow-md transition-all">Continue <i class="fas fa-chevron-right ml-2 text-xs"></i></button>
+                <button id="btnStart" onclick="submitWorkflow()" class="btn btn-success text-sm shadow-md hidden animate-pulse">Launch Migration <i class="fas fa-rocket ml-2"></i></button>
+            </div>
+
         </div>
     </div>
 </div>
@@ -119,6 +272,297 @@
         await fetch('/api/auth/logout', {method: 'POST'});
         window.location.href = '/login.html';
     }
+
+    let currentStep = 1;
+    const totalSteps = 4;
+    let state = {
+        tables: [],
+        selectedTables: [],
+        columnsCache: {},
+        rules: { maskingColumns: [], constraintColumns: [], partialMaskingColumns: [], maskingKey: '', targetTables: [] }
+    };
+
+    function validateStep1() {
+        const forms = ['sourceForm', 'destForm'];
+        const mongoRegex = /^mongodb(\+srv)?:\/\/.+/i;
+        let allValid = true;
+
+        forms.forEach(id => {
+            const form = document.getElementById(id);
+            const url = form.url.value;
+            const schema = form.querySelector('select').value;
+            const fetchBtn = document.getElementById(id === 'sourceForm' ? 'btnFetchSrc' : 'btnFetchDest');
+
+            const isUrlValid = mongoRegex.test(url);
+            form.url.classList.toggle('error', url && !isUrlValid);
+
+            fetchBtn.disabled = !isUrlValid;
+
+            if (!isUrlValid || !schema) allValid = false;
+        });
+
+        document.getElementById('btnNext').disabled = !allValid;
+    }
+
+    function validateStep2() {
+        const btnNext = document.getElementById('btnNext');
+        btnNext.disabled = state.selectedTables.length === 0;
+    }
+
+    function validateStep3() {
+        const salt = document.getElementById('workflowSecretKey').value.trim();
+        const btnNext = document.getElementById('btnNext');
+        const field = document.getElementById('workflowSecretKey');
+
+        const valid = salt.length >= 8;
+        field.classList.toggle('error', salt.length > 0 && salt.length < 8);
+        btnNext.disabled = !valid;
+    }
+
+    function updateUI() {
+        document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active'));
+        document.getElementById(`step${currentStep}`).classList.add('active');
+
+        for(let i=1; i<=totalSteps; i++) {
+            const el = document.getElementById(`step${i}-indicator`);
+            if(el) {
+                el.classList.toggle('completed', i < currentStep);
+                el.classList.toggle('active', i === currentStep);
+
+                const iconWrap = el.querySelector('.stepper-circle');
+                if(i < currentStep) {
+                    iconWrap.innerHTML = '<i class="fas fa-check"></i>';
+                } else {
+                    const icons = ['plug', 'layer-group', 'mask', 'flag-checkered'];
+                    iconWrap.innerHTML = `<i class="fas fa-${icons[i-1]} text-sm"></i>`;
+                }
+            }
+        }
+
+        document.getElementById('btnPrev').style.display = currentStep > 1 ? 'inline-flex' : 'none';
+        document.getElementById('btnNext').classList.toggle('hidden', currentStep === totalSteps);
+        document.getElementById('btnStart').classList.toggle('hidden', currentStep !== totalSteps);
+
+        if (currentStep === 1) validateStep1();
+        if (currentStep === 2) validateStep2();
+        if (currentStep === 3) validateStep3();
+        if (currentStep === 4) populatePreview();
+    }
+
+    async function nextStep() {
+        const btn = document.getElementById('btnNext');
+        const origHtml = btn.innerHTML;
+
+        if (currentStep === 1) {
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Connecting...';
+            btn.disabled = true;
+            try {
+                // Placeholder: Simulate MongoDB schema processing
+                await new Promise(r => setTimeout(r, 800));
+                state.tables = ['users_collection', 'orders_collection', 'products_collection', 'sessions_log'];
+                renderAvailableTables();
+            } catch (e) {
+                alert("Connection failed.");
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+                return;
+            }
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+        }
+        if (currentStep === 2) renderRuleTables();
+
+        currentStep++;
+        updateUI();
+    }
+
+    function prevStep() { if (currentStep > 1) { currentStep--; updateUI(); } }
+
+    async function fetchSchemas(type) {
+        const formId = type === 'source' ? 'sourceForm' : 'destForm';
+        const selectId = type === 'source' ? 'sourceSchema' : 'destSchema';
+        const form = document.getElementById(formId);
+        const select = document.getElementById(selectId);
+
+        select.innerHTML = '<option value="">Loading...</option>';
+        try {
+            // Placeholder for Mongo database fetching
+            await new Promise(r => setTimeout(r, 500));
+            const schemas = ['admin', 'local', 'application_db', 'analytics_db'];
+
+            select.innerHTML = '<option value="">Select Database</option>';
+            schemas.forEach(s => select.add(new Option(s, s)));
+            select.disabled = false;
+        } catch (e) {
+            select.innerHTML = '<option value="">Error</option>';
+        }
+        validateStep1();
+    }
+
+    function renderAvailableTables() {
+        const container = document.getElementById('availableTables');
+        container.innerHTML = '';
+        const filtered = state.tables.filter(t => !state.selectedTables.includes(t));
+
+        if(filtered.length === 0) {
+            container.innerHTML = '<div class="text-center text-gray-400 text-xs py-4 italic">No collections left</div>';
+            return;
+        }
+
+        filtered.forEach(t => {
+            const d = document.createElement('div');
+            d.className = 'list-item border px-2 py-1 mb-1 rounded hover:bg-gray-50';
+            d.innerHTML = `<span><i class="fas fa-file-alt text-gray-400 mr-2"></i>${t}</span><i class="fas fa-plus text-gray-300"></i>`;
+            d.onclick = () => { state.selectedTables.push(t); renderAvailableTables(); renderSelectedTables(); validateStep2(); };
+            container.appendChild(d);
+        });
+    }
+
+    function renderSelectedTables() {
+        const container = document.getElementById('selectedTablesList');
+        container.innerHTML = '';
+        document.getElementById('selectedTableCount').innerText = state.selectedTables.length;
+
+        if(state.selectedTables.length === 0) {
+            container.innerHTML = '<div class="text-center text-gray-400 text-xs py-8 italic flex flex-col items-center"><i class="fas fa-hand-pointer text-2xl mb-2 opacity-50"></i>Select collections</div>';
+            return;
+        }
+
+        state.selectedTables.forEach(t => {
+            const d = document.createElement('div');
+            d.className = 'list-item border border-green-100 bg-green-50/50 px-2 py-1 mb-1 rounded';
+            d.innerHTML = `<span><i class="fas fa-file-alt text-green-400 mr-2"></i>${t}</span><i class="fas fa-times text-green-300"></i>`;
+            d.onclick = () => { state.selectedTables = state.selectedTables.filter(x => x !== t); renderAvailableTables(); renderSelectedTables(); validateStep2(); };
+            container.appendChild(d);
+        });
+    }
+
+    function selectAllTables() { state.selectedTables = [...state.tables]; renderAvailableTables(); renderSelectedTables(); validateStep2(); }
+
+    let activeRuleTable = null;
+
+    function renderRuleTables() {
+        const container = document.getElementById('ruleTablesList');
+        container.innerHTML = '';
+        state.selectedTables.forEach(t => {
+            const d = document.createElement('div');
+            d.className = 'list-item border-b rounded-none px-3 py-2';
+            d.innerHTML = `<span>${t}</span><i class="fas fa-chevron-right text-gray-200"></i>`;
+            d.onclick = () => loadColumns(t, d);
+            container.appendChild(d);
+        });
+        if(state.selectedTables.length > 0) loadColumns(state.selectedTables[0], container.firstChild);
+    }
+
+    async function loadColumns(table, el) {
+        document.querySelectorAll('#ruleTablesList .list-item').forEach(i => i.classList.remove('selected', 'bg-gray-50', 'border-l-4', 'border-gray-400'));
+        if(el) el.classList.add('bg-gray-50', 'border-l-4', 'border-gray-400');
+
+        activeRuleTable = table;
+        const nameDisplay = document.getElementById('activeTableName');
+        nameDisplay.innerText = `(${table})`;
+        nameDisplay.classList.remove('hidden');
+
+        const colList = document.getElementById('ruleColumnsList');
+        if(!state.columnsCache[table]) {
+            colList.innerHTML = '<div class="text-center text-gray-400 mt-10 text-xs"><i class="fas fa-circle-notch fa-spin mb-2 text-lg"></i><br>Loading fields...</div>';
+            await new Promise(r => setTimeout(r, 300));
+            state.columnsCache[table] = ['_id', 'firstName', 'lastName', 'email', 'phone', 'address.city', 'address.zip', 'creditCard.number'];
+        }
+        renderColumnList(table, state.columnsCache[table]);
+        renderTags(table);
+    }
+
+    function renderColumnList(table, columns) {
+        const container = document.getElementById('ruleColumnsList');
+        container.innerHTML = '';
+        columns.forEach(col => {
+            const full = `${table}.${col}`;
+            const d = document.createElement('div');
+            d.className = 'p-3 border-b';
+
+            d.innerHTML = `
+                <div class="text-[11px] font-bold text-gray-700 mb-1.5 truncate" title="${col}">${col}</div>
+                <div class="flex gap-1.5">
+                    <button class="flex-1 text-[8px] border rounded py-1 uppercase" onclick="toggleRule('${full}','maskingColumns','${table}')">Std</button>
+                    <button class="flex-1 text-[8px] border rounded py-1 uppercase" onclick="toggleRule('${full}','partialMaskingColumns','${table}')">Prt</button>
+                    <button class="flex-1 text-[8px] border rounded py-1 uppercase" onclick="toggleRule('${full}','constraintColumns','${table}')">Enc</button>
+                </div>
+            `;
+            container.appendChild(d);
+        });
+    }
+
+    function toggleRule(full, type, table) {
+        if(!state.selectedTables.includes(table)) {
+            state.selectedTables.push(table);
+            renderAvailableTables();
+            validateStep2();
+        }
+
+        ['maskingColumns','partialMaskingColumns','constraintColumns'].forEach(r => { if(r !== type) state.rules[r] = state.rules[r].filter(c => c !== full); });
+        const list = state.rules[type];
+        const idx = list.indexOf(full);
+        if(idx === -1) list.push(full); else list.splice(idx, 1);
+
+        renderTags(table);
+    }
+
+    function renderTags(table) {
+        const f = (type, id, colorClass) => {
+            const c = document.getElementById(id);
+            c.innerHTML = '';
+            const rules = state.rules[type].filter(x => x.startsWith(table+'.'));
+            if(rules.length === 0) {
+                return;
+            }
+            rules.forEach(full => {
+                const s = document.createElement('span');
+                s.className = `inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-md ${colorClass} shadow-sm`;
+                s.innerHTML = `${full.split('.')[1]} <i class="fas fa-times ml-1 cursor-pointer" onclick="toggleRule('${full}','${type}','${table}')"></i>`;
+                c.appendChild(s);
+            });
+        };
+        f('maskingColumns','tags-masking','bg-green-100 text-green-700 border border-green-200');
+        f('partialMaskingColumns','tags-partial','bg-orange-100 text-orange-700 border border-orange-200');
+        f('constraintColumns','tags-constraint','bg-purple-100 text-purple-700 border border-purple-200');
+    }
+
+    function populatePreview() {
+        document.getElementById('previewSrc').innerText = document.getElementById('sourceForm').url.value;
+        document.getElementById('previewDest').innerText = document.getElementById('destForm').url.value;
+
+        const body = document.getElementById('previewRulesTable');
+        body.innerHTML = '';
+        state.selectedTables.forEach(t => {
+            const masks = state.rules.maskingColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-green-100 text-green-700 border border-green-200 px-1.5 py-0.5 rounded text-[9px] font-bold mr-1 mb-1 inline-block shadow-sm">STD: ${x.split('.')[1]}</span>`);
+            const parts = state.rules.partialMaskingColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-orange-50 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded text-[9px] font-bold mr-1 mb-1 inline-block shadow-sm">PRT: ${x.split('.')[1]}</span>`);
+            const encs = state.rules.constraintColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded text-[9px] font-bold mr-1 mb-1 inline-block shadow-sm">ENC: ${x.split('.')[1]}</span>`);
+
+            const rules = [...masks, ...parts, ...encs].join('') || '<span class="text-gray-400 italic text-[10px]">Direct Copy</span>';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td class="p-3 font-medium">${t}</td><td class="p-3">${rules}</td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    async function submitWorkflow() {
+        const btn = document.getElementById('btnStart');
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Launching...';
+        btn.disabled = true;
+
+        try {
+            alert('MongoDB Migration Job initiated successfully (Placeholder)');
+            window.location.href = '/index.html';
+        } catch (e) {
+            alert('Failed to launch migration.');
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+        }
+    }
+
+    updateUI();
 </script>
 </body>
 </html>

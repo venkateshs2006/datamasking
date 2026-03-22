@@ -113,7 +113,7 @@
                     <!-- Source Form -->
                     <div class="flex-1 flex flex-col">
                         <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
-                            <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 mr-4 border border-blue-100"><i class="fas fa-database text-lg"></i></div>
+                            <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 mr-4 border border-blue-100"><i class="fas fa-database text-lg"></i></div>
                             <div>
                                 <h3 class="text-lg font-bold text-gray-800 leading-tight">Source Environment</h3>
                                 <p class="text-xs text-gray-500">Database to read data from</p>
@@ -130,13 +130,17 @@
                                 <div><label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Password</label><input type="password" name="password" class="input-field" oninput="validateStep1()"></div>
                             </div>
                             <div class="mt-auto pt-6 border-t border-gray-50">
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
-                                    Target Schema
-                                    <button type="button" id="btnFetchSrc" onclick="fetchSchemas('source')" class="text-xs text-blue-600 hover:text-blue-800 normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch</button>
-                                </label>
-                                <select name="schema" id="sourceSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
-                                    <option value="">Fetch schemas first...</option>
-                                </select>
+                                <div class="flex justify-between items-end">
+                                    <div class="flex-1 mr-3">
+                                        <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Target Schema</label>
+                                        <select name="schema" id="sourceSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
+                                            <option value="">Fetch schemas first...</option>
+                                        </select>
+                                    </div>
+                                    <button type="button" id="btnFetchSrc" onclick="fetchSchemas('source')" class="btn btn-secondary py-2 px-4 whitespace-nowrap" disabled>
+                                        <i class="fas fa-sync-alt mr-2"></i>Fetch
+                                    </button>
+                                </div>
                             </div>
                         </form>
                     </div>
@@ -147,7 +151,7 @@
                     <!-- Destination Form -->
                     <div class="flex-1 flex flex-col pl-2">
                         <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
-                            <div class="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 mr-4 border border-emerald-100"><i class="fas fa-server text-lg"></i></div>
+                            <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 mr-4 border border-emerald-100"><i class="fas fa-server text-lg"></i></div>
                             <div>
                                 <h3 class="text-lg font-bold text-gray-800 leading-tight">Destination Environment</h3>
                                 <p class="text-xs text-gray-500">Database to write masked data to</p>
@@ -164,13 +168,17 @@
                                 <div><label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Password</label><input type="password" name="password" class="input-field" oninput="validateStep1()"></div>
                             </div>
                             <div class="mt-auto pt-6 border-t border-gray-50">
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
-                                    Target Schema
-                                    <button type="button" id="btnFetchDest" onclick="fetchSchemas('dest')" class="text-xs text-emerald-600 hover:text-emerald-800 normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch</button>
-                                </label>
-                                <select name="schema" id="destSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
-                                    <option value="">Fetch schemas first...</option>
-                                </select>
+                                <div class="flex justify-between items-end">
+                                    <div class="flex-1 mr-3">
+                                        <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Target Schema</label>
+                                        <select name="schema" id="destSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
+                                            <option value="">Fetch schemas first...</option>
+                                        </select>
+                                    </div>
+                                    <button type="button" id="btnFetchDest" onclick="fetchSchemas('dest')" class="btn btn-secondary py-2 px-4 whitespace-nowrap" disabled>
+                                        <i class="fas fa-sync-alt mr-2"></i>Fetch
+                                    </button>
+                                </div>
                             </div>
                         </form>
                     </div>
@@ -179,7 +187,7 @@
 
             <!-- STEP 2: TABLES -->
             <div id="step2" class="step-container p-8 h-full flex flex-col">
-                <div class="mb-6 flex justify-between items-end">
+                <div class="mb-6 flex justify-between items-end shrink-0">
                     <div>
                         <h3 class="text-xl font-bold text-gray-800">Select Tables</h3>
                         <p class="text-sm text-gray-500 mt-1">Choose the tables you want to include in this migration.</p>
@@ -190,11 +198,12 @@
                 </div>
 
                 <div class="flex flex-1 gap-8 min-h-0 bg-gray-50/50 p-4 rounded-xl border border-gray-200">
-                    <div class="list-container flex-1 bg-white shadow-sm border-gray-200">
-                        <div class="list-header bg-white border-b border-gray-100 py-3">
+                    <!-- Available -->
+                    <div class="list-container flex-1 bg-white shadow-sm border-gray-200 flex flex-col h-full overflow-hidden">
+                        <div class="list-header bg-white border-b border-gray-100 py-3 shrink-0">
                             <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Available in Source</span>
                         </div>
-                        <div id="availableTables" class="list-body p-3 space-y-1"></div>
+                        <div id="availableTables" class="list-body p-3 space-y-1 overflow-y-auto flex-1"></div>
                     </div>
 
                     <div class="flex items-center justify-center shrink-0">
@@ -203,19 +212,20 @@
                         </div>
                     </div>
 
-                    <div class="list-container flex-1 border-blue-200 bg-blue-50/10 shadow-sm">
-                        <div class="list-header bg-white border-b border-blue-100 py-3">
+                    <!-- Selected -->
+                    <div class="list-container flex-1 border-blue-200 bg-blue-50/10 shadow-sm flex flex-col h-full overflow-hidden">
+                        <div class="list-header bg-white border-b border-blue-100 py-3 shrink-0">
                             <span class="text-xs font-bold text-blue-800 uppercase tracking-wider">Selected</span>
                             <span class="bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full text-xs font-bold shadow-sm" id="selectedTableCount">0</span>
                         </div>
-                        <div id="selectedTablesList" class="list-body p-3 space-y-1"></div>
+                        <div id="selectedTablesList" class="list-body p-3 space-y-1 overflow-y-auto flex-1"></div>
                     </div>
                 </div>
             </div>
 
             <!-- STEP 3: RULES -->
             <div id="step3" class="step-container p-8 h-full flex flex-col">
-                <div class="flex justify-between items-start mb-6">
+                <div class="flex justify-between items-start mb-6 shrink-0">
                     <div>
                         <h3 class="text-xl font-bold text-gray-800">Assign Masking Rules</h3>
                         <p class="text-sm text-gray-500 mt-1">Configure how sensitive columns should be transformed.</p>
@@ -230,32 +240,32 @@
 
                 <div class="flex flex-1 gap-6 min-h-0">
                     <!-- Tables List -->
-                    <div class="list-container w-1/4 bg-white shadow-sm border-gray-200">
-                        <div class="list-header bg-gray-50 py-3"><span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Tables</span></div>
-                        <div id="ruleTablesList" class="list-body p-2"></div>
+                    <div class="list-container w-1/4 bg-white shadow-sm border-gray-200 flex flex-col overflow-hidden">
+                        <div class="list-header bg-gray-50 py-3 shrink-0"><span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Tables</span></div>
+                        <div id="ruleTablesList" class="list-body p-2 overflow-y-auto flex-1"></div>
                     </div>
 
                     <!-- Columns List -->
-                    <div class="list-container w-1/3 bg-white shadow-sm border-gray-200">
-                        <div class="list-header bg-gray-50 py-3 flex justify-between">
+                    <div class="list-container w-1/3 bg-white shadow-sm border-gray-200 flex flex-col overflow-hidden">
+                        <div class="list-header bg-gray-50 py-3 flex justify-between shrink-0">
                             <span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Columns</span>
                             <span id="activeTableName" class="text-[10px] font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 hidden"></span>
                         </div>
-                        <div id="ruleColumnsList" class="list-body p-2">
-                            <div class="text-center text-gray-400 mt-10 text-sm flex flex-col items-center">
-                                <i class="fas fa-hand-pointer text-2xl mb-2 opacity-50"></i>
-                                Select a table
+                        <div id="ruleColumnsList" class="list-body p-2 overflow-y-auto flex-1 relative">
+                            <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 text-sm bg-white z-10" id="columnsPlaceholder">
+                                <i class="fas fa-arrow-left text-2xl mb-2 opacity-50"></i>
+                                Select a table to view columns
                             </div>
                         </div>
                     </div>
 
                     <!-- Applied Rules Overview -->
-                    <div class="list-container flex-1 bg-gray-50 border-gray-200 shadow-inner">
-                        <div class="list-header bg-white py-3 border-b border-gray-200">
+                    <div class="list-container flex-1 bg-gray-50 border-gray-200 shadow-inner flex flex-col overflow-hidden">
+                        <div class="list-header bg-gray-100 py-3 border-b border-gray-200 shrink-0">
                             <span class="text-xs font-bold text-gray-700 uppercase tracking-wider">Active Rules Overview</span>
                         </div>
-                        <div class="p-5 space-y-5 overflow-y-auto relative h-full">
-                            <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 text-sm bg-gray-50 z-10" id="rulesPlaceholder">
+                        <div class="p-5 space-y-5 flex-1 overflow-y-auto relative">
+                            <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 text-sm bg-gray-50 z-10 hidden" id="rulesPlaceholder">
                                 <i class="fas fa-info-circle text-2xl mb-2 opacity-50"></i>
                                 Select a table to view its rules
                             </div>
@@ -280,7 +290,7 @@
             </div>
 
             <!-- STEP 4: PREVIEW -->
-            <div id="step4" class="step-container p-8 h-full overflow-y-auto">
+            <div id="step4" class="step-container p-8 overflow-y-auto">
                 <div class="max-w-4xl mx-auto w-full flex flex-col h-full">
                     <div class="text-center mb-8 shrink-0">
                         <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-emerald-50">
@@ -308,12 +318,12 @@
                         <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-center gap-12 relative overflow-hidden">
                             <div class="absolute top-0 right-0 p-4 opacity-5 text-4xl"><i class="fas fa-chart-pie"></i></div>
                             <div class="text-center">
-                                <span class="block text-4xl font-black text-blue-600" id="previewTableCount">0</span>
-                                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2 block">Tables Selected</span>
+                                <span class="block text-5xl font-black text-blue-600" id="previewTableCount">0</span>
+                                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2 block">Tables</span>
                             </div>
                             <div class="w-px h-20 bg-gray-100"></div>
                             <div class="text-center">
-                                <span class="block text-4xl font-black text-purple-600" id="previewRuleCount">0</span>
+                                <span class="block text-5xl font-black text-purple-600" id="previewRuleCount">0</span>
                                 <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2 block">Rules applied</span>
                             </div>
                         </div>
@@ -504,8 +514,6 @@
             select.innerHTML = '<option value="">Select Schema</option>';
             schemas.forEach(s => select.add(new Option(s, s)));
             select.disabled = false;
-            select.classList.remove('bg-gray-50');
-            select.classList.add('bg-white');
         } catch (e) {
             select.innerHTML = '<option value="">Error</option>';
         }
@@ -576,6 +584,7 @@
         nameDisplay.innerText = table;
         nameDisplay.classList.remove('hidden');
 
+        document.getElementById('columnsPlaceholder').classList.add('hidden');
         document.getElementById('rulesPlaceholder').classList.add('hidden');
 
         const colList = document.getElementById('ruleColumnsList');
