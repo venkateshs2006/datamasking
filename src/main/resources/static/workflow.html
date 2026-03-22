@@ -88,7 +88,7 @@
     </div>
 </nav>
 
-<div class="flex-1 flex flex-col overflow-hidden">
+<div class="flex-1 flex flex-col overflow-hidden bg-[#f8fafc]">
     <div class="w-full max-w-6xl mx-auto px-6 py-8 flex flex-col h-full">
 
         <div class="mb-8 shrink-0 text-center">
@@ -105,7 +105,7 @@
         </div>
 
         <!-- Main Card -->
-        <div class="card flex-1 flex flex-col overflow-hidden relative shadow-md">
+        <div class="card flex-1 flex flex-col overflow-hidden relative shadow-md bg-white rounded-xl">
 
             <!-- STEP 1: CONNECTIONS -->
             <div id="step1" class="step-container active p-8">
@@ -130,17 +130,13 @@
                                 <div><label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Password</label><input type="password" name="password" class="input-field" oninput="validateStep1()"></div>
                             </div>
                             <div class="mt-auto pt-6 border-t border-gray-50">
-                                <div class="flex justify-between items-end">
-                                    <div class="flex-1 mr-3">
-                                        <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Target Schema</label>
-                                        <select name="schema" id="sourceSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
-                                            <option value="">Fetch schemas first...</option>
-                                        </select>
-                                    </div>
-                                    <button type="button" id="btnFetchSrc" onclick="fetchSchemas('source')" class="btn btn-secondary py-2 px-4 whitespace-nowrap" disabled>
-                                        <i class="fas fa-sync-alt mr-2"></i>Fetch
-                                    </button>
-                                </div>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
+                                    Target Schema
+                                    <button type="button" id="btnFetchSrc" onclick="fetchSchemas('source')" class="text-xs text-blue-600 hover:text-blue-800 normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch</button>
+                                </label>
+                                <select name="schema" id="sourceSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
+                                    <option value="">Fetch schemas first...</option>
+                                </select>
                             </div>
                         </form>
                     </div>
@@ -168,17 +164,13 @@
                                 <div><label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Password</label><input type="password" name="password" class="input-field" oninput="validateStep1()"></div>
                             </div>
                             <div class="mt-auto pt-6 border-t border-gray-50">
-                                <div class="flex justify-between items-end">
-                                    <div class="flex-1 mr-3">
-                                        <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Target Schema</label>
-                                        <select name="schema" id="destSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
-                                            <option value="">Fetch schemas first...</option>
-                                        </select>
-                                    </div>
-                                    <button type="button" id="btnFetchDest" onclick="fetchSchemas('dest')" class="btn btn-secondary py-2 px-4 whitespace-nowrap" disabled>
-                                        <i class="fas fa-sync-alt mr-2"></i>Fetch
-                                    </button>
-                                </div>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
+                                    Target Schema
+                                    <button type="button" id="btnFetchDest" onclick="fetchSchemas('dest')" class="text-xs text-emerald-600 hover:text-emerald-800 normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch</button>
+                                </label>
+                                <select name="schema" id="destSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
+                                    <option value="">Fetch schemas first...</option>
+                                </select>
                             </div>
                         </form>
                     </div>
@@ -187,7 +179,7 @@
 
             <!-- STEP 2: TABLES -->
             <div id="step2" class="step-container p-8 h-full flex flex-col">
-                <div class="mb-6 flex justify-between items-end shrink-0">
+                <div class="mb-6 flex justify-between items-end">
                     <div>
                         <h3 class="text-xl font-bold text-gray-800">Select Tables</h3>
                         <p class="text-sm text-gray-500 mt-1">Choose the tables you want to include in this migration.</p>
@@ -215,8 +207,7 @@
                     <!-- Selected -->
                     <div class="list-container flex-1 border-blue-200 bg-blue-50/10 shadow-sm flex flex-col h-full overflow-hidden">
                         <div class="list-header bg-white border-b border-blue-100 py-3 shrink-0">
-                            <span class="text-xs font-bold text-blue-800 uppercase tracking-wider">Selected</span>
-                            <span class="bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full text-xs font-bold shadow-sm" id="selectedTableCount">0</span>
+                            <span class="text-xs font-bold text-blue-800 uppercase tracking-wider">Selected (<span id="selectedTableCount">0</span>)</span>
                         </div>
                         <div id="selectedTablesList" class="list-body p-3 space-y-1 overflow-y-auto flex-1"></div>
                     </div>
@@ -290,7 +281,7 @@
             </div>
 
             <!-- STEP 4: PREVIEW -->
-            <div id="step4" class="step-container p-8 overflow-y-auto">
+            <div id="step4" class="step-container p-8 overflow-y-auto h-full">
                 <div class="max-w-4xl mx-auto w-full flex flex-col h-full">
                     <div class="text-center mb-8 shrink-0">
                         <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-emerald-50">
@@ -330,7 +321,7 @@
                     </div>
 
                     <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col min-h-[300px]">
-                        <div class="bg-gray-50 px-5 py-3 border-b border-gray-200">
+                        <div class="bg-gray-50 px-5 py-4 border-b border-gray-200 flex justify-between items-center">
                             <span class="text-xs font-bold text-gray-600 uppercase tracking-wider"><i class="fas fa-list-ul mr-2"></i> Migration Scope Details</span>
                         </div>
                         <div class="overflow-y-auto flex-1 p-0">

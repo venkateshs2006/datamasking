@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SeEDM - JSON File Migration Setup</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; }
+
+        .step-container { display: none !important; }
+        .step-container.active {
+            display: flex !important;
+            flex-direction: column;
+            animation: fadeIn 0.3s ease-out;
+            height: 100%;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Stepper Styles */
+        .stepper-item { flex: 1; text-align: center; position: relative; }
+        .stepper-item::after { content: ''; position: absolute; top: 16px; left: 50%; width: 100%; height: 2px; background-color: #e2e8f0; z-index: 1; transition: background-color 0.3s; }
+        .stepper-item:last-child::after { display: none; }
+        .stepper-item.completed::after { background-color: #eab308; } /* Yellow for JSON */
+        .stepper-circle { width: 34px; height: 34px; border-radius: 50%; background-color: #fff; border: 2px solid #cbd5e1; color: #94a3b8; display: flex; align-items: center; justify-content: center; font-weight: 600; margin: 0 auto; position: relative; z-index: 2; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+
+        .stepper-item.active .stepper-circle { border-color: #eab308; color: #eab308; background-color: #fff; box-shadow: 0 0 0 4px rgba(234, 179, 8, 0.1); }
+        .stepper-item.completed .stepper-circle { background-color: #eab308; border-color: #eab308; color: white; }
+
+        .stepper-label { font-size: 0.7rem; font-weight: 600; color: #64748b; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em; transition: color 0.3s; }
+        .stepper-item.active .stepper-label { color: #1e293b; font-weight: 700; }
+        .stepper-item.completed .stepper-label { color: #eab308; }
+
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #f1f5f9; }
+
+        .input-field { width: 100%; padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.875rem; transition: all 0.2s; background-color: #f8fafc; color: #334155; }
+        .input-field:focus { outline: none; border-color: #eab308; box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.15); background-color: #fff; }
+        .input-field:disabled { background-color: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+        .input-field.error { border-color: #ef4444; background-color: #fef2f2; }
+
+        .btn { padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 600; font-size: 0.875rem; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+        .btn-primary { background-color: #eab308; color: white; border: 1px solid transparent; } /* Yellow for JSON */
+        .btn-primary:hover:not(:disabled) { background-color: #ca8a04; box-shadow: 0 4px 6px rgba(234, 179, 8, 0.2); transform: translateY(-1px); }
+        .btn-secondary { background-color: #fff; color: #475569; border: 1px solid #cbd5e1; }
+        .btn-secondary:hover:not(:disabled) { background-color: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
+        .btn-success { background-color: #10b981; color: white; border: 1px solid transparent; }
+        .btn-success:hover:not(:disabled) { background-color: #059669; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2); transform: translateY(-1px); }
+
+        .list-container { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; overflow: hidden; display: flex; flex-direction: column; }
+        .list-item { padding: 0.6rem 0.875rem; border-radius: 6px; font-size: 0.875rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; transition: all 0.15s; border: 1px solid transparent; }
+        .list-item:hover { background-color: #f8fafc; border-color: #e2e8f0; }
+        .list-item.selected { background-color: #fefce8; color: #ca8a04; font-weight: 600; border-color: #fef08a; box-shadow: inset 3px 0 0 #eab308; }
+
+        .rule-btn { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; transition: all 0.2s; border: 1px solid transparent; }
+        .rule-btn-std { color: #2563eb; background: #eff6ff; border-color: #bfdbfe; }
+        .rule-btn-std:hover { background: #dbeafe; }
+        .rule-btn-prt { color: #ea580c; background: #fff7ed; border-color: #fed7aa; }
+        .rule-btn-prt:hover { background: #ffedd5; }
+
+        /* Custom file input styling */
+        .file-input-wrapper {
+            position: relative;
+            display: inline-flex;
+            width: 100%;
+        }
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+<!-- Top Navigation -->
+<nav class="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center z-20 shrink-0 shadow-sm">
+    <div class="flex items-center">
+        <div class="w-9 h-9 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-xl flex items-center justify-center mr-3 shadow-md">
+            <i class="fas fa-file-code text-white text-lg"></i>
+        </div>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 tracking-tight leading-none">SeEDM</h1>
+            <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">JSON File Migration</p>
+        </div>
+    </div>
+    <div class="flex items-center space-x-6">
+        <a href="/select-db.html" class="text-sm font-semibold text-gray-500 hover:text-yellow-600 transition flex items-center">
+            <i class="fas fa-arrow-left mr-1.5"></i> Back to Hub
+        </a>
+        <div class="w-px h-5 bg-gray-300"></div>
+        <button onclick="logout()" class="text-sm text-gray-500 hover:text-red-600 font-semibold flex items-center transition">
+            <i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out
+        </button>
+    </div>
+</nav>
+
+<div class="flex-1 flex flex-col overflow-hidden bg-[#f8fafc]">
+    <div class="w-full max-w-6xl mx-auto px-6 py-8 flex flex-col h-full">
+
+        <div class="mb-8 shrink-0 text-center">
+            <h2 class="text-3xl font-bold text-gray-900">Configure JSON Migration</h2>
+            <p class="text-sm text-gray-500 mt-2">Select directories, map fields, and apply masking rules.</p>
+        </div>
+
+        <!-- Stepper -->
+        <div class="flex items-start mb-8 px-4 w-[60%] mx-auto shrink-0">
+            <div class="stepper-item active" id="step1-indicator"><div class="stepper-circle"><i class="fas fa-folder-open text-sm"></i></div><div class="stepper-label">Directories</div></div>
+            <div class="stepper-item" id="step2-indicator"><div class="stepper-circle"><i class="fas fa-mask text-sm"></i></div><div class="stepper-label">Rules</div></div>
+            <div class="stepper-item" id="step3-indicator"><div class="stepper-circle"><i class="fas fa-flag-checkered text-sm"></i></div><div class="stepper-label">Review</div></div>
+        </div>
+
+        <!-- Main Card -->
+        <div class="card flex-1 flex flex-col overflow-hidden relative shadow-md bg-white rounded-xl">
+
+            <!-- STEP 1: DIRECTORIES -->
+            <div id="step1" class="step-container active p-8">
+                <div class="flex flex-col md:flex-row flex-1 gap-12 relative h-full">
+                    <!-- Source Form -->
+                    <div class="flex-1 flex flex-col">
+                        <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
+                            <div class="w-10 h-10 rounded-lg bg-yellow-50 flex items-center justify-center text-yellow-600 mr-4 border border-yellow-100"><i class="fas fa-folder-open text-lg"></i></div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Source Directory</h3>
+                                <p class="text-xs text-gray-500">Select folder containing input JSON files</p>
+                            </div>
+                        </div>
+                        <form id="sourceForm" class="space-y-5 flex-1 flex flex-col" onsubmit="event.preventDefault(); fetchFiles();">
+                            <div>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Directory Path</label>
+                                <div class="file-input-wrapper">
+                                    <!-- Use webkitdirectory to allow folder selection.
+                                         Note: For security reasons, browsers often only provide relative paths or a list of files,
+                                         but we can extract the path if the browser supports it (like Chrome), or just use it to populate the visual input.
+                                         Since this is a server-side tool, we actually need the ABSOLUTE path on the server.
+                                         If the client and server are on the same machine (like a local tool), this works somewhat.
+                                         Otherwise, we rely on the text input. We'll provide both. -->
+                                    <div class="flex w-full">
+                                        <input type="text" name="path" id="sourcePath" class="input-field font-mono text-sm rounded-r-none border-r-0" placeholder="e.g. C:\data\input or /var/data" oninput="validateStep1()">
+                                        <div class="relative overflow-hidden bg-gray-100 border border-gray-300 rounded-r-md px-3 flex items-center cursor-pointer hover:bg-gray-200 transition">
+                                            <i class="fas fa-ellipsis-h text-gray-500"></i>
+                                            <input type="file" webkitdirectory directory multiple onchange="handleFolderSelect(this, 'sourcePath')" title="Select Folder">
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="text-[10px] text-gray-400 mt-1">Enter absolute server path or click '...' to select local folder.</p>
+                            </div>
+                            <div class="mt-auto pt-6 border-t border-gray-50">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
+                                    Files to Process
+                                    <button type="button" id="btnFetchSrc" onclick="fetchFiles()" class="text-xs text-yellow-600 hover:text-yellow-800 normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Scan Directory</button>
+                                </label>
+                                <div id="fileCountDisplay" class="input-field bg-gray-50 text-gray-500 flex items-center justify-center border-dashed border-gray-300">
+                                    <i class="fas fa-info-circle mr-2 opacity-50"></i> Enter path and click Scan
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Divider -->
+                    <div class="hidden md:block absolute left-1/2 top-4 bottom-4 w-px bg-gray-200 transform -translate-x-1/2"></div>
+
+                    <!-- Destination Form -->
+                    <div class="flex-1 flex flex-col pl-2">
+                        <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
+                            <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 mr-4 border border-emerald-100"><i class="fas fa-folder-plus text-lg"></i></div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Destination Directory</h3>
+                                <p class="text-xs text-gray-500">Select folder to write masked JSON files</p>
+                            </div>
+                        </div>
+                        <form id="destForm" class="space-y-5 flex-1 flex flex-col">
+                            <div>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Directory Path</label>
+                                <div class="file-input-wrapper">
+                                    <div class="flex w-full">
+                                        <input type="text" name="path" id="destPath" class="input-field font-mono text-sm rounded-r-none border-r-0" placeholder="e.g. C:\data\output or /var/data/output" oninput="validateStep1()">
+                                        <div class="relative overflow-hidden bg-gray-100 border border-gray-300 rounded-r-md px-3 flex items-center cursor-pointer hover:bg-gray-200 transition">
+                                            <i class="fas fa-ellipsis-h text-gray-500"></i>
+                                            <input type="file" webkitdirectory directory multiple onchange="handleFolderSelect(this, 'destPath')" title="Select Folder">
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="text-[10px] text-gray-400 mt-1">Directory will be created if it doesn't exist.</p>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 2: RULES -->
+            <div id="step2" class="step-container p-8 h-full flex flex-col overflow-hidden">
+                <div class="flex justify-between items-start mb-6 shrink-0">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-800">Assign Masking Rules</h3>
+                        <p class="text-sm text-gray-500 mt-1">Define JSON paths (e.g., <code class="bg-gray-100 px-1 rounded text-gray-700">user.address.phone</code>) and rules.</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-1 gap-6 min-h-0">
+
+                    <!-- Input Form -->
+                    <div class="list-container w-1/3 bg-white shadow-sm border-gray-200">
+                        <div class="list-header bg-gray-50 py-3">
+                            <span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Add JSON Field Rule</span>
+                        </div>
+                        <div class="p-4 flex flex-col h-full">
+                            <div class="mb-4">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">JSON Path</label>
+                                <input type="text" id="newJsonPath" class="input-field font-mono text-sm" placeholder="e.g., customer.email" onkeypress="if(event.key === 'Enter') addJsonRule()">
+                                <p class="text-[10px] text-gray-400 mt-1">Use dot notation for nested objects.</p>
+                            </div>
+                            <div class="mb-6">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Rule Type</label>
+                                <select id="newRuleType" class="input-field cursor-pointer">
+                                    <option value="maskingColumns">Standard Fake Data</option>
+                                    <option value="partialMaskingColumns">Partial Mask (Redact)</option>
+                                </select>
+                            </div>
+                            <button onclick="addJsonRule()" class="btn btn-primary w-full mt-auto bg-yellow-500 hover:bg-yellow-600 border-yellow-500"><i class="fas fa-plus mr-2"></i> Add Rule</button>
+                        </div>
+                    </div>
+
+                    <!-- Applied Rules Overview -->
+                    <div class="list-container flex-1 bg-gray-50 border-gray-200 shadow-inner flex flex-col overflow-hidden">
+                        <div class="list-header bg-gray-100 py-3 border-b border-gray-200 shrink-0">
+                            <span class="text-xs font-bold text-gray-700 uppercase tracking-wider">Configured Fields</span>
+                        </div>
+                        <div class="p-5 space-y-5 flex-1 overflow-y-auto relative">
+                            <!-- Standard -->
+                            <div>
+                                <h5 class="text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-blue-100 flex items-center justify-center mr-1.5"><i class="fas fa-mask"></i></div> Standard Fake Data</h5>
+                                <div id="tags-masking" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-blue-200 shadow-sm flex items-center text-xs text-gray-400 italic">No rules added yet.</div>
+                            </div>
+                            <!-- Partial -->
+                            <div>
+                                <h5 class="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-orange-100 flex items-center justify-center mr-1.5"><i class="fas fa-eye-slash"></i></div> Redaction (Keep last 4)</h5>
+                                <div id="tags-partial" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-orange-200 shadow-sm flex items-center text-xs text-gray-400 italic">No rules added yet.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 3: PREVIEW -->
+            <div id="step3" class="step-container p-8 overflow-y-auto h-full">
+                <div class="max-w-4xl mx-auto w-full flex flex-col h-full">
+                    <div class="text-center mb-8 shrink-0">
+                        <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-emerald-50">
+                            <i class="fas fa-check"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold text-gray-900">Ready to Launch</h3>
+                        <p class="text-sm text-gray-500 mt-2">Review your configuration summary before initiating the file migration.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 shrink-0">
+                        <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                            <div class="absolute top-0 right-0 p-4 opacity-5 text-4xl"><i class="fas fa-folder-open"></i></div>
+                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">Directories</h4>
+                            <div class="space-y-4">
+                                <div>
+                                    <span class="text-[10px] font-bold text-yellow-600 uppercase flex items-center"><i class="fas fa-folder mr-1.5"></i> Source</span>
+                                    <div id="previewSrc" class="text-xs font-mono text-gray-700 mt-1 break-all bg-gray-50 p-2 rounded border border-gray-200" title=""></div>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-emerald-600 uppercase flex items-center"><i class="fas fa-folder-plus mr-1.5"></i> Destination</span>
+                                    <div id="previewDest" class="text-xs font-mono text-gray-700 mt-1 break-all bg-gray-50 p-2 rounded border border-gray-200" title=""></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center relative overflow-hidden">
+                            <div class="absolute top-0 right-0 p-4 opacity-5 text-4xl"><i class="fas fa-chart-pie"></i></div>
+                            <div class="text-center">
+                                <span class="block text-5xl font-black text-blue-600" id="previewRuleCount">0</span>
+                                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2 block">Total Fields Mapped</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card Footer -->
+            <div class="mt-auto border-t border-gray-200 px-8 py-4 bg-gray-50 flex justify-between items-center shrink-0 rounded-b-xl z-10 relative">
+                <button id="btnPrev" onclick="prevStep()" class="btn btn-secondary text-sm font-bold tracking-wide"><i class="fas fa-chevron-left mr-2 text-xs"></i> BACK</button>
+                <div class="flex-1"></div>
+                <button id="btnNext" onclick="nextStep()" class="btn btn-primary px-8 text-sm font-bold tracking-wide shadow-md hover:shadow-lg">CONTINUE <i class="fas fa-chevron-right ml-2 text-xs"></i></button>
+                <button id="btnStart" onclick="submitWorkflow()" class="btn btn-success px-10 py-3 text-base font-bold tracking-wide shadow-lg hover:shadow-xl hidden animate-pulse">
+                    LAUNCH MIGRATION <i class="fas fa-rocket ml-2"></i>
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    fetch('/api/auth/check').then(r => r.json()).then(data => {
+        if(!data.authenticated) window.location.href = '/login.html';
+    });
+
+    async function logout() {
+        await fetch('/api/auth/logout', {method: 'POST'});
+        window.location.href = '/login.html';
+    }
+
+    let currentStep = 1;
+    const totalSteps = 3;
+    let scanSuccess = false;
+    let state = {
+        rules: { maskingColumns: [], partialMaskingColumns: [], sourceDir: '', destDir: '' }
+    };
+
+    function handleFolderSelect(input, targetId) {
+        if (input.files && input.files.length > 0) {
+            // Note: Browsers generally don't expose the full absolute path of the directory for security reasons.
+            // They provide the relative path within the selected folder.
+            // However, webkitdirectory sometimes exposes webkitRelativePath.
+            // If the server is running locally to the browser, the user usually has to type the absolute path.
+            // To make the UI friendly, we try to extract whatever path info we can, but it's limited.
+            // A common workaround is to extract the path from the first file if possible, or just ask the user to type it.
+
+            // For electron/local apps, you'd have real paths. In standard browsers, this is a known limitation.
+            // We will attempt to get a path-like structure or inform the user.
+            const file = input.files[0];
+            let path = "";
+            if (file.path) {
+                 // Electron or specific environments
+                 path = file.path.substring(0, file.path.lastIndexOf(file.name) - 1);
+            } else if (file.webkitRelativePath) {
+                 // Browser context - usually just the folder name, not absolute path.
+                 // We will just put the folder name as a hint, but user must provide absolute path for server.
+                 const folderName = file.webkitRelativePath.split('/')[0];
+                 path = "[Selected: " + folderName + "] -> Please enter absolute server path";
+                 alert("Browser security prevents reading the absolute path. Please type the absolute path where the server can access these files.");
+            }
+
+            if(path && file.path) {
+                 document.getElementById(targetId).value = path;
+                 validateStep1();
+            }
+        }
+    }
+
+    function validateStep1() {
+        const src = document.getElementById('sourcePath').value.trim();
+        const dest = document.getElementById('destPath').value.trim();
+        const btnFetch = document.getElementById('btnFetchSrc');
+        const btnNext = document.getElementById('btnNext');
+
+        btnFetch.disabled = !src;
+        // Require both paths AND a successful scan to proceed
+        btnNext.disabled = !(src && dest && scanSuccess);
+
+        // If user edits path after scanning, invalidate the scan
+        if (src !== state.rules.sourceDir && scanSuccess) {
+            scanSuccess = false;
+            const display = document.getElementById('fileCountDisplay');
+            display.innerHTML = '<i class="fas fa-info-circle mr-2 opacity-50"></i> Path changed. Please scan again.';
+            display.className = 'input-field bg-gray-50 text-gray-500 flex items-center justify-center border-dashed border-gray-300';
+            btnNext.disabled = true;
+        }
+    }
+
+    function updateUI() {
+        document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active'));
+        document.getElementById(`step${currentStep}`).classList.add('active');
+
+        for(let i=1; i<=totalSteps; i++) {
+            const el = document.getElementById(`step${i}-indicator`);
+            if(el) {
+                el.classList.toggle('completed', i < currentStep);
+                el.classList.toggle('active', i === currentStep);
+
+                const iconWrap = el.querySelector('.stepper-circle');
+                if(i < currentStep) {
+                    iconWrap.innerHTML = '<i class="fas fa-check"></i>';
+                } else {
+                    const icons = ['folder-open', 'mask', 'flag-checkered'];
+                    iconWrap.innerHTML = `<i class="fas fa-${icons[i-1]} text-sm"></i>`;
+                }
+            }
+        }
+
+        document.getElementById('btnPrev').style.visibility = currentStep > 1 ? 'visible' : 'hidden';
+        document.getElementById('btnNext').classList.toggle('hidden', currentStep === totalSteps);
+        document.getElementById('btnStart').classList.toggle('hidden', currentStep !== totalSteps);
+
+        if (currentStep === 1) validateStep1();
+        if (currentStep === 3) populatePreview();
+    }
+
+    async function fetchFiles() {
+        const srcPath = document.getElementById('sourcePath').value.trim();
+        const btn = document.getElementById('btnFetchSrc');
+        const display = document.getElementById('fileCountDisplay');
+        const origHtml = btn.innerHTML;
+
+        if (!srcPath || srcPath.includes("[Selected:")) {
+             alert("Please enter a valid absolute path.");
+             return;
+        }
+
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        btn.disabled = true;
+        display.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Scanning directory...';
+        display.className = 'input-field bg-blue-50 text-blue-600 flex items-center justify-center border-blue-200';
+
+        try {
+            const response = await fetch('/api/fs/scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: srcPath })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.status === 'SUCCESS') {
+                if (data.fileCount > 0) {
+                    display.innerHTML = `<span class="text-green-600 font-bold"><i class="fas fa-check-circle mr-1"></i> Found ${data.fileCount} JSON files</span>`;
+                    display.className = 'input-field bg-green-50 flex items-center justify-center border-green-200';
+                    scanSuccess = true;
+                    state.rules.sourceDir = srcPath; // lock it in
+                } else {
+                    display.innerHTML = `<span class="text-yellow-600 font-bold"><i class="fas fa-exclamation-triangle mr-1"></i> No JSON files found</span>`;
+                    display.className = 'input-field bg-yellow-50 flex items-center justify-center border-yellow-200';
+                    scanSuccess = false;
+                }
+            } else {
+                throw new Error(data.error || 'Unknown error');
+            }
+            validateStep1();
+        } catch (e) {
+            display.innerHTML = `<span class="text-red-500 font-bold"><i class="fas fa-times-circle mr-1"></i> ${e.message}</span>`;
+            display.className = 'input-field bg-red-50 flex items-center justify-center border-red-200';
+            scanSuccess = false;
+            validateStep1();
+        } finally {
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+        }
+    }
+
+    async function nextStep() {
+        if (currentStep === 1) {
+            state.rules.sourceDir = document.getElementById('sourcePath').value.trim();
+            state.rules.destDir = document.getElementById('destPath').value.trim();
+            renderTags();
+        }
+        currentStep++;
+        updateUI();
+    }
+
+    function prevStep() { if (currentStep > 1) { currentStep--; updateUI(); } }
+
+    // --- STEP 2 LOGIC ---
+
+    function addJsonRule() {
+        const pathInput = document.getElementById('newJsonPath');
+        const typeSelect = document.getElementById('newRuleType');
+
+        const path = pathInput.value.trim();
+        const type = typeSelect.value;
+
+        if(!path) {
+            pathInput.classList.add('error');
+            setTimeout(() => pathInput.classList.remove('error'), 1000);
+            return;
+        }
+
+        // Remove from others
+        ['maskingColumns','partialMaskingColumns'].forEach(r => { if(r !== type) state.rules[r] = state.rules[r].filter(c => c !== path); });
+
+        if(!state.rules[type].includes(path)) {
+            state.rules[type].push(path);
+        }
+
+        pathInput.value = '';
+        renderTags();
+    }
+
+    function removeRule(path, type) {
+        state.rules[type] = state.rules[type].filter(c => c !== path);
+        renderTags();
+    }
+
+    function renderTags() {
+        const f = (type, id, colorClass) => {
+            const c = document.getElementById(id);
+            c.innerHTML = '';
+            const rules = state.rules[type];
+            if(rules.length === 0) {
+                c.innerHTML = '<span class="text-xs text-gray-400 italic">No rules configured.</span>';
+                c.className = "flex items-center p-3 bg-white rounded-lg border border-dashed border-gray-200 shadow-sm text-gray-400 h-full";
+                return;
+            }
+            c.className = "flex flex-wrap gap-1.5 min-h-[40px] p-3 bg-white rounded-lg border border-dashed border-gray-200 shadow-sm";
+            rules.forEach(full => {
+                const s = document.createElement('span');
+                s.className = `inline-flex items-center text-xs font-mono font-bold px-2 py-1 rounded-md ${colorClass} shadow-sm`;
+                s.innerHTML = `${full} <button class="ml-2 hover:text-black focus:outline-none" onclick="removeRule('${full}','${type}')"><i class="fas fa-times"></i></button>`;
+                c.appendChild(s);
+            });
+        };
+        f('maskingColumns','tags-masking','bg-blue-50 text-blue-700 border border-blue-300');
+        f('partialMaskingColumns','tags-partial','bg-orange-50 text-orange-700 border border-orange-300');
+    }
+
+    function populatePreview() {
+        document.getElementById('previewSrc').innerText = state.rules.sourceDir;
+        document.getElementById('previewDest').innerText = state.rules.destDir;
+
+        const totalRules = state.rules.maskingColumns.length + state.rules.partialMaskingColumns.length;
+        document.getElementById('previewRuleCount').innerText = totalRules;
+    }
+
+    async function submitWorkflow() {
+        const btn = document.getElementById('btnStart');
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Launching...';
+        btn.disabled = true;
+
+        try {
+            // Save config to backend specific to json migration
+            await fetch('/api/config/json', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(state.rules) });
+
+            // Trigger JSON specific migration job
+            const f = document.createElement('form'); f.method = 'POST'; f.action = '/api/migration/json/start'; document.body.appendChild(f); f.submit();
+        } catch (e) {
+            alert('Failed to launch JSON migration.');
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+        }
+    }
+
+    updateUI();
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SeEDM - Select Database Type</title>
+    <title>SeEDM - Select Migration Type</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -36,6 +36,7 @@
 
         .db-card.postgres:hover::before { background: #336791; }
         .db-card.mongo:hover::before { background: #47A248; }
+        .db-card.json:hover::before { background: #F7DF1E; }
 
         .icon-container {
             width: 80px; height: 80px;
@@ -51,6 +52,9 @@
 
         .db-card.mongo .icon-container { background: #f1f5f9; color: #64748b; }
         .db-card.mongo:hover .icon-container { background: #dcfce7; color: #47A248; }
+
+        .db-card.json .icon-container { background: #f1f5f9; color: #64748b; }
+        .db-card.json:hover .icon-container { background: #fef9c3; color: #d97706; }
 
     </style>
 </head>
@@ -71,14 +75,14 @@
     </button>
 </nav>
 
-<div class="flex-1 flex flex-col items-center justify-center p-8">
+<div class="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">
 
     <div class="text-center mb-12">
         <h2 class="text-3xl font-black text-gray-900 tracking-tight">Select Migration Type</h2>
-        <p class="text-gray-500 mt-3 font-medium">Choose the database engine you want to migrate and mask.</p>
+        <p class="text-gray-500 mt-3 font-medium">Choose the data source you want to migrate and mask.</p>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl">
 
         <!-- PostgreSQL Card -->
         <div class="db-card postgres p-8 text-center" onclick="selectDbType('postgres')">
@@ -106,6 +110,19 @@
             </div>
         </div>
 
+        <!-- JSON File Card -->
+        <div class="db-card json p-8 text-center" onclick="selectDbType('json')">
+            <div class="icon-container shadow-inner">
+                <i class="fas fa-file-code"></i>
+            </div>
+            <h3 class="text-xl font-bold text-gray-800 mb-2">JSON Files</h3>
+            <p class="text-sm text-gray-500 mb-6">Directory to Directory Migration</p>
+
+            <div class="flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-yellow-600 transition-colors">
+                Configure Workflow <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -127,9 +144,9 @@
         if (type === 'postgres') {
             window.location.href = '/workflow.html';
         } else if (type === 'mongo') {
-            // For now, redirecting to a placeholder or same workflow if unified
-            // You can create a workflow-mongo.html or dynamically adapt workflow.html
             window.location.href = '/workflow-mongo.html';
+        } else if (type === 'json') {
+            window.location.href = '/workflow-json.html';
         }
     }
 </script>

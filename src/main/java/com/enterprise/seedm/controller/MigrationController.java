@@ -2,6 +2,7 @@ package com.enterprise.seedm.controller;
 
 import com.enterprise.seedm.config.SwappableDataSource;
 import com.enterprise.seedm.service.DestinationTableDiscoveryService;
+import com.enterprise.seedm.service.JsonMigrationService;
 import com.enterprise.seedm.service.MigrationJobFactory;
 import com.enterprise.seedm.service.TableDiscoveryService;
 import com.zaxxer.hikari.HikariDataSource;
@@ -61,6 +62,9 @@ public class MigrationController {
     private TaskExecutor taskExecutor;
     private SecureRandom random;
     private JobExecution jobExecution=null;
+
+    @Autowired
+    private JsonMigrationService jsonMigrationService;
 
     @Qualifier("sourceDataSource")
     @Autowired
@@ -196,6 +200,31 @@ public class MigrationController {
         } catch (Exception e) {
             log.error("Failed to start migration", e);
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to start migration: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/json/start")
+    public void startJsonMigration(HttpServletResponse response) throws IOException {
+        try {
+            log.info("Starting JSON migration job manually...");
+            
+            // Execute the JSON migration process synchronously for now, or could be wrapped in TaskExecutor
+            taskExecutor.execute(() -> {
+                try {
+                    jsonMigrationService.processMigration();
+                } catch (Exception e) {
+                    log.error("JSON Migration failed in background task", e);
+                }
+            });
+            
+            log.info("JSON Migration task launched");
+            // Redirect to a specific page or back to home. Since we don't have a Spring Batch Job ID for this custom process,
+            // we'll redirect back to the DB select page or a success page.
+            response.sendRedirect("/select-db.html?msg=json_started");
+
+        } catch (Exception e) {
+            log.error("Failed to start JSON migration", e);
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to start JSON migration: " + e.getMessage());
         }
     }
 

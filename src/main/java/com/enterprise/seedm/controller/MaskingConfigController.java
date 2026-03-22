@@ -1,6 +1,8 @@
 package com.enterprise.seedm.controller;
 
+import com.enterprise.seedm.model.JsonMigrationConfig;
 import com.enterprise.seedm.model.MaskingConfig;
+import com.enterprise.seedm.service.JsonMaskingConfigService;
 import com.enterprise.seedm.service.MaskingConfigService;
 import com.enterprise.seedm.service.TableDiscoveryService;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +17,7 @@ import java.util.List;
 public class MaskingConfigController {
 
     private final MaskingConfigService maskingConfigService;
+    private final JsonMaskingConfigService jsonMaskingConfigService;
     private final TableDiscoveryService tableDiscoveryService;
 
     @GetMapping
@@ -42,5 +45,10 @@ public class MaskingConfigController {
     @GetMapping("/columns/{tableName}")
     public List<String> getColumns(@PathVariable String tableName) {
         return tableDiscoveryService.getTableColumns(tableName);
+    }
+
+    @PostMapping("/json")
+    public void updateJsonConfig(@RequestBody JsonMigrationConfig config) {
+        jsonMaskingConfigService.updateConfig(config);
     }
 }
