@@ -575,8 +575,11 @@
         nameDisplay.innerText = table;
         nameDisplay.classList.remove('hidden');
 
-        document.getElementById('columnsPlaceholder')?.classList.add('hidden');
-        document.getElementById('rulesPlaceholder')?.classList.add('hidden');
+        const cp = document.getElementById('columnsPlaceholder');
+        if (cp) cp.classList.add('hidden');
+
+        const rp = document.getElementById('rulesPlaceholder');
+        if (rp) rp.classList.add('hidden');
 
         const colList = document.getElementById('ruleColumnsList');
         if(!state.columnsCache[table]) {

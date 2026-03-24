@@ -80,7 +80,7 @@ public class DataMaskingService {
         
         // We might need column metadata for data type if we are encrypting
         List<ColumnMetadata> metadata = null;
-        if (hasConstraints) {
+        if (hasConstraints || hasMasking) {
              metadata = getCachedMetadata(tableName);
         }
 
@@ -125,7 +125,8 @@ public class DataMaskingService {
                 if (matchingKey != null) {
                     Object originalValue = maskedRow.get(matchingKey);
                     if (originalValue != null) {
-                        maskedRow.put(matchingKey, generateMaskedValue(column, originalValue));
+                        Integer maxLength = getColumnMaxLength(metadata, matchingKey);
+                        maskedRow.put(matchingKey, generateMaskedValue(column, originalValue, maxLength));
                     }
                 }
             }
@@ -149,6 +150,16 @@ public class DataMaskingService {
             }
         }
         return "string";
+    }
+
+    private Integer getColumnMaxLength(List<ColumnMetadata> metadata, String columnName) {
+        if (metadata == null) return null;
+        for (ColumnMetadata col : metadata) {
+            if (col.getColumnName().equalsIgnoreCase(columnName)) {
+                return col.getCharacterMaximumLength();
+            }
+        }
+        return null;
     }
 
     private String findMatchingKey(Set<String> keys, String target) {
@@ -185,7 +196,7 @@ public class DataMaskingService {
         return sb.toString();
     }
 
-    private Object generateMaskedValue(String columnName, Object originalValue) {
+    private Object generateMaskedValue(String columnName, Object originalValue, Integer maxLength) {
         String lowerCol = columnName.toLowerCase();
 
         // Handle specific types first
@@ -217,38 +228,53 @@ public class DataMaskingService {
             return "{\"masked\": true}";
         }
 
+        Object result;
+
         // Basic heuristic for masking based on column name
         if (lowerCol.contains("email")) {
-            return faker.internet().emailAddress();
+            result = faker.internet().emailAddress();
         } else if (lowerCol.contains("first_name") || lowerCol.contains("firstname")) {
-            return faker.name().firstName();
+            result = faker.name().firstName();
         } else if (lowerCol.contains("last_name") || lowerCol.contains("lastname")) {
-            return faker.name().lastName();
+            result = faker.name().lastName();
         } else if (lowerCol.contains("name")) {
-            return faker.name().fullName();
+            result = faker.name().fullName();
         } else if (lowerCol.contains("phone")) {
-            return faker.phoneNumber().cellPhone();
+            result = faker.phoneNumber().cellPhone();
         } else if (lowerCol.contains("address")) {
-            return faker.address().fullAddress();
+            result = faker.address().fullAddress();
         } else if (lowerCol.contains("city")) {
-            return faker.address().city();
+            result = faker.address().city();
         } else if (lowerCol.contains("country")) {
-            return faker.address().country();
+            result = faker.address().country();
         } else if (lowerCol.contains("zip") || lowerCol.contains("postal")) {
-            return faker.address().zipCode();
+            result = faker.address().zipCode();
         } else if (lowerCol.contains("card") || lowerCol.contains("credit")) {
-            return faker.finance().creditCard();
+            result = faker.finance().creditCard();
         } else if (lowerCol.contains("ssn") || lowerCol.contains("social")) {
-            return faker.idNumber().ssnValid();
+            result = faker.idNumber().ssnValid();
         } else if (lowerCol.contains("description") || lowerCol.contains("comment")) {
-            return faker.lorem().sentence();
+            result = faker.lorem().sentence();
+        } else if (originalValue instanceof Number) {
+            result = faker.number().numberBetween(1, 10000);
+        } else {
+            result = faker.lorem().characters(10);
         }
 
-        // Fallback: preserve type if possible, or return string
-        if (originalValue instanceof Number) {
-            return faker.number().numberBetween(1, 10000);
+        if (result instanceof String) {
+            String strResult = (String) result;
+            if (maxLength != null && maxLength > 0) {
+                if (strResult.length() > maxLength) {
+                    result = strResult.substring(0, maxLength);
+                }
+            } else if (originalValue instanceof String) {
+                String strOriginal = (String) originalValue;
+                if (strResult.length() > strOriginal.length() && strOriginal.length() > 0) {
+                    result = strResult.substring(0, strOriginal.length());
+                }
+            }
         }
 
-        return faker.lorem().characters(10);
+        return result;
     }
 }

@@ -137,22 +137,26 @@ public class FormatPreservingEncryptionService {
     }
 
     private String encryptString(String value) throws NoSuchAlgorithmException {
-        // Simple deterministic string encryption: Hex representation of hash
-        // Truncate or pad if necessary? For now, just return hash hex.
-        // If we need to preserve length, it's more complex.
-        // Assuming standard varchar/text where length isn't strictly fixed to input length.
-        byte[] hash = getHashBytes(value);
-        StringBuilder hexString = new StringBuilder();
-        for (byte b : hash) {
-            String hex = Integer.toHexString(0xff & b);
-            if (hex.length() == 1) hexString.append('0');
-            hexString.append(hex);
+        if (value == null || value.isEmpty()) {
+            return value;
         }
-        // To keep it somewhat readable or similar length, we could truncate.
-        // Let's return the first 16 chars of hex hash + original length hint if needed.
-        // For strict FPE on strings, we'd need the alphabet mapper approach.
-        // Given the requirement "generate encryption method for all datatype", simple hash is safest for referential integrity.
-        return hexString.toString();
+        
+        int targetLength = value.length();
+        StringBuilder hexString = new StringBuilder();
+        String currentInput = value;
+        
+        while (hexString.length() < targetLength) {
+            byte[] hash = getHashBytes(currentInput);
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            currentInput = hexString.toString(); // chain the hash
+        }
+        
+        // Truncate to exactly the length of the original string
+        return hexString.substring(0, targetLength);
     }
     
     private boolean encryptBoolean(boolean value) throws NoSuchAlgorithmException {
