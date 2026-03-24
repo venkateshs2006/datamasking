@@ -15,7 +15,8 @@
             display: flex !important;
             flex-direction: column;
             animation: fadeIn 0.3s ease-out;
-            height: 100%;
+            flex: 1;
+            min-height: 0;
         }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
@@ -160,7 +161,7 @@
             </div>
 
             <!-- STEP 2: COLLECTIONS -->
-            <div id="step2" class="step-container p-6 h-full flex flex-col">
+            <div id="step2" class="step-container p-6 flex flex-col">
                 <div class="mb-4 shrink-0">
                     <h3 class="text-lg font-semibold text-gray-800">Select Collections</h3>
                     <p class="text-sm text-gray-500">Move collections from left to right to include them in the job.</p>
@@ -195,7 +196,7 @@
             </div>
 
             <!-- STEP 3: RULES -->
-            <div id="step3" class="step-container p-6 h-full flex flex-col">
+            <div id="step3" class="step-container p-6 flex flex-col">
                 <div class="flex justify-between items-center mb-4 shrink-0">
                     <h3 class="font-bold text-gray-800">Assign Masking Rules</h3>
                     <div class="w-64">
@@ -224,7 +225,7 @@
             </div>
 
             <!-- STEP 4: PREVIEW -->
-            <div id="step4" class="step-container p-8 h-full overflow-y-auto">
+            <div id="step4" class="step-container p-8 overflow-y-auto">
                 <div class="text-center mb-8 shrink-0">
                     <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-emerald-50">
                         <i class="fas fa-check"></i>
@@ -553,8 +554,12 @@
         btn.disabled = true;
 
         try {
-            alert('MongoDB Migration Job initiated successfully (Placeholder)');
-            window.location.href = '/index.html';
+            state.rules.targetTables = state.selectedTables;
+            state.rules.maskingKey = document.getElementById('workflowSecretKey').value;
+
+            await fetch('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(state.rules) });
+
+            const f = document.createElement('form'); f.method = 'POST'; f.action = '/api/migration/start'; document.body.appendChild(f); f.submit();
         } catch (e) {
             alert('Failed to launch migration.');
             btn.innerHTML = origHtml;

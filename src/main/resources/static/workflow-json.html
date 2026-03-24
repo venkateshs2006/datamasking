@@ -15,7 +15,8 @@
             display: flex !important;
             flex-direction: column;
             animation: fadeIn 0.3s ease-out;
-            height: 100%;
+            flex: 1;
+            min-height: 0;
         }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
@@ -196,7 +197,7 @@
             </div>
 
             <!-- STEP 2: RULES -->
-            <div id="step2" class="step-container p-8 h-full flex flex-col overflow-hidden">
+            <div id="step2" class="step-container p-8 flex flex-col overflow-hidden">
                 <div class="flex justify-between items-start mb-6 shrink-0">
                     <div>
                         <h3 class="text-xl font-bold text-gray-800">Assign Masking Rules</h3>
@@ -250,7 +251,7 @@
             </div>
 
             <!-- STEP 3: PREVIEW -->
-            <div id="step3" class="step-container p-8 overflow-y-auto h-full">
+            <div id="step3" class="step-container p-8 overflow-y-auto">
                 <div class="max-w-4xl mx-auto w-full flex flex-col h-full">
                     <div class="text-center mb-8 shrink-0">
                         <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-emerald-50">
