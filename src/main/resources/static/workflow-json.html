@@ -56,12 +56,6 @@
         .list-item:hover { background-color: #f8fafc; border-color: #e2e8f0; }
         .list-item.selected { background-color: #fefce8; color: #ca8a04; font-weight: 600; border-color: #fef08a; box-shadow: inset 3px 0 0 #eab308; }
 
-        .rule-btn { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; transition: all 0.2s; border: 1px solid transparent; }
-        .rule-btn-std { color: #2563eb; background: #eff6ff; border-color: #bfdbfe; }
-        .rule-btn-std:hover { background: #dbeafe; }
-        .rule-btn-prt { color: #ea580c; background: #fff7ed; border-color: #fed7aa; }
-        .rule-btn-prt:hover { background: #ffedd5; }
-
         /* Custom file input styling */
         .file-input-wrapper {
             position: relative;
@@ -76,6 +70,11 @@
             width: 100%;
             height: 100%;
             cursor: pointer;
+        }
+
+        .dropzone.dragover {
+            background-color: #f8fafc !important;
+            border-color: #94a3b8 !important;
         }
     </style>
 </head>
@@ -137,12 +136,6 @@
                             <div>
                                 <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Directory Path</label>
                                 <div class="file-input-wrapper">
-                                    <!-- Use webkitdirectory to allow folder selection.
-                                         Note: For security reasons, browsers often only provide relative paths or a list of files,
-                                         but we can extract the path if the browser supports it (like Chrome), or just use it to populate the visual input.
-                                         Since this is a server-side tool, we actually need the ABSOLUTE path on the server.
-                                         If the client and server are on the same machine (like a local tool), this works somewhat.
-                                         Otherwise, we rely on the text input. We'll provide both. -->
                                     <div class="flex w-full">
                                         <input type="text" name="path" id="sourcePath" class="input-field font-mono text-sm rounded-r-none border-r-0" placeholder="e.g. C:\data\input or /var/data" oninput="validateStep1()">
                                         <div class="relative overflow-hidden bg-gray-100 border border-gray-300 rounded-r-md px-3 flex items-center cursor-pointer hover:bg-gray-200 transition">
@@ -201,49 +194,41 @@
                 <div class="flex justify-between items-start mb-6 shrink-0">
                     <div>
                         <h3 class="text-xl font-bold text-gray-800">Assign Masking Rules</h3>
-                        <p class="text-sm text-gray-500 mt-1">Define JSON paths (e.g., <code class="bg-gray-100 px-1 rounded text-gray-700">user.address.phone</code>) and rules.</p>
+                        <p class="text-sm text-gray-500 mt-1">Drag and drop fields from your JSON files into the corresponding masking rules.</p>
                     </div>
                 </div>
 
                 <div class="flex flex-1 gap-6 min-h-0">
 
-                    <!-- Input Form -->
-                    <div class="list-container w-1/3 bg-white shadow-sm border-gray-200">
-                        <div class="list-header bg-gray-50 py-3">
-                            <span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Add JSON Field Rule</span>
+                    <!-- Available Fields (Draggable) -->
+                    <div class="list-container w-1/3 bg-white shadow-sm border-gray-200 flex flex-col overflow-hidden">
+                        <div class="list-header bg-gray-50 py-3 px-4 shrink-0">
+                            <span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Available JSON Fields</span>
                         </div>
-                        <div class="p-4 flex flex-col h-full">
-                            <div class="mb-4">
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">JSON Path</label>
-                                <input type="text" id="newJsonPath" class="input-field font-mono text-sm" placeholder="e.g., customer.email" onkeypress="if(event.key === 'Enter') addJsonRule()">
-                                <p class="text-[10px] text-gray-400 mt-1">Use dot notation for nested objects.</p>
-                            </div>
-                            <div class="mb-6">
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Rule Type</label>
-                                <select id="newRuleType" class="input-field cursor-pointer">
-                                    <option value="maskingColumns">Standard Fake Data</option>
-                                    <option value="partialMaskingColumns">Partial Mask (Redact)</option>
-                                </select>
-                            </div>
-                            <button onclick="addJsonRule()" class="btn btn-primary w-full mt-auto bg-yellow-500 hover:bg-yellow-600 border-yellow-500"><i class="fas fa-plus mr-2"></i> Add Rule</button>
+                        <div class="p-4 flex flex-col flex-1 overflow-y-auto bg-gray-50/30" id="availableFieldsList">
+                            <div class="text-xs text-gray-400 p-2 italic text-center">Scan directory to load fields</div>
                         </div>
                     </div>
 
-                    <!-- Applied Rules Overview -->
-                    <div class="list-container flex-1 bg-gray-50 border-gray-200 shadow-inner flex flex-col overflow-hidden">
-                        <div class="list-header bg-gray-100 py-3 border-b border-gray-200 shrink-0">
-                            <span class="text-xs font-bold text-gray-700 uppercase tracking-wider">Configured Fields</span>
+                    <!-- Applied Rules Overview (Dropzones) -->
+                    <div class="list-container flex-1 bg-white border-gray-200 shadow-sm flex flex-col overflow-hidden">
+                        <div class="list-header bg-gray-50 py-3 px-4 border-b border-gray-200 shrink-0">
+                            <span class="text-xs font-bold text-gray-700 uppercase tracking-wider">Drag Fields Here</span>
                         </div>
-                        <div class="p-5 space-y-5 flex-1 overflow-y-auto relative">
-                            <!-- Standard -->
+                        <div class="p-6 space-y-6 flex-1 overflow-y-auto relative bg-gray-50/10">
+                            <!-- Standard Dropzone -->
                             <div>
                                 <h5 class="text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-blue-100 flex items-center justify-center mr-1.5"><i class="fas fa-mask"></i></div> Standard Fake Data</h5>
-                                <div id="tags-masking" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-blue-200 shadow-sm flex items-center text-xs text-gray-400 italic">No rules added yet.</div>
+                                <div id="dropzone-masking" class="dropzone flex flex-wrap gap-2 min-h-[80px] p-4 bg-gray-50 rounded-lg border-2 border-dashed border-blue-300 shadow-inner transition-colors duration-200" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropField(event, 'maskingColumns')">
+                                    <div class="w-full h-full flex items-center justify-center text-xs text-gray-400 italic pointer-events-none" id="placeholder-masking">Drop fields here</div>
+                                </div>
                             </div>
-                            <!-- Partial -->
+                            <!-- Partial Dropzone -->
                             <div>
                                 <h5 class="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-orange-100 flex items-center justify-center mr-1.5"><i class="fas fa-eye-slash"></i></div> Redaction (Keep last 4)</h5>
-                                <div id="tags-partial" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-orange-200 shadow-sm flex items-center text-xs text-gray-400 italic">No rules added yet.</div>
+                                <div id="dropzone-partial" class="dropzone flex flex-wrap gap-2 min-h-[80px] p-4 bg-gray-50 rounded-lg border-2 border-dashed border-orange-300 shadow-inner transition-colors duration-200" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropField(event, 'partialMaskingColumns')">
+                                    <div class="w-full h-full flex items-center justify-center text-xs text-gray-400 italic pointer-events-none" id="placeholder-partial">Drop fields here</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -314,29 +299,18 @@
     let currentStep = 1;
     const totalSteps = 3;
     let scanSuccess = false;
+    let availableKeys = [];
     let state = {
         rules: { maskingColumns: [], partialMaskingColumns: [], sourceDir: '', destDir: '' }
     };
 
     function handleFolderSelect(input, targetId) {
         if (input.files && input.files.length > 0) {
-            // Note: Browsers generally don't expose the full absolute path of the directory for security reasons.
-            // They provide the relative path within the selected folder.
-            // However, webkitdirectory sometimes exposes webkitRelativePath.
-            // If the server is running locally to the browser, the user usually has to type the absolute path.
-            // To make the UI friendly, we try to extract whatever path info we can, but it's limited.
-            // A common workaround is to extract the path from the first file if possible, or just ask the user to type it.
-
-            // For electron/local apps, you'd have real paths. In standard browsers, this is a known limitation.
-            // We will attempt to get a path-like structure or inform the user.
             const file = input.files[0];
             let path = "";
             if (file.path) {
-                 // Electron or specific environments
                  path = file.path.substring(0, file.path.lastIndexOf(file.name) - 1);
             } else if (file.webkitRelativePath) {
-                 // Browser context - usually just the folder name, not absolute path.
-                 // We will just put the folder name as a hint, but user must provide absolute path for server.
                  const folderName = file.webkitRelativePath.split('/')[0];
                  path = "[Selected: " + folderName + "] -> Please enter absolute server path";
                  alert("Browser security prevents reading the absolute path. Please type the absolute path where the server can access these files.");
@@ -428,6 +402,8 @@
                     display.className = 'input-field bg-green-50 flex items-center justify-center border-green-200';
                     scanSuccess = true;
                     state.rules.sourceDir = srcPath; // lock it in
+                    availableKeys = data.sampleKeys || [];
+                    renderAvailableKeys();
                 } else {
                     display.innerHTML = `<span class="text-yellow-600 font-bold"><i class="fas fa-exclamation-triangle mr-1"></i> No JSON files found</span>`;
                     display.className = 'input-field bg-yellow-50 flex items-center justify-center border-yellow-200';
@@ -460,21 +436,64 @@
 
     function prevStep() { if (currentStep > 1) { currentStep--; updateUI(); } }
 
-    // --- STEP 2 LOGIC ---
+    // --- STEP 2 DRAG & DROP LOGIC ---
 
-    function addJsonRule() {
-        const pathInput = document.getElementById('newJsonPath');
-        const typeSelect = document.getElementById('newRuleType');
+    function renderAvailableKeys() {
+        const container = document.getElementById('availableFieldsList');
+        container.innerHTML = '';
 
-        const path = pathInput.value.trim();
-        const type = typeSelect.value;
-
-        if(!path) {
-            pathInput.classList.add('error');
-            setTimeout(() => pathInput.classList.remove('error'), 1000);
+        if (availableKeys.length === 0) {
+            container.innerHTML = '<div class="text-xs text-gray-400 p-2 italic text-center">No fields found in sample JSON.</div>';
             return;
         }
 
+        let displayedCount = 0;
+        availableKeys.forEach(key => {
+            const isMasked = state.rules.maskingColumns.includes(key);
+            const isPartial = state.rules.partialMaskingColumns.includes(key);
+            if (isMasked || isPartial) return; // Hide assigned fields
+
+            displayedCount++;
+            const el = document.createElement('div');
+            el.className = "p-3 mb-2 bg-white border border-gray-200 rounded cursor-move hover:bg-yellow-50 hover:border-yellow-300 text-xs font-mono text-gray-700 shadow-sm transition flex items-center";
+            el.draggable = true;
+            el.innerHTML = `<i class="fas fa-grip-vertical text-gray-300 mr-3"></i> ${key}`;
+            el.ondragstart = (e) => {
+                e.dataTransfer.setData('text/plain', key);
+                e.dataTransfer.effectAllowed = 'move';
+                setTimeout(() => el.classList.add('opacity-50'), 0);
+            };
+            el.ondragend = (e) => {
+                el.classList.remove('opacity-50');
+            };
+            container.appendChild(el);
+        });
+
+        if (displayedCount === 0) {
+            container.innerHTML = '<div class="text-xs text-gray-400 p-2 italic text-center">All fields assigned!</div>';
+        }
+    }
+
+    function allowDrop(ev) {
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = 'move';
+        ev.currentTarget.classList.add('dragover');
+    }
+
+    function dragLeave(ev) {
+        ev.currentTarget.classList.remove('dragover');
+    }
+
+    function dropField(ev, type) {
+        ev.preventDefault();
+        ev.currentTarget.classList.remove('dragover');
+        const key = ev.dataTransfer.getData("text/plain");
+        if (key) {
+            addJsonRule(key, type);
+        }
+    }
+
+    function addJsonRule(path, type) {
         // Remove from others
         ['maskingColumns','partialMaskingColumns'].forEach(r => { if(r !== type) state.rules[r] = state.rules[r].filter(c => c !== path); });
 
@@ -482,35 +501,42 @@
             state.rules[type].push(path);
         }
 
-        pathInput.value = '';
         renderTags();
+        renderAvailableKeys(); // To remove it from the left list
     }
 
     function removeRule(path, type) {
         state.rules[type] = state.rules[type].filter(c => c !== path);
         renderTags();
+        renderAvailableKeys(); // To re-add it to the left list
     }
 
     function renderTags() {
-        const f = (type, id, colorClass) => {
+        const f = (type, id, colorClass, placeholderId) => {
             const c = document.getElementById(id);
-            c.innerHTML = '';
+            // remove all children except placeholder
+            Array.from(c.children).forEach(child => {
+                if (child.id !== placeholderId) c.removeChild(child);
+            });
+
             const rules = state.rules[type];
+            const placeholder = document.getElementById(placeholderId);
+
             if(rules.length === 0) {
-                c.innerHTML = '<span class="text-xs text-gray-400 italic">No rules configured.</span>';
-                c.className = "flex items-center p-3 bg-white rounded-lg border border-dashed border-gray-200 shadow-sm text-gray-400 h-full";
+                placeholder.style.display = 'flex';
                 return;
             }
-            c.className = "flex flex-wrap gap-1.5 min-h-[40px] p-3 bg-white rounded-lg border border-dashed border-gray-200 shadow-sm";
+
+            placeholder.style.display = 'none';
             rules.forEach(full => {
                 const s = document.createElement('span');
-                s.className = `inline-flex items-center text-xs font-mono font-bold px-2 py-1 rounded-md ${colorClass} shadow-sm`;
+                s.className = `inline-flex items-center text-xs font-mono font-bold px-2.5 py-1.5 rounded-md ${colorClass} shadow-sm z-10 animate-[fadeIn_0.2s_ease-out]`;
                 s.innerHTML = `${full} <button class="ml-2 hover:text-black focus:outline-none" onclick="removeRule('${full}','${type}')"><i class="fas fa-times"></i></button>`;
                 c.appendChild(s);
             });
         };
-        f('maskingColumns','tags-masking','bg-blue-50 text-blue-700 border border-blue-300');
-        f('partialMaskingColumns','tags-partial','bg-orange-50 text-orange-700 border border-orange-300');
+        f('maskingColumns','dropzone-masking','bg-blue-100 text-blue-800 border-blue-300', 'placeholder-masking');
+        f('partialMaskingColumns','dropzone-partial','bg-orange-100 text-orange-800 border-orange-300', 'placeholder-partial');
     }
 
     function populatePreview() {
