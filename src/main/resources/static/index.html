@@ -3,68 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SeEDM Migration Dashboard</title>
+    <title>BNP Paribas - SeEDM Migration Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4' }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f4f7f6; color: #333; }
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); display: flex; flex-direction: column; min-height: 100vh; color: var(--text-main); }
+
+        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
+        .bnp-logo { height: 48px; display: block; }
+        nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
+        nav ul li { margin-left: 25px; }
+        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
+        nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+
+        main { flex: 1; padding: 30px 8%; display: flex; flex-direction: column; }
+
+        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
+        .tagline { font-weight: 300; letter-spacing: 1px; }
+
         .card { background: white; border-radius: 12px; box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9; transition: transform 0.2s; }
         .card:hover { transform: translateY(-2px); }
         .status-badge { padding: 4px 12px; border-radius: 9999px; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
         .status-completed { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
-        .status-running { background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .status-running { background-color: rgba(0,150,94,0.1); color: var(--bnp-emerald); border: 1px solid rgba(0,150,94,0.2); }
         .status-failed { background-color: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
         .progress-bar { transition: width 0.5s ease-in-out; }
 
         /* Modal Styles */
-        .modal { display: none; position: fixed; z-index: 50; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); }
+        .modal { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(51, 51, 51, 0.6); backdrop-filter: blur(4px); }
         .modal-content { background-color: #fff; margin: 10% auto; padding: 24px; width: 90%; max-width: 700px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
         .close { color: #94a3b8; float: right; font-size: 24px; font-weight: bold; cursor: pointer; transition: color 0.2s; }
         .close:hover, .close:focus { color: #0f172a; text-decoration: none; }
         .error-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 500px; display: inline-block; vertical-align: middle; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-        .error-full { display: none; white-space: pre-wrap; word-break: break-word; margin-top: 12px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; color: #475569; }
+        .error-full { display: none; white-space: pre-wrap; word-break: break-word; margin-top: 12px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; color: #475569; }
     </style>
 </head>
-<body class="h-screen flex flex-col">
+<body>
 
-    <!-- Top Navigation -->
-    <nav class="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center z-20 shrink-0">
+    <header>
         <div class="flex items-center">
-            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mr-3 shadow-sm">
-                <i class="fas fa-shield-alt text-white text-sm"></i>
-            </div>
-            <div>
-                <h1 class="text-lg font-bold text-gray-800 leading-tight">SeEDM</h1>
-                <p class="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Job Monitor</p>
+            <a href="/index.html" class="logo-link mr-6">
+                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+            </a>
+            <div class="hidden md:block border-l border-gray-300 pl-6">
+                <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
+                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Job Monitor</p>
             </div>
         </div>
-        <div class="flex items-center space-x-6">
-            <a href="/select-db.html" class="text-sm font-medium text-blue-600 hover:text-blue-800 transition"><i class="fas fa-plus mr-1"></i> New Migration</a>
-            <button onclick="logout()" class="text-sm text-gray-500 hover:text-gray-800 font-medium flex items-center transition">
-                <i class="fas fa-sign-out-alt mr-2 text-gray-400"></i> Sign Out
-            </button>
-        </div>
-    </nav>
+        <nav>
+            <ul>
+                <li><a href="/select-db.html"><i class="fas fa-plus mr-1.5"></i> New Migration</a></li>
+                <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
+            </ul>
+        </nav>
+    </header>
 
-    <!-- Main Content -->
-    <div class="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
-        <div class="max-w-7xl mx-auto">
+    <main>
+        <div class="max-w-7xl mx-auto w-full">
 
-            <div class="flex justify-between items-end mb-8">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
                 <div>
-                    <h2 class="text-3xl font-bold text-gray-900 tracking-tight">Active Job Status</h2>
+                    <h2 class="text-3xl font-bold text-bnp-dark-grey tracking-tight">Active Job Status</h2>
                     <p class="text-sm text-gray-500 mt-2 flex items-center">
-                        <span id="executionIdDisplay" class="font-mono bg-gray-100 px-2 py-1 rounded border border-gray-200 mr-2">ID: -</span>
+                        <span id="executionIdDisplay" class="font-mono bg-white px-2 py-1 rounded border border-gray-200 mr-2 shadow-sm">ID: -</span>
                         Real-time monitoring of data movement
                     </p>
                 </div>
                 <!-- ID Selector Dropdown -->
-                <div class="w-64">
+                <div class="w-full md:w-64">
                     <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">View Job Execution ID</label>
                     <div class="flex gap-2">
-                        <select id="executionIdSelector" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm cursor-pointer" onchange="changeExecutionId()">
+                        <select id="executionIdSelector" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-bnp-emerald focus:border-bnp-emerald text-sm bg-white shadow-sm cursor-pointer" onchange="changeExecutionId()">
                             <option value="">Loading IDs...</option>
                         </select>
                         <button onclick="fetchExecutions()" class="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 shadow-sm" title="Refresh List">
@@ -76,17 +101,17 @@
 
             <!-- KPI Cards -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <div class="card p-5 border-l-4 border-blue-500 relative overflow-hidden">
-                    <div class="absolute right-0 top-0 opacity-5 text-6xl -mt-2 -mr-2"><i class="fas fa-tasks"></i></div>
+                <div class="card p-5 border-l-4 border-bnp-emerald relative overflow-hidden">
+                    <div class="absolute right-0 top-0 opacity-5 text-6xl -mt-2 -mr-2 text-bnp-emerald"><i class="fas fa-tasks"></i></div>
                     <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Job Status</p>
-                    <h3 class="text-2xl font-black text-gray-800 mt-2" id="jobStatus">Wait...</h3>
+                    <h3 class="text-2xl font-black text-bnp-dark-grey mt-2" id="jobStatus">Wait...</h3>
                 </div>
 
-                <div class="card p-5 border-l-4 border-green-500 relative overflow-hidden">
+                <div class="card p-5 border-l-4 border-[#059669] relative overflow-hidden">
                     <div class="absolute right-0 top-0 opacity-5 text-6xl -mt-2 -mr-2"><i class="fas fa-check-circle"></i></div>
                     <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Tables Completed</p>
                     <div class="flex items-baseline mt-2">
-                        <h3 class="text-2xl font-black text-gray-800" id="completedCount">0</h3>
+                        <h3 class="text-2xl font-black text-bnp-dark-grey" id="completedCount">0</h3>
                         <span class="text-sm font-medium text-gray-400 ml-1">/ <span id="totalTableCount">0</span></span>
                     </div>
                 </div>
@@ -94,13 +119,13 @@
                 <div class="card p-5 border-l-4 border-purple-500 relative overflow-hidden">
                     <div class="absolute right-0 top-0 opacity-5 text-6xl -mt-2 -mr-2"><i class="fas fa-database"></i></div>
                     <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Records Migrated</p>
-                    <h3 class="text-2xl font-black text-gray-800 mt-2 font-mono" id="totalRecords">0</h3>
+                    <h3 class="text-2xl font-black text-bnp-dark-grey mt-2 font-mono" id="totalRecords">0</h3>
                 </div>
 
                 <div class="card p-5 border-l-4 border-yellow-500 relative overflow-hidden">
                     <div class="absolute right-0 top-0 opacity-5 text-6xl -mt-2 -mr-2"><i class="fas fa-stopwatch"></i></div>
                     <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Elapsed Time</p>
-                    <h3 class="text-2xl font-black text-gray-800 mt-2 font-mono" id="duration">00:00</h3>
+                    <h3 class="text-2xl font-black text-bnp-dark-grey mt-2 font-mono" id="duration">00:00</h3>
                 </div>
             </div>
 
@@ -108,43 +133,43 @@
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                 <!-- Progress Chart -->
                 <div class="card p-6 lg:col-span-2 flex flex-col">
-                    <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">Migration Throughput</h3>
+                    <h3 class="text-sm font-bold text-bnp-dark-grey uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">Migration Throughput</h3>
                     <div class="relative flex-1 min-h-[250px]">
                         <canvas id="throughputChart"></canvas>
                     </div>
                 </div>
 
                 <!-- System Metrics -->
-                <div class="card p-6 lg:col-span-1 bg-gradient-to-br from-slate-800 to-slate-900 text-white border-none shadow-xl">
-                    <h3 class="text-sm font-bold text-slate-300 uppercase tracking-wider mb-6 flex items-center">
-                        <i class="fas fa-server mr-2"></i> System Health
+                <div class="card p-6 lg:col-span-1 bg-bnp-dark-grey text-white border-none shadow-xl">
+                    <h3 class="text-sm font-bold text-gray-300 uppercase tracking-wider mb-6 flex items-center">
+                        <i class="fas fa-server mr-2 text-bnp-emerald"></i> System Health
                     </h3>
 
                     <div class="space-y-6">
                         <div>
                             <div class="flex justify-between mb-2">
-                                <span class="text-xs font-medium text-slate-400">JVM Heap Memory</span>
-                                <span class="text-xs font-mono text-slate-300" id="heapText">0 / 0 MB</span>
+                                <span class="text-xs font-medium text-gray-400">JVM Heap Memory</span>
+                                <span class="text-xs font-mono text-gray-200" id="heapText">0 / 0 MB</span>
                             </div>
-                            <div class="w-full bg-slate-700/50 rounded-full h-2 overflow-hidden">
-                                <div class="bg-blue-400 h-2 rounded-full progress-bar shadow-[0_0_10px_rgba(96,165,250,0.5)]" id="heapBar" style="width: 0%"></div>
+                            <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                                <div class="bg-bnp-emerald h-2 rounded-full progress-bar shadow-[0_0_10px_rgba(0,150,94,0.5)]" id="heapBar" style="width: 0%"></div>
                             </div>
                         </div>
 
                         <div>
                             <div class="flex justify-between mb-2">
-                                <span class="text-xs font-medium text-slate-400">CPU Load Average</span>
-                                <span class="text-xs font-mono text-slate-300" id="cpuText">0.00</span>
+                                <span class="text-xs font-medium text-gray-400">CPU Load Average</span>
+                                <span class="text-xs font-mono text-gray-200" id="cpuText">0.00</span>
                             </div>
-                            <div class="w-full bg-slate-700/50 rounded-full h-2 overflow-hidden">
-                                <div class="bg-emerald-400 h-2 rounded-full progress-bar shadow-[0_0_10px_rgba(52,211,153,0.5)]" id="cpuBar" style="width: 0%"></div>
+                            <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                                <div class="bg-[#059669] h-2 rounded-full progress-bar shadow-[0_0_10px_rgba(5,150,105,0.5)]" id="cpuBar" style="width: 0%"></div>
                             </div>
                         </div>
 
-                        <div class="pt-4 mt-4 border-t border-slate-700/50">
+                        <div class="pt-4 mt-4 border-t border-gray-700">
                             <div class="flex items-center justify-between">
-                                <span class="text-xs font-medium text-slate-400">Available Cores</span>
-                                <span class="text-lg font-bold text-slate-200" id="processors">0</span>
+                                <span class="text-xs font-medium text-gray-400">Available Cores</span>
+                                <span class="text-lg font-bold text-gray-200" id="processors">0</span>
                             </div>
                         </div>
                     </div>
@@ -154,9 +179,8 @@
             <!-- Table Details -->
             <div class="card overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-100 bg-white flex justify-between items-center">
-                    <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Table Execution Log</h3>
+                    <h3 class="text-sm font-bold text-bnp-dark-grey uppercase tracking-wider">Table Execution Log</h3>
                     <div class="flex space-x-2" id="tableFilters">
-                        <!-- Filters could go here -->
                     </div>
                 </div>
                 <div class="overflow-x-auto">
@@ -175,7 +199,7 @@
                                 <td colspan="5" class="px-6 py-12 text-center text-gray-400">
                                     <i class="fas fa-inbox text-4xl mb-3 text-gray-200"></i>
                                     <p>No job execution context found.</p>
-                                    <a href="/select-db.html" class="inline-block mt-4 text-blue-600 hover:underline font-medium">Start a new migration</a>
+                                    <a href="/select-db.html" class="inline-block mt-4 text-bnp-emerald hover:underline font-bold">Start a new migration</a>
                                 </td>
                             </tr>
                         </tbody>
@@ -183,7 +207,14 @@
                 </div>
             </div>
         </div>
-    </div>
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <p>© BNP Paribas - 2026</p>
+            <p class="tagline">The bank for a changing world</p>
+        </div>
+    </footer>
 
     <!-- Error Modal -->
     <div id="errorModal" class="modal">
@@ -220,7 +251,7 @@
         }
 
         // Chart Initialization
-        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.font.family = "'Open Sans', sans-serif";
         const ctx = document.getElementById('throughputChart').getContext('2d');
         const throughputChart = new Chart(ctx, {
             type: 'bar',
@@ -230,14 +261,14 @@
                     {
                         label: 'Rows Read',
                         data: [],
-                        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                        backgroundColor: 'rgba(51, 51, 51, 0.8)',
                         borderRadius: 4,
                         barPercentage: 0.6
                     },
                     {
                         label: 'Rows Written',
                         data: [],
-                        backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                        backgroundColor: 'rgba(0, 150, 94, 0.8)',
                         borderRadius: 4,
                         barPercentage: 0.6
                     }
@@ -280,29 +311,24 @@
                     return;
                 }
 
-                // Populate dropdown
                 executions.forEach(ex => {
                     const date = new Date(ex.startTime).toLocaleString();
                     const option = new Option(`ID: ${ex.id} - ${ex.status} (${date})`, ex.id);
                     selector.add(option);
                 });
 
-                // Set selected value based on URL param or default to most recent
                 const urlParams = new URLSearchParams(window.location.search);
                 const currentId = urlParams.get('executionId');
 
                 if (currentId && executions.some(e => e.id == currentId)) {
                     selector.value = currentId;
                 } else if (executions.length > 0) {
-                    // Default to the first (most recent) if no param or invalid param
                     selector.value = executions[0].id;
-                    // Update URL to match
                     const url = new URL(window.location);
                     url.searchParams.set('executionId', executions[0].id);
                     window.history.pushState({}, '', url);
                 }
 
-                // Start polling for the selected ID
                 if (selector.value) {
                     startPolling(selector.value);
                 }
@@ -313,38 +339,26 @@
             }
         }
 
-        // Handle dropdown change
         function changeExecutionId() {
             const selector = document.getElementById('executionIdSelector');
             const newId = selector.value;
             if (newId) {
-                // Update URL
                 const url = new URL(window.location);
                 url.searchParams.set('executionId', newId);
                 window.history.pushState({}, '', url);
-
-                // Restart polling
                 startPolling(newId);
             }
         }
 
-        // Polling Logic
         let pollingInterval;
         let errorShown = false;
         let currentExecutionId = null;
 
         function startPolling(executionId) {
-            // Clear existing interval
             if (pollingInterval) clearInterval(pollingInterval);
-
-            // Reset state
             errorShown = false;
             currentExecutionId = executionId;
-
-            // Initial poll
             pollStatus(executionId);
-
-            // Setup regular polling
             pollingInterval = setInterval(() => {
                 if (currentExecutionId === executionId) {
                     pollStatus(executionId);
@@ -382,31 +396,26 @@
         }
 
         function updateDashboard(data) {
-            // Update KPI Cards
             const statusEl = document.getElementById('jobStatus');
             statusEl.textContent = data.status;
 
-            // Colorize status
             statusEl.className = 'text-2xl font-black mt-2 ';
-            if(data.status === 'COMPLETED') statusEl.classList.add('text-emerald-600');
+            if(data.status === 'COMPLETED') statusEl.classList.add('text-bnp-emerald');
             else if(data.status === 'FAILED') statusEl.classList.add('text-rose-600');
-            else statusEl.classList.add('text-blue-600', 'animate-pulse');
+            else statusEl.classList.add('text-bnp-emerald', 'animate-pulse');
 
             document.getElementById('executionIdDisplay').textContent = `ID: ${data.executionId}`;
 
-            // Total tables info (assuming we can derive total from progress array)
             const totalTables = data.tableProgress ? data.tableProgress.length : 0;
             document.getElementById('completedCount').textContent = data.completedTables ? data.completedTables.length : 0;
             document.getElementById('totalTableCount').textContent = totalTables;
 
-            // Calculate total records
             let totalWrites = 0;
             if (data.tableProgress) {
                 totalWrites = data.tableProgress.reduce((acc, curr) => acc + curr.writeCount, 0);
             }
             document.getElementById('totalRecords').textContent = totalWrites.toLocaleString();
 
-            // Calculate Duration
             if (data.startTime) {
                 const start = new Date(data.startTime);
                 const end = data.endTime ? new Date(data.endTime) : new Date();
@@ -416,7 +425,6 @@
                 document.getElementById('duration').textContent = "00:00";
             }
 
-            // Update System Metrics
             if (data.systemMetrics) {
                 const heapUsed = data.systemMetrics.heapUsedMB;
                 const heapMax = data.systemMetrics.heapMaxMB;
@@ -425,10 +433,8 @@
                 document.getElementById('heapText').textContent = `${heapUsed} / ${heapMax} MB`;
                 document.getElementById('heapBar').style.width = `${heapPercent}%`;
 
-                // CPU Load
                 let load = data.systemMetrics.systemLoadAverage;
                 if (load < 0) load = 0;
-                // Assuming load avg roughly correlates to core count for percentage. Simplified visual.
                 const cores = data.systemMetrics.availableProcessors || 1;
                 const cpuPercent = Math.min(Math.round((load / cores) * 100), 100);
 
@@ -438,7 +444,6 @@
                 document.getElementById('processors').textContent = cores;
             }
 
-            // Update Table
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
 
@@ -457,11 +462,11 @@
 
                     let progress = 0;
                     if (row.status === 'COMPLETED') progress = 100;
-                    else if (row.status === 'FAILED') progress = 100; // Show full bar for failed, but red
-                    else if (row.readCount > 0) progress = 50; // Indeterminate running
+                    else if (row.status === 'FAILED') progress = 100;
+                    else if (row.readCount > 0) progress = 50;
 
-                    let pColor = 'bg-blue-500';
-                    if(row.status === 'COMPLETED') pColor = 'bg-emerald-500';
+                    let pColor = 'bg-bnp-emerald';
+                    if(row.status === 'COMPLETED') pColor = 'bg-bnp-emerald';
                     if(row.status === 'FAILED') pColor = 'bg-rose-500';
 
                     tr.innerHTML = `
@@ -487,7 +492,6 @@
                 tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">No table steps found in this job.</td></tr>`;
             }
 
-            // Update Chart
             throughputChart.data.labels = labels;
             throughputChart.data.datasets[0].data = readData;
             throughputChart.data.datasets[1].data = writeData;
@@ -538,7 +542,6 @@
                 summary.appendChild(btn);
                 container.appendChild(summary);
 
-                // Try to extract a clean summary from the stacktrace
                 let cleanSummary = errText.split('\n')[0];
                 if(cleanSummary.includes('Exception:')) {
                     cleanSummary = cleanSummary.substring(cleanSummary.indexOf('Exception:') + 10).trim();
@@ -578,7 +581,6 @@
                  details.appendChild(h);
 
                  data.constraintErrors.forEach(err => {
-                    // Try to guess table from constraint error string
                     let tblHint = 'Constraint Application';
                     if(err.includes('table')) {
                         const match = err.match(/table "([^"]+)"/);
@@ -606,7 +608,6 @@
             }
         }
 
-        // Initialize on load
         document.addEventListener('DOMContentLoaded', () => {
             fetchExecutions();
         });

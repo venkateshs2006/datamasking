@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.TaskExecutor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import javax.sql.DataSource;
@@ -204,28 +205,32 @@ public class MigrationController {
     }
 
     @PostMapping("/json/start")
-    public void startJsonMigration(HttpServletResponse response) throws IOException {
+    public ResponseEntity<?> startJsonMigration() {
         try {
             log.info("Starting JSON migration job manually...");
             
-            // Execute the JSON migration process synchronously for now, or could be wrapped in TaskExecutor
+            // Execute the JSON migration process asynchronously
+            String executionId = "json-" + System.currentTimeMillis();
             taskExecutor.execute(() -> {
                 try {
-                    jsonMigrationService.processMigration();
+                    jsonMigrationService.processMigrationAsync(executionId);
                 } catch (Exception e) {
                     log.error("JSON Migration failed in background task", e);
                 }
             });
             
-            log.info("JSON Migration task launched");
-            // Redirect to a specific page or back to home. Since we don't have a Spring Batch Job ID for this custom process,
-            // we'll redirect back to the DB select page or a success page.
-            response.sendRedirect("/select-db.html?msg=json_started");
+            log.info("JSON Migration task launched with id: {}", executionId);
+            return ResponseEntity.ok(Map.of("status", "SUCCESS", "executionId", executionId, "message", "JSON Migration started"));
 
         } catch (Exception e) {
             log.error("Failed to start JSON migration", e);
-            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to start JSON migration: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of("status", "ERROR", "message", e.getMessage()));
         }
+    }
+
+    @GetMapping("/json/status/{executionId}")
+    public ResponseEntity<?> getJsonStatus(@PathVariable String executionId) {
+        return ResponseEntity.ok(jsonMigrationService.getProgress(executionId));
     }
 
     /**

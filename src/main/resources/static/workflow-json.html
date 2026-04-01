@@ -3,12 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SeEDM - JSON File Migration Setup</title>
+    <title>BNP Paribas - SeEDM JSON File Migration Setup</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4' }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; }
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
+
+        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
+        .bnp-logo { height: 48px; display: block; }
+        nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
+        nav ul li { margin-left: 25px; }
+        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
+        nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+
+        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; z-index: 20; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
+        .tagline { font-weight: 300; letter-spacing: 1px; }
 
         .step-container { display: none !important; }
         .step-container.active {
@@ -25,27 +49,27 @@
         .stepper-item { flex: 1; text-align: center; position: relative; }
         .stepper-item::after { content: ''; position: absolute; top: 16px; left: 50%; width: 100%; height: 2px; background-color: #e2e8f0; z-index: 1; transition: background-color 0.3s; }
         .stepper-item:last-child::after { display: none; }
-        .stepper-item.completed::after { background-color: #eab308; } /* Yellow for JSON */
+        .stepper-item.completed::after { background-color: var(--bnp-emerald); }
         .stepper-circle { width: 34px; height: 34px; border-radius: 50%; background-color: #fff; border: 2px solid #cbd5e1; color: #94a3b8; display: flex; align-items: center; justify-content: center; font-weight: 600; margin: 0 auto; position: relative; z-index: 2; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
 
-        .stepper-item.active .stepper-circle { border-color: #eab308; color: #eab308; background-color: #fff; box-shadow: 0 0 0 4px rgba(234, 179, 8, 0.1); }
-        .stepper-item.completed .stepper-circle { background-color: #eab308; border-color: #eab308; color: white; }
+        .stepper-item.active .stepper-circle { border-color: var(--bnp-emerald); color: var(--bnp-emerald); background-color: #fff; box-shadow: 0 0 0 4px rgba(0, 150, 94, 0.1); }
+        .stepper-item.completed .stepper-circle { background-color: var(--bnp-emerald); border-color: var(--bnp-emerald); color: white; }
 
         .stepper-label { font-size: 0.7rem; font-weight: 600; color: #64748b; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em; transition: color 0.3s; }
-        .stepper-item.active .stepper-label { color: #1e293b; font-weight: 700; }
-        .stepper-item.completed .stepper-label { color: #eab308; }
+        .stepper-item.active .stepper-label { color: var(--bnp-dark-grey); font-weight: 700; }
+        .stepper-item.completed .stepper-label { color: var(--bnp-emerald); }
 
         .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #f1f5f9; }
 
         .input-field { width: 100%; padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.875rem; transition: all 0.2s; background-color: #f8fafc; color: #334155; }
-        .input-field:focus { outline: none; border-color: #eab308; box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.15); background-color: #fff; }
+        .input-field:focus { outline: none; border-color: var(--bnp-emerald); box-shadow: 0 0 0 3px rgba(0, 150, 94, 0.15); background-color: #fff; }
         .input-field:disabled { background-color: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
         .input-field.error { border-color: #ef4444; background-color: #fef2f2; }
 
         .btn { padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 600; font-size: 0.875rem; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         .btn:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
-        .btn-primary { background-color: #eab308; color: white; border: 1px solid transparent; } /* Yellow for JSON */
-        .btn-primary:hover:not(:disabled) { background-color: #ca8a04; box-shadow: 0 4px 6px rgba(234, 179, 8, 0.2); transform: translateY(-1px); }
+        .btn-primary { background-color: var(--bnp-emerald); color: white; border: 1px solid transparent; }
+        .btn-primary:hover:not(:disabled) { background-color: #007a4c; box-shadow: 0 4px 6px rgba(0, 150, 94, 0.2); transform: translateY(-1px); }
         .btn-secondary { background-color: #fff; color: #475569; border: 1px solid #cbd5e1; }
         .btn-secondary:hover:not(:disabled) { background-color: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
         .btn-success { background-color: #10b981; color: white; border: 1px solid transparent; }
@@ -54,55 +78,40 @@
         .list-container { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; overflow: hidden; display: flex; flex-direction: column; }
         .list-item { padding: 0.6rem 0.875rem; border-radius: 6px; font-size: 0.875rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; transition: all 0.15s; border: 1px solid transparent; }
         .list-item:hover { background-color: #f8fafc; border-color: #e2e8f0; }
-        .list-item.selected { background-color: #fefce8; color: #ca8a04; font-weight: 600; border-color: #fef08a; box-shadow: inset 3px 0 0 #eab308; }
-
-        /* Custom file input styling */
-        .file-input-wrapper {
-            position: relative;
-            display: inline-flex;
-            width: 100%;
-        }
-        .file-input-wrapper input[type="file"] {
-            position: absolute;
-            left: 0;
-            top: 0;
-            opacity: 0;
-            width: 100%;
-            height: 100%;
-            cursor: pointer;
-        }
+        .list-item.selected { background-color: rgba(0, 150, 94, 0.05); color: var(--bnp-emerald); font-weight: 600; border-color: rgba(0, 150, 94, 0.2); box-shadow: inset 3px 0 0 var(--bnp-emerald); }
 
         .dropzone.dragover {
             background-color: #f8fafc !important;
             border-color: #94a3b8 !important;
         }
+
+        /* Modal Styles */
+        .modal { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(51, 51, 51, 0.6); backdrop-filter: blur(4px); }
+        .modal-content { background-color: #fff; margin: 10% auto; padding: 32px; width: 90%; max-width: 500px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
     </style>
 </head>
 <body class="h-screen flex flex-col">
 
 <!-- Top Navigation -->
-<nav class="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center z-20 shrink-0 shadow-sm">
+<header>
     <div class="flex items-center">
-        <div class="w-9 h-9 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-xl flex items-center justify-center mr-3 shadow-md">
-            <i class="fas fa-file-code text-white text-lg"></i>
-        </div>
-        <div>
-            <h1 class="text-xl font-bold text-gray-900 tracking-tight leading-none">SeEDM</h1>
+        <a href="/index.html" class="logo-link mr-6">
+            <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+        </a>
+        <div class="hidden md:block border-l border-gray-300 pl-6">
+            <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
             <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">JSON File Migration</p>
         </div>
     </div>
-    <div class="flex items-center space-x-6">
-        <a href="/select-db.html" class="text-sm font-semibold text-gray-500 hover:text-yellow-600 transition flex items-center">
-            <i class="fas fa-arrow-left mr-1.5"></i> Back to Hub
-        </a>
-        <div class="w-px h-5 bg-gray-300"></div>
-        <button onclick="logout()" class="text-sm text-gray-500 hover:text-red-600 font-semibold flex items-center transition">
-            <i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out
-        </button>
-    </div>
-</nav>
+    <nav>
+        <ul>
+            <li><a href="/select-db.html"><i class="fas fa-arrow-left mr-1.5"></i> Back to Hub</a></li>
+            <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
+        </ul>
+    </nav>
+</header>
 
-<div class="flex-1 flex flex-col overflow-hidden bg-[#f8fafc]">
+<main class="flex-1 flex flex-col overflow-hidden bg-transparent">
     <div class="w-full max-w-6xl mx-auto px-6 py-8 flex flex-col h-full">
 
         <div class="mb-8 shrink-0 text-center">
@@ -126,7 +135,7 @@
                     <!-- Source Form -->
                     <div class="flex-1 flex flex-col">
                         <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
-                            <div class="w-10 h-10 rounded-lg bg-yellow-50 flex items-center justify-center text-yellow-600 mr-4 border border-yellow-100"><i class="fas fa-folder-open text-lg"></i></div>
+                            <div class="w-10 h-10 rounded-lg bg-bnp-emerald/10 flex items-center justify-center text-bnp-emerald mr-4 border border-bnp-emerald/20"><i class="fas fa-folder-open text-lg"></i></div>
                             <div>
                                 <h3 class="text-lg font-bold text-gray-800 leading-tight">Source Directory</h3>
                                 <p class="text-xs text-gray-500">Select folder containing input JSON files</p>
@@ -135,21 +144,13 @@
                         <form id="sourceForm" class="space-y-5 flex-1 flex flex-col" onsubmit="event.preventDefault(); fetchFiles();">
                             <div>
                                 <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Directory Path</label>
-                                <div class="file-input-wrapper">
-                                    <div class="flex w-full">
-                                        <input type="text" name="path" id="sourcePath" class="input-field font-mono text-sm rounded-r-none border-r-0" placeholder="e.g. C:\data\input or /var/data" oninput="validateStep1()">
-                                        <div class="relative overflow-hidden bg-gray-100 border border-gray-300 rounded-r-md px-3 flex items-center cursor-pointer hover:bg-gray-200 transition">
-                                            <i class="fas fa-ellipsis-h text-gray-500"></i>
-                                            <input type="file" webkitdirectory directory multiple onchange="handleFolderSelect(this, 'sourcePath')" title="Select Folder">
-                                        </div>
-                                    </div>
-                                </div>
-                                <p class="text-[10px] text-gray-400 mt-1">Enter absolute server path or click '...' to select local folder.</p>
+                                <input type="text" name="path" id="sourcePath" class="input-field font-mono text-sm" placeholder="e.g. C:\data\input or /var/data" oninput="validateStep1()">
+                                <p class="text-[10px] text-gray-400 mt-1">Enter absolute server path where the JSON files are located.</p>
                             </div>
                             <div class="mt-auto pt-6 border-t border-gray-50">
                                 <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
                                     Files to Process
-                                    <button type="button" id="btnFetchSrc" onclick="fetchFiles()" class="text-xs text-yellow-600 hover:text-yellow-800 normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Scan Directory</button>
+                                    <button type="button" id="btnFetchSrc" onclick="fetchFiles()" class="text-xs text-bnp-emerald hover:text-[#007a4c] normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Scan Directory</button>
                                 </label>
                                 <div id="fileCountDisplay" class="input-field bg-gray-50 text-gray-500 flex items-center justify-center border-dashed border-gray-300">
                                     <i class="fas fa-info-circle mr-2 opacity-50"></i> Enter path and click Scan
@@ -173,15 +174,7 @@
                         <form id="destForm" class="space-y-5 flex-1 flex flex-col">
                             <div>
                                 <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Directory Path</label>
-                                <div class="file-input-wrapper">
-                                    <div class="flex w-full">
-                                        <input type="text" name="path" id="destPath" class="input-field font-mono text-sm rounded-r-none border-r-0" placeholder="e.g. C:\data\output or /var/data/output" oninput="validateStep1()">
-                                        <div class="relative overflow-hidden bg-gray-100 border border-gray-300 rounded-r-md px-3 flex items-center cursor-pointer hover:bg-gray-200 transition">
-                                            <i class="fas fa-ellipsis-h text-gray-500"></i>
-                                            <input type="file" webkitdirectory directory multiple onchange="handleFolderSelect(this, 'destPath')" title="Select Folder">
-                                        </div>
-                                    </div>
-                                </div>
+                                <input type="text" name="path" id="destPath" class="input-field font-mono text-sm" placeholder="e.g. C:\data\output or /var/data/output" oninput="validateStep1()">
                                 <p class="text-[10px] text-gray-400 mt-1">Directory will be created if it doesn't exist.</p>
                             </div>
                         </form>
@@ -218,8 +211,8 @@
                         <div class="p-6 space-y-6 flex-1 overflow-y-auto relative bg-gray-50/10">
                             <!-- Standard Dropzone -->
                             <div>
-                                <h5 class="text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-blue-100 flex items-center justify-center mr-1.5"><i class="fas fa-mask"></i></div> Standard Fake Data</h5>
-                                <div id="dropzone-masking" class="dropzone flex flex-wrap gap-2 min-h-[80px] p-4 bg-gray-50 rounded-lg border-2 border-dashed border-blue-300 shadow-inner transition-colors duration-200" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropField(event, 'maskingColumns')">
+                                <h5 class="text-[10px] font-bold text-bnp-emerald uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-bnp-emerald/10 flex items-center justify-center mr-1.5"><i class="fas fa-mask"></i></div> Standard Fake Data</h5>
+                                <div id="dropzone-masking" class="dropzone flex flex-wrap gap-2 min-h-[80px] p-4 bg-gray-50 rounded-lg border-2 border-dashed border-bnp-emerald/40 shadow-inner transition-colors duration-200" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropField(event, 'maskingColumns')">
                                     <div class="w-full h-full flex items-center justify-center text-xs text-gray-400 italic pointer-events-none" id="placeholder-masking">Drop fields here</div>
                                 </div>
                             </div>
@@ -239,7 +232,7 @@
             <div id="step3" class="step-container p-8 overflow-y-auto">
                 <div class="max-w-4xl mx-auto w-full flex flex-col h-full">
                     <div class="text-center mb-8 shrink-0">
-                        <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-emerald-50">
+                        <div class="w-16 h-16 bg-bnp-emerald/10 text-bnp-emerald rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-bnp-emerald/5">
                             <i class="fas fa-check"></i>
                         </div>
                         <h3 class="text-2xl font-bold text-gray-900">Ready to Launch</h3>
@@ -252,7 +245,7 @@
                             <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">Directories</h4>
                             <div class="space-y-4">
                                 <div>
-                                    <span class="text-[10px] font-bold text-yellow-600 uppercase flex items-center"><i class="fas fa-folder mr-1.5"></i> Source</span>
+                                    <span class="text-[10px] font-bold text-bnp-emerald uppercase flex items-center"><i class="fas fa-folder mr-1.5"></i> Source</span>
                                     <div id="previewSrc" class="text-xs font-mono text-gray-700 mt-1 break-all bg-gray-50 p-2 rounded border border-gray-200" title=""></div>
                                 </div>
                                 <div>
@@ -264,7 +257,7 @@
                         <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center relative overflow-hidden">
                             <div class="absolute top-0 right-0 p-4 opacity-5 text-4xl"><i class="fas fa-chart-pie"></i></div>
                             <div class="text-center">
-                                <span class="block text-5xl font-black text-blue-600" id="previewRuleCount">0</span>
+                                <span class="block text-5xl font-black text-bnp-emerald" id="previewRuleCount">0</span>
                                 <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2 block">Total Fields Mapped</span>
                             </div>
                         </div>
@@ -277,11 +270,42 @@
                 <button id="btnPrev" onclick="prevStep()" class="btn btn-secondary text-sm font-bold tracking-wide"><i class="fas fa-chevron-left mr-2 text-xs"></i> BACK</button>
                 <div class="flex-1"></div>
                 <button id="btnNext" onclick="nextStep()" class="btn btn-primary px-8 text-sm font-bold tracking-wide shadow-md hover:shadow-lg">CONTINUE <i class="fas fa-chevron-right ml-2 text-xs"></i></button>
-                <button id="btnStart" onclick="submitWorkflow()" class="btn btn-success px-10 py-3 text-base font-bold tracking-wide shadow-lg hover:shadow-xl hidden animate-pulse">
+                <button id="btnStart" onclick="submitWorkflow()" class="btn btn-success px-10 py-3 text-base font-bold tracking-wide shadow-lg hover:shadow-xl hidden animate-pulse bg-bnp-emerald hover:bg-[#007a4c]">
                     LAUNCH MIGRATION <i class="fas fa-rocket ml-2"></i>
                 </button>
             </div>
 
+        </div>
+    </div>
+</main>
+
+<footer>
+    <div class="footer-content">
+        <p>© BNP Paribas - 2026</p>
+        <p class="tagline">The bank for a changing world</p>
+    </div>
+</footer>
+
+<!-- Progress Modal -->
+<div id="progressModal" class="modal">
+    <div class="modal-content">
+        <h2 class="text-xl font-bold text-bnp-dark-grey mb-6 flex items-center">
+            <i class="fas fa-spinner fa-spin mr-3 text-bnp-emerald"></i> Migrating JSON Files
+        </h2>
+        <div class="mb-5">
+            <div class="flex justify-between text-sm font-semibold text-gray-600 mb-2">
+                <span id="progressStatusText">Starting...</span>
+                <span id="progressPercent">0%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner">
+                <div class="bg-bnp-emerald h-3 rounded-full transition-all duration-300" id="progressBar" style="width: 0%"></div>
+            </div>
+        </div>
+        <div class="text-xs text-gray-600 font-mono bg-gray-50 p-3 rounded-lg border border-gray-200" id="progressDetailText">
+            Files Processed: 0 / 0
+        </div>
+        <div class="mt-6 text-right hidden" id="progressCloseBtn">
+            <button onclick="window.location.href='/select-db.html'" class="btn btn-primary">Done</button>
         </div>
     </div>
 </div>
@@ -303,25 +327,6 @@
     let state = {
         rules: { maskingColumns: [], partialMaskingColumns: [], sourceDir: '', destDir: '' }
     };
-
-    function handleFolderSelect(input, targetId) {
-        if (input.files && input.files.length > 0) {
-            const file = input.files[0];
-            let path = "";
-            if (file.path) {
-                 path = file.path.substring(0, file.path.lastIndexOf(file.name) - 1);
-            } else if (file.webkitRelativePath) {
-                 const folderName = file.webkitRelativePath.split('/')[0];
-                 path = "[Selected: " + folderName + "] -> Please enter absolute server path";
-                 alert("Browser security prevents reading the absolute path. Please type the absolute path where the server can access these files.");
-            }
-
-            if(path && file.path) {
-                 document.getElementById(targetId).value = path;
-                 validateStep1();
-            }
-        }
-    }
 
     function validateStep1() {
         const src = document.getElementById('sourcePath').value.trim();
@@ -377,7 +382,7 @@
         const display = document.getElementById('fileCountDisplay');
         const origHtml = btn.innerHTML;
 
-        if (!srcPath || srcPath.includes("[Selected:")) {
+        if (!srcPath) {
              alert("Please enter a valid absolute path.");
              return;
         }
@@ -385,7 +390,7 @@
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         btn.disabled = true;
         display.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Scanning directory...';
-        display.className = 'input-field bg-blue-50 text-blue-600 flex items-center justify-center border-blue-200';
+        display.className = 'input-field bg-bnp-emerald/10 text-bnp-emerald flex items-center justify-center border-bnp-emerald/30';
 
         try {
             const response = await fetch('/api/fs/scan', {
@@ -405,8 +410,8 @@
                     availableKeys = data.sampleKeys || [];
                     renderAvailableKeys();
                 } else {
-                    display.innerHTML = `<span class="text-yellow-600 font-bold"><i class="fas fa-exclamation-triangle mr-1"></i> No JSON files found</span>`;
-                    display.className = 'input-field bg-yellow-50 flex items-center justify-center border-yellow-200';
+                    display.innerHTML = `<span class="text-orange-600 font-bold"><i class="fas fa-exclamation-triangle mr-1"></i> No JSON files found</span>`;
+                    display.className = 'input-field bg-orange-50 flex items-center justify-center border-orange-200';
                     scanSuccess = false;
                 }
             } else {
@@ -455,7 +460,7 @@
 
             displayedCount++;
             const el = document.createElement('div');
-            el.className = "p-3 mb-2 bg-white border border-gray-200 rounded cursor-move hover:bg-yellow-50 hover:border-yellow-300 text-xs font-mono text-gray-700 shadow-sm transition flex items-center";
+            el.className = "p-3 mb-2 bg-white border border-gray-200 rounded cursor-move hover:bg-bnp-emerald/5 hover:border-bnp-emerald/50 text-xs font-mono text-gray-700 shadow-sm transition flex items-center";
             el.draggable = true;
             el.innerHTML = `<i class="fas fa-grip-vertical text-gray-300 mr-3"></i> ${key}`;
             el.ondragstart = (e) => {
@@ -535,7 +540,7 @@
                 c.appendChild(s);
             });
         };
-        f('maskingColumns','dropzone-masking','bg-blue-100 text-blue-800 border-blue-300', 'placeholder-masking');
+        f('maskingColumns','dropzone-masking','bg-bnp-emerald/10 text-bnp-emerald border-bnp-emerald/30', 'placeholder-masking');
         f('partialMaskingColumns','dropzone-partial','bg-orange-100 text-orange-800 border-orange-300', 'placeholder-partial');
     }
 
@@ -558,12 +563,69 @@
             await fetch('/api/config/json', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(state.rules) });
 
             // Trigger JSON specific migration job
-            const f = document.createElement('form'); f.method = 'POST'; f.action = '/api/migration/json/start'; document.body.appendChild(f); f.submit();
+            const res = await fetch('/api/migration/json/start', { method: 'POST' });
+            const data = await res.json();
+
+            if (data.status === 'SUCCESS' && data.executionId) {
+                showProgressModal(data.executionId);
+            } else {
+                alert('Failed to launch JSON migration.');
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+            }
         } catch (e) {
             alert('Failed to launch JSON migration.');
             btn.innerHTML = origHtml;
             btn.disabled = false;
         }
+    }
+
+    let pollInterval;
+    function showProgressModal(executionId) {
+        const modal = document.getElementById('progressModal');
+        modal.style.display = 'block';
+
+        pollInterval = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/migration/json/status/${executionId}`);
+                const progress = await res.json();
+
+                const processed = progress.processedFiles || 0;
+                const total = progress.totalFiles || 0;
+                const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
+
+                let statusText = 'Processing files...';
+                if (progress.status === 'COMPLETED') statusText = 'Migration Complete!';
+                if (progress.status === 'FAILED') statusText = 'Migration Failed!';
+
+                document.getElementById('progressStatusText').innerText = statusText;
+                document.getElementById('progressPercent').innerText = `${pct}%`;
+                document.getElementById('progressBar').style.width = `${pct}%`;
+                document.getElementById('progressDetailText').innerText = `Files Processed: ${processed} / ${total}`;
+
+                if (progress.status === 'FAILED') {
+                    document.getElementById('progressBar').classList.remove('bg-bnp-emerald');
+                    document.getElementById('progressBar').classList.add('bg-red-500');
+                    if (progress.errorMessage) {
+                        document.getElementById('progressDetailText').innerText += `\nError: ${progress.errorMessage}`;
+                    }
+                }
+
+                if (progress.status === 'COMPLETED' || progress.status === 'FAILED') {
+                    clearInterval(pollInterval);
+                    document.getElementById('progressCloseBtn').classList.remove('hidden');
+
+                    const spinner = document.querySelector('#progressModal .fa-spinner');
+                    if (spinner) {
+                        spinner.classList.remove('fa-spinner', 'fa-spin', 'text-bnp-emerald');
+                        if (progress.status === 'COMPLETED') spinner.classList.add('fa-check-circle', 'text-green-500');
+                        if (progress.status === 'FAILED') spinner.classList.add('fa-times-circle', 'text-red-500');
+                    }
+                }
+            } catch (e) {
+                console.error('Error polling status', e);
+            }
+        }, 1000);
     }
 
     updateUI();
