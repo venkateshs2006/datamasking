@@ -27,6 +27,10 @@ public class MaskingConfigController {
 
     @PostMapping
     public void updateConfig(@RequestBody MaskingConfig config) {
+        String existingKey = maskingConfigService.getConfig().getMaskingKey();
+        if (config.getMaskingKey() == null || config.getMaskingKey().trim().isEmpty() || config.getMaskingKey().equals("DefaultSecretKey123")) {
+            config.setMaskingKey(existingKey);
+        }
         maskingConfigService.updateConfig(config);
     }
     

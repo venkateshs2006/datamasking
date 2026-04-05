@@ -242,12 +242,6 @@
                             <h3 class="text-xl font-bold text-gray-800">Assign Masking Rules</h3>
                             <p class="text-sm text-gray-500 mt-1">Configure how sensitive columns should be transformed.</p>
                         </div>
-                        <div class="w-80 bg-purple-50 p-3 rounded-lg border border-purple-100 shadow-sm">
-                            <label class="text-[10px] font-bold text-purple-800 uppercase tracking-wider mb-1 block flex items-center">
-                                <i class="fas fa-key mr-1.5"></i> Encryption Salt
-                            </label>
-                            <input type="text" id="workflowSecretKey" class="input-field py-1.5 text-sm font-mono border-purple-200 focus:border-purple-500 focus:ring-purple-200" value="DefaultSecretKey123" oninput="validateStep3()">
-                        </div>
                     </div>
 
                     <div class="flex flex-1 gap-6 min-h-0">
@@ -283,17 +277,17 @@
                                 </div>
                                 <!-- Standard -->
                                 <div>
-                                    <h5 class="text-[10px] font-bold text-bnp-emerald uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-bnp-emerald/10 flex items-center justify-center mr-1.5"><i class="fas fa-mask"></i></div> Standard Fake Data</h5>
+                                    <h5 class="text-[10px] font-bold text-bnp-emerald uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-bnp-emerald/10 flex items-center justify-center mr-1.5"><i class="fas fa-mask"></i></div> SFD (STANDARD FAKER DATA)</h5>
                                     <div id="tags-masking" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-bnp-emerald/40 shadow-sm"></div>
                                 </div>
                                 <!-- Partial -->
                                 <div>
-                                    <h5 class="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-orange-100 flex items-center justify-center mr-1.5"><i class="fas fa-eye-slash"></i></div> Redaction (Keep last 4)</h5>
+                                    <h5 class="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-orange-100 flex items-center justify-center mr-1.5"><i class="fas fa-eye-slash"></i></div> PMD (Partial masking DATA(keep Last 4 Letters))</h5>
                                     <div id="tags-partial" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-orange-200 shadow-sm"></div>
                                 </div>
                                 <!-- Encrypt -->
                                 <div>
-                                    <h5 class="text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-purple-100 flex items-center justify-center mr-1.5"><i class="fas fa-key"></i></div> Deterministic ID</h5>
+                                    <h5 class="text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-purple-100 flex items-center justify-center mr-1.5"><i class="fas fa-key"></i></div> FPH (Format Perserving Hashing)</h5>
                                     <div id="tags-constraint" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-purple-200 shadow-sm"></div>
                                 </div>
                             </div>
@@ -365,7 +359,7 @@
                     <button id="btnPrev" onclick="prevStep()" class="btn btn-secondary text-sm font-bold tracking-wide"><i class="fas fa-chevron-left mr-2 text-xs"></i> BACK</button>
                     <div class="flex-1"></div>
                     <button id="btnNext" onclick="nextStep()" class="btn btn-primary px-8 text-sm font-bold tracking-wide shadow-md hover:shadow-lg">CONTINUE <i class="fas fa-chevron-right ml-2 text-xs"></i></button>
-                    <button id="btnStart" onclick="submitWorkflow()" class="btn btn-success px-10 py-3 text-base font-bold tracking-wide shadow-lg hover:shadow-xl hidden animate-pulse">
+                    <button id="btnStart" onclick="submitWorkflow()" class="btn btn-success px-10 py-3 text-base font-bold tracking-wide shadow-lg hover:shadow-xl hidden animate-pulse bg-bnp-emerald hover:bg-[#007a4c]">
                         LAUNCH MIGRATION <i class="fas fa-rocket ml-2"></i>
                     </button>
                 </div>
@@ -398,7 +392,7 @@
         tables: [],
         selectedTables: [],
         columnsCache: {},
-        rules: { maskingColumns: [], constraintColumns: [], partialMaskingColumns: [], maskingKey: '', targetTables: [] }
+        rules: { maskingColumns: [], constraintColumns: [], partialMaskingColumns: [], targetTables: [] }
     };
 
     // --- VALIDATION LOGIC ---
@@ -434,13 +428,7 @@
     }
 
     function validateStep3() {
-        const salt = document.getElementById('workflowSecretKey').value.trim();
-        const btnNext = document.getElementById('btnNext');
-        const field = document.getElementById('workflowSecretKey');
-
-        const valid = salt.length >= 8;
-        field.classList.toggle('error', salt.length > 0 && salt.length < 8);
-        btnNext.disabled = !valid;
+        document.getElementById('btnNext').disabled = false;
     }
 
     // --- NAVIGATION & UI ---
@@ -634,9 +622,9 @@
             d.innerHTML = `
                 <div class="text-[11px] font-bold text-gray-700 mb-1.5 truncate" title="${col}">${col}</div>
                 <div class="flex gap-1.5">
-                    <button class="flex-1 rule-btn rule-btn-std ${isStd ? 'ring-2 ring-bnp-emerald/50 ring-offset-1' : ''}" onclick="toggleRule('${full}','maskingColumns','${table}')">STD</button>
-                    <button class="flex-1 rule-btn rule-btn-prt ${isPrt ? 'ring-2 ring-orange-400 ring-offset-1' : ''}" onclick="toggleRule('${full}','partialMaskingColumns','${table}')">PRT</button>
-                    <button class="flex-1 rule-btn rule-btn-enc ${isEnc ? 'ring-2 ring-purple-400 ring-offset-1' : ''}" onclick="toggleRule('${full}','constraintColumns','${table}')">ENC</button>
+                    <button class="flex-1 rule-btn rule-btn-std ${isStd ? 'ring-2 ring-bnp-emerald/50 ring-offset-1' : ''}" onclick="toggleRule('${full}','maskingColumns','${table}')">SFD</button>
+                    <button class="flex-1 rule-btn rule-btn-prt ${isPrt ? 'ring-2 ring-orange-400 ring-offset-1' : ''}" onclick="toggleRule('${full}','partialMaskingColumns','${table}')">PMD</button>
+                    <button class="flex-1 rule-btn rule-btn-enc ${isEnc ? 'ring-2 ring-purple-400 ring-offset-1' : ''}" onclick="toggleRule('${full}','constraintColumns','${table}')">FPH</button>
                 </div>
             `;
             container.appendChild(d);
@@ -694,9 +682,9 @@
         const body = document.getElementById('previewRulesTable');
         body.innerHTML = '';
         state.selectedTables.forEach(t => {
-            const masks = state.rules.maskingColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20 px-1.5 py-0.5 rounded text-[9px] font-bold mr-1 mb-1 inline-block shadow-sm">STD: ${x.split('.')[1]}</span>`);
-            const parts = state.rules.partialMaskingColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-orange-50 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded text-[9px] font-bold mr-1 mb-1 inline-block shadow-sm">PRT: ${x.split('.')[1]}</span>`);
-            const encs = state.rules.constraintColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded text-[9px] font-bold mr-1 mb-1 inline-block shadow-sm">ENC: ${x.split('.')[1]}</span>`);
+            const masks = state.rules.maskingColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20 px-1.5 py-0.5 rounded text-[9px] font-bold mr-1 mb-1 inline-block shadow-sm">SFD: ${x.split('.')[1]}</span>`);
+            const parts = state.rules.partialMaskingColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-orange-50 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded text-[9px] font-bold mr-1 mb-1 inline-block shadow-sm">PMD: ${x.split('.')[1]}</span>`);
+            const encs = state.rules.constraintColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded text-[9px] font-bold mr-1 mb-1 inline-block shadow-sm">FPH: ${x.split('.')[1]}</span>`);
 
             const rules = [...masks, ...parts, ...encs].join('') || '<span class="text-gray-400 italic text-[10px]">Direct Copy (No Rules)</span>';
             const tr = document.createElement('tr');
@@ -714,7 +702,6 @@
 
         try {
             state.rules.targetTables = state.selectedTables;
-            state.rules.maskingKey = document.getElementById('workflowSecretKey').value;
 
             await fetch('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(state.rules) });
 
