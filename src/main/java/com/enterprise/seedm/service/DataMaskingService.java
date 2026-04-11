@@ -257,6 +257,30 @@ public class DataMaskingService {
             result = faker.lorem().sentence();
         } else if (originalValue instanceof Number) {
             result = faker.number().numberBetween(1, 10000);
+        } else if (originalValue instanceof java.util.Date || originalValue instanceof java.time.temporal.TemporalAccessor) {
+            java.util.Date dummyDate = faker.date().birthday();
+            if (originalValue instanceof java.sql.Timestamp || originalValue instanceof java.time.LocalDateTime) {
+                result = new java.sql.Timestamp(dummyDate.getTime());
+            } else if (originalValue instanceof java.sql.Date || originalValue instanceof java.time.LocalDate) {
+                result = new java.sql.Date(dummyDate.getTime());
+            } else {
+                result = dummyDate;
+            }
+        } else if (originalValue instanceof String) {
+            String strVal = (String) originalValue;
+            if (strVal.matches("^\\d{4}-\\d{2}-\\d{2}$")) {
+                result = new java.sql.Date(faker.date().birthday().getTime()).toString();
+            } else if (strVal.matches("^\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}.*")) {
+                result = new java.sql.Timestamp(faker.date().birthday().getTime()).toString();
+            } else if (strVal.matches("^\\d{2}/\\d{2}/\\d{4}$")) {
+                java.util.Calendar cal = java.util.Calendar.getInstance();
+                cal.setTime(faker.date().birthday());
+                result = String.format("%02d/%02d/%04d", cal.get(java.util.Calendar.MONTH) + 1, cal.get(java.util.Calendar.DAY_OF_MONTH), cal.get(java.util.Calendar.YEAR));
+            } else if (lowerCol.contains("date") || lowerCol.contains("time") || lowerCol.contains("dob") || lowerCol.contains("created") || lowerCol.contains("updated")) {
+                result = new java.sql.Timestamp(faker.date().birthday().getTime()).toString();
+            } else {
+                result = faker.lorem().characters(10);
+            }
         } else {
             result = faker.lorem().characters(10);
         }

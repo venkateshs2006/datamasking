@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNP Paribas - SeEDM Dummy JSON Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
+
+        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
+        .bnp-logo { height: 48px; display: block; }
+        nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
+        nav ul li { margin-left: 25px; }
+        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
+        nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+
+        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; z-index: 20; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
+        .tagline { font-weight: 300; letter-spacing: 1px; }
+
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #f1f5f9; }
+
+        .input-field { width: 100%; padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.875rem; transition: all 0.2s; background-color: #f8fafc; color: #334155; }
+        .input-field:focus { outline: none; border-color: var(--bnp-emerald); box-shadow: 0 0 0 3px rgba(0, 150, 94, 0.15); background-color: #fff; }
+        .input-field:disabled { background-color: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+
+        .btn { padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 600; font-size: 0.875rem; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+        .btn-primary { background-color: var(--bnp-emerald); color: white; border: 1px solid transparent; }
+        .btn-primary:hover:not(:disabled) { background-color: #007a4c; box-shadow: 0 4px 6px rgba(0, 150, 94, 0.2); transform: translateY(-1px); }
+
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+<!-- Top Navigation -->
+<header>
+    <div class="flex items-center">
+        <a href="/index.html" class="logo-link mr-6">
+            <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+        </a>
+        <div class="hidden md:block border-l border-gray-300 pl-6">
+            <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
+            <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Dummy JSON Generator</p>
+        </div>
+    </div>
+    <nav>
+        <ul>
+            <li><a href="/select-db.html"><i class="fas fa-arrow-left mr-1.5"></i> Back to Hub</a></li>
+            <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
+        </ul>
+    </nav>
+</header>
+
+<main class="flex-1 flex flex-col overflow-hidden bg-transparent">
+    <div class="w-full max-w-4xl mx-auto px-6 py-12 flex flex-col h-full">
+
+        <div class="mb-10 text-center">
+            <div class="w-16 h-16 bg-bnp-emerald/10 text-bnp-emerald rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-bnp-emerald/5">
+                <i class="fas fa-magic"></i>
+            </div>
+            <h2 class="text-3xl font-bold text-gray-900">Generate Dummy JSON Files</h2>
+            <p class="text-sm text-gray-500 mt-2">Upload a template JSON file and we will generate multiple files with randomized dummy data.</p>
+        </div>
+
+        <div class="card flex flex-col overflow-hidden shadow-md bg-white rounded-xl p-8 max-w-2xl mx-auto w-full">
+            <form id="generateForm" onsubmit="event.preventDefault(); submitGeneration();" class="space-y-6">
+
+                <div id="statusMessage" class="hidden p-4 rounded-lg font-medium text-sm text-center mb-4"></div>
+
+                <div>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Template JSON File</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-file-code text-gray-400"></i>
+                        </div>
+                        <input type="text" id="templateFile" class="input-field pl-10 font-mono" placeholder="e.g. C:\data\template.json" required>
+                    </div>
+                    <p class="text-[10px] text-gray-400 mt-1">Absolute path to a sample JSON file to use as the template structure.</p>
+                </div>
+
+                <div>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Output Directory</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-folder-open text-gray-400"></i>
+                        </div>
+                        <input type="text" id="outputDir" class="input-field pl-10 font-mono" placeholder="e.g. C:\data\output" required>
+                    </div>
+                    <p class="text-[10px] text-gray-400 mt-1">Directory where the generated dummy JSON files will be saved.</p>
+                </div>
+
+                <div>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Number of Files to Generate</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-sort-numeric-up text-gray-400"></i>
+                        </div>
+                        <input type="number" id="fileCount" class="input-field pl-10" min="1" max="10000" value="10" required>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-gray-100">
+                    <button type="submit" id="btnStart" class="btn btn-primary w-full text-base py-3 shadow-lg hover:shadow-xl">
+                        <i class="fas fa-cogs mr-2"></i> GENERATE DUMMY FILES
+                    </button>
+                </div>
+            </form>
+        </div>
+
+    </div>
+</main>
+
+<footer>
+    <div class="footer-content">
+        <p>© BNP Paribas - 2026</p>
+        <p class="tagline">The bank for a changing world</p>
+    </div>
+</footer>
+
+<script>
+    fetch('/api/auth/check').then(r => r.json()).then(data => {
+        if(!data.authenticated) window.location.href = '/login.html';
+    });
+
+    async function logout() {
+        await fetch('/api/auth/logout', {method: 'POST'});
+        window.location.href = '/login.html';
+    }
+
+    async function submitGeneration() {
+        const btn = document.getElementById('btnStart');
+        const statusEl = document.getElementById('statusMessage');
+        const origHtml = btn.innerHTML;
+
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Generating...';
+        btn.disabled = true;
+        statusEl.classList.add('hidden');
+
+        const payload = {
+            templateFile: document.getElementById('templateFile').value.trim(),
+            outputDir: document.getElementById('outputDir').value.trim(),
+            count: parseInt(document.getElementById('fileCount').value, 10)
+        };
+
+        try {
+            const response = await fetch('/api/fs/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.status === 'SUCCESS') {
+                statusEl.className = 'p-4 rounded-lg font-medium text-sm text-center mb-4 bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20';
+                statusEl.innerHTML = `<i class="fas fa-check-circle mr-2"></i> ${data.message}`;
+            } else {
+                throw new Error(data.message || 'Unknown error occurred');
+            }
+        } catch (e) {
+            statusEl.className = 'p-4 rounded-lg font-medium text-sm text-center mb-4 bg-red-50 text-red-600 border border-red-200';
+            statusEl.innerHTML = `<i class="fas fa-exclamation-circle mr-2"></i> Failed to generate files: ${e.message}`;
+        } finally {
+            statusEl.classList.remove('hidden');
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+        }
+    }
+</script>
+</body>
+</html>

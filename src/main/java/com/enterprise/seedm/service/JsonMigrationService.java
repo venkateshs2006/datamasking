@@ -128,7 +128,20 @@ public class JsonMigrationService {
     }
 
     private String generateFakeData(String fieldName, String originalValue) {
-        String lowerCol = fieldName.toLowerCase();
+        if (originalValue != null) {
+            if (originalValue.matches("^\\d{4}-\\d{2}-\\d{2}$")) {
+                return new java.sql.Date(faker.date().birthday().getTime()).toString();
+            } else if (originalValue.matches("^\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}.*")) {
+                return new java.sql.Timestamp(faker.date().birthday().getTime()).toString();
+            } else if (originalValue.matches("^\\d{2}/\\d{2}/\\d{4}$")) {
+                java.util.Calendar cal = java.util.Calendar.getInstance();
+                cal.setTime(faker.date().birthday());
+                return String.format("%02d/%02d/%04d", cal.get(java.util.Calendar.MONTH) + 1, cal.get(java.util.Calendar.DAY_OF_MONTH), cal.get(java.util.Calendar.YEAR));
+            }
+        }
+
+        String lowerCol = fieldName == null ? "" : fieldName.toLowerCase();
+        
         if (lowerCol.contains("email")) return faker.internet().emailAddress();
         if (lowerCol.contains("first_name") || lowerCol.contains("firstname")) return faker.name().firstName();
         if (lowerCol.contains("last_name") || lowerCol.contains("lastname")) return faker.name().lastName();
@@ -138,6 +151,15 @@ public class JsonMigrationService {
         if (lowerCol.contains("country")) return faker.address().country();
         if (lowerCol.contains("zip") || lowerCol.contains("postal")) return faker.address().zipCode();
         if (lowerCol.contains("address")) return faker.address().fullAddress();
+        
+        if (lowerCol.contains("date") || lowerCol.contains("time") || lowerCol.contains("dob") || lowerCol.contains("created") || lowerCol.contains("updated")) {
+             return new java.sql.Timestamp(faker.date().birthday().getTime()).toString();
+        }
+
+        if (originalValue != null && originalValue.length() > 0) {
+            String fakeStr = faker.lorem().characters(10);
+            return fakeStr.substring(0, Math.min(fakeStr.length(), originalValue.length()));
+        }
         
         return faker.lorem().characters(8);
     }
