@@ -3,7 +3,6 @@ package com.enterprise.seedm.controller;
 import com.enterprise.seedm.model.LoginRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,20 +13,28 @@ import java.util.Map;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    @Value("${seedm.admin.username:admin}")
-    private String adminUsername;
-
-    @Value("${seedm.admin.password:admin123}")
-    private String adminPassword;
-
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest, HttpServletRequest request) {
-        if (adminUsername.equals(loginRequest.getUsername()) && adminPassword.equals(loginRequest.getPassword())) {
-            HttpSession session = request.getSession(true);
-            session.setAttribute("user", loginRequest.getUsername());
-            return ResponseEntity.ok(Map.of("status", "SUCCESS", "redirect", "/select-db.html"));
+        String username = loginRequest.getUsername();
+        String password = loginRequest.getPassword();
+        String role = null;
+
+        if ("scheduler".equals(username) && "pass123".equals(password)) {
+            role = "SCHEDULER";
+        } else if ("approver".equals(username) && "pass123".equals(password)) {
+            role = "APPROVER";
+        } else if ("admin".equals(username) && "admin123".equals(password)) {
+            role = "ADMIN";
         }
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("status", "FAILED", "message", "Invalid credentials"));
+
+        if (role != null) {
+            HttpSession session = request.getSession(true);
+            session.setAttribute("user", username);
+            session.setAttribute("role", role);
+            return ResponseEntity.ok(Map.of("status", "SUCCESS", "redirect", "/select-db.html", "role", role));
+        }
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("status", "FAILED", "message", "Invalid credentials. Try scheduler/pass123 or approver/pass123"));
     }
 
     @PostMapping("/logout")
@@ -43,7 +50,7 @@ public class AuthController {
     public ResponseEntity<?> checkAuth(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         if (session != null && session.getAttribute("user") != null) {
-            return ResponseEntity.ok(Map.of("authenticated", true, "user", session.getAttribute("user")));
+            return ResponseEntity.ok(Map.of("authenticated", true, "user", session.getAttribute("user"), "role", session.getAttribute("role")));
         }
         return ResponseEntity.ok(Map.of("authenticated", false));
     }

@@ -234,7 +234,7 @@
                         <h4 class="text-xs font-bold text-gray-500 mb-4">APPLIED RULES</h4>
                         <div class="space-y-3 overflow-y-auto">
                             <div class="bg-white p-3 rounded border border-bnp-emerald/20"><h5 class="text-[10px] font-bold text-bnp-emerald mb-2 uppercase">SFD (STANDARD FAKER DATA)</h5><div id="tags-masking" class="flex flex-wrap gap-1"></div></div>
-                            <div class="bg-white p-3 rounded border border-orange-100"><h5 class="text-[10px] font-bold text-orange-600 mb-2 uppercase">PMD (Partial masking DATA (keep Last 4 Letters))</h5><div id="tags-partial" class="flex flex-wrap gap-1"></div></div>
+                            <div class="bg-white p-3 rounded border border-orange-100"><h5 class="text-[10px] font-bold text-orange-600 mb-2 uppercase">PMD (Partial masking DATA)</h5><div id="tags-partial" class="flex flex-wrap gap-1"></div></div>
                             <div class="bg-white p-3 rounded border border-purple-100"><h5 class="text-[10px] font-bold text-purple-600 mb-2 uppercase">FPH (Format Perserving Hashing)</h5><div id="tags-constraint" class="flex flex-wrap gap-1"></div></div>
                         </div>
                     </div>
@@ -247,8 +247,8 @@
                     <div class="w-16 h-16 bg-bnp-emerald/10 text-bnp-emerald rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-bnp-emerald/5">
                         <i class="fas fa-check"></i>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-900">Ready to Launch</h3>
-                    <p class="text-sm text-gray-500 mt-2">Review your configuration summary before initiating the migration.</p>
+                    <h3 class="text-2xl font-bold text-gray-900">Ready to Submit</h3>
+                    <p class="text-sm text-gray-500 mt-2">Review your configuration summary before submitting for approval.</p>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4 mb-6 shrink-0">
@@ -274,7 +274,7 @@
                 <button id="btnPrev" onclick="prevStep()" class="btn btn-secondary text-sm hidden">Back</button>
                 <div class="flex-1"></div>
                 <button id="btnNext" onclick="nextStep()" class="btn btn-primary text-sm shadow-md transition-all">Continue <i class="fas fa-chevron-right ml-2 text-xs"></i></button>
-                <button id="btnStart" onclick="submitWorkflow()" class="btn btn-success text-sm shadow-md hidden animate-pulse bg-bnp-emerald hover:bg-[#007a4c]">Launch Migration <i class="fas fa-rocket ml-2"></i></button>
+                <button id="btnStart" onclick="submitWorkflow()" class="btn btn-success text-sm shadow-md hidden animate-pulse bg-bnp-emerald hover:bg-[#007a4c]">SUBMIT FOR APPROVAL <i class="fas fa-paper-plane ml-2"></i></button>
             </div>
 
         </div>
@@ -290,7 +290,11 @@
 
 <script>
     fetch('/api/auth/check').then(r => r.json()).then(data => {
-        if(!data.authenticated) window.location.href = '/login.html';
+        if(!data.authenticated) {
+            window.location.href = '/login.html';
+        } else if (data.role === 'APPROVER') {
+            window.location.href = '/jobs.html';
+        }
     });
 
     async function logout() {
@@ -566,17 +570,31 @@
     async function submitWorkflow() {
         const btn = document.getElementById('btnStart');
         const origHtml = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Launching...';
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Submitting...';
         btn.disabled = true;
 
         try {
             state.rules.targetTables = state.selectedTables;
 
-            await fetch('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(state.rules) });
+            const payload = {
+                jobType: 'mongo',
+                configDetails: {
+                    source: Object.fromEntries(new FormData(document.getElementById('sourceForm')).entries()),
+                    dest: Object.fromEntries(new FormData(document.getElementById('destForm')).entries()),
+                    rules: state.rules
+                }
+            };
 
-            const f = document.createElement('form'); f.method = 'POST'; f.action = '/api/migration/start'; document.body.appendChild(f); f.submit();
+            const res = await fetch('/api/jobs/request', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+
+            if (res.ok) {
+                alert('Job submitted for approval successfully!');
+                window.location.href = '/jobs.html';
+            } else {
+                throw new Error('Failed to submit');
+            }
         } catch (e) {
-            alert('Failed to launch migration.');
+            alert('Failed to submit migration job.');
             btn.innerHTML = origHtml;
             btn.disabled = false;
         }

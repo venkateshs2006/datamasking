@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNP Paribas - SeEDM Jobs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
+        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
+        .bnp-logo { height: 48px; display: block; }
+        nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
+        nav ul li { margin-left: 25px; }
+        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
+        nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
+        .tagline { font-weight: 300; letter-spacing: 1px; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #f1f5f9; }
+        .badge { padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }
+        .badge-WAITING { background-color: #fef9c3; color: #a16207; }
+        .badge-APPROVED { background-color: #dcfce7; color: #166534; }
+        .badge-REJECTED { background-color: #fee2e2; color: #991b1b; }
+        .modal { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(51, 51, 51, 0.6); backdrop-filter: blur(4px); }
+        .modal-content { background-color: #fff; margin: 5% auto; padding: 32px; width: 90%; max-width: 800px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+
+        /* Hide some nav links for approvers */
+        body.role-approver .nav-scheduler-only { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="flex items-center">
+            <a href="/index.html" class="logo-link mr-6 nav-scheduler-only">
+                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+            </a>
+            <a href="/jobs.html" class="logo-link mr-6" style="display: none;" id="approverLogoLink">
+                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+            </a>
+            <div class="hidden md:block border-l border-gray-300 pl-6">
+                <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
+            </div>
+        </div>
+        <nav>
+            <ul>
+                <li class="nav-scheduler-only"><a href="index.html">Dashboard</a></li>
+                <li class="nav-scheduler-only"><a href="select-db.html">New Migration</a></li>
+                <li><a href="jobs.html" style="color: var(--bnp-emerald);">Jobs</a></li>
+                <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="flex-1 p-8">
+        <div class="max-w-7xl mx-auto w-full">
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h2 class="text-3xl font-bold text-bnp-dark-grey">Job Requests</h2>
+                    <p class="text-gray-500 mt-1">Manage scheduled migration jobs.</p>
+                </div>
+            </div>
+
+            <div class="card overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-200">
+                                <th class="px-6 py-4 font-semibold">Job ID / Type</th>
+                                <th class="px-6 py-4 font-semibold">Submitted By</th>
+                                <th class="px-6 py-4 font-semibold">Date</th>
+                                <th class="px-6 py-4 font-semibold">Status</th>
+                                <th class="px-6 py-4 font-semibold text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100" id="jobsBody">
+                            <tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Loading jobs...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Review Modal -->
+    <div id="reviewModal" class="modal">
+        <div class="modal-content flex flex-col h-[80vh]">
+            <div class="flex justify-between items-center mb-4 pb-4 border-b border-gray-200 shrink-0">
+                <h2 class="text-2xl font-bold text-bnp-dark-grey">Review Job Details</h2>
+                <button onclick="closeModal()" class="text-gray-500 hover:text-gray-800 text-xl"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="flex-1 overflow-y-auto mb-4 pr-2" id="jobDetailsContainer">
+                <!-- Details rendered dynamically -->
+            </div>
+            <div class="shrink-0 border-t border-gray-200 pt-4">
+                <div id="commentsSection">
+                    <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Comments</label>
+                    <textarea id="approverComments" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-bnp-emerald mb-4 text-sm" rows="3" placeholder="Add comments here before approving or rejecting..."></textarea>
+                    <div class="flex justify-end space-x-4" id="approverActions">
+                        <button onclick="rejectJob()" class="px-6 py-2 bg-red-50 text-red-600 font-bold rounded-lg border border-red-200 hover:bg-red-100 transition-colors">REJECT</button>
+                        <button onclick="approveJob()" class="px-6 py-2 bg-bnp-emerald text-white font-bold rounded-lg hover:bg-[#007a4c] transition-colors">APPROVE</button>
+                    </div>
+                </div>
+                <div id="schedulerActions" class="hidden flex justify-end">
+                    <button id="btnRun" onclick="runJob()" class="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors">RUN MIGRATION <i class="fas fa-play ml-2"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="footer-content">
+            <p>© BNP Paribas - 2026</p>
+            <p class="tagline">The bank for a changing world</p>
+        </div>
+    </footer>
+
+    <script>
+        let currentUserRole = null;
+        let activeJobId = null;
+        let activeJobType = null;
+        let activeJobConfig = null;
+
+        fetch('/api/auth/check').then(r => r.json()).then(data => {
+            if(!data.authenticated) window.location.href = '/login.html';
+            currentUserRole = data.role;
+            if (currentUserRole === 'APPROVER') {
+                document.body.classList.add('role-approver');
+                document.getElementById('approverLogoLink').style.display = 'block';
+            }
+            fetchJobs();
+        });
+
+        async function logout() {
+            await fetch('/api/auth/logout', {method: 'POST'});
+            window.location.href = '/login.html';
+        }
+
+        async function fetchJobs() {
+            const res = await fetch('/api/jobs');
+            const jobs = await res.json();
+            const tbody = document.getElementById('jobsBody');
+            tbody.innerHTML = '';
+
+            if (jobs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No jobs found.</td></tr>';
+                return;
+            }
+
+            jobs.forEach(job => {
+                const date = new Date(job.createdAt).toLocaleString();
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50 transition-colors';
+
+                let actionBtn = '';
+                if (job.status === 'WAITING' && currentUserRole === 'APPROVER') {
+                    actionBtn = `<button onclick="openReview('${job.id}')" class="text-bnp-emerald font-bold text-sm hover:underline">Review</button>`;
+                } else if (job.status === 'WAITING' && currentUserRole === 'SCHEDULER') {
+                    actionBtn = `<button onclick="openReview('${job.id}')" class="text-gray-500 font-bold text-sm hover:underline">View</button>`;
+                } else if (job.status === 'APPROVED' && currentUserRole === 'SCHEDULER') {
+                    actionBtn = `<button onclick="openReview('${job.id}')" class="text-blue-600 font-bold text-sm hover:underline"><i class="fas fa-play mr-1"></i> Run / View</button>`;
+                } else {
+                    actionBtn = `<button onclick="openReview('${job.id}')" class="text-gray-500 font-bold text-sm hover:underline">View Details</button>`;
+                }
+
+                tr.innerHTML = `
+                    <td class="px-6 py-4">
+                        <div class="font-bold text-bnp-dark-grey uppercase text-xs tracking-wider mb-1">${job.jobType}</div>
+                        <div class="text-xs text-gray-400 font-mono">${job.id}</div>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-600">${job.submittedBy}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500">${date}</td>
+                    <td class="px-6 py-4"><span class="badge badge-${job.status}">${job.status}</span></td>
+                    <td class="px-6 py-4 text-right">${actionBtn}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function openReview(id) {
+            const res = await fetch(`/api/jobs/${id}`);
+            const job = await res.json();
+            activeJobId = job.id;
+            activeJobType = job.jobType;
+            activeJobConfig = job.configDetails;
+
+            const container = document.getElementById('jobDetailsContainer');
+            let html = '';
+
+            if (job.jobType === 'json') {
+                html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Directory Configuration</h3>`;
+                html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">`;
+                html += `<p class="text-sm mb-2"><strong class="text-gray-500 uppercase text-[10px] mr-2">Source Directory:</strong><br> <span class="font-mono text-gray-800 break-all">${job.configDetails.sourceDir || 'N/A'}</span></p>`;
+                html += `<p class="text-sm"><strong class="text-gray-500 uppercase text-[10px] mr-2">Destination Directory:</strong><br> <span class="font-mono text-gray-800 break-all">${job.configDetails.destDir || 'N/A'}</span></p>`;
+                html += `</div></div>`;
+            } else {
+                const src = job.configDetails.source || {};
+                const dst = job.configDetails.dest || {};
+                html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Database Connections</h3>`;
+                html += `<div class="grid grid-cols-2 gap-4">`;
+                html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Source</h4>
+                            <p class="text-sm mb-1 truncate" title="${src.url}"><strong class="text-[10px] uppercase text-gray-400 mr-1">URL:</strong> <span class="font-mono">${src.url || 'N/A'}</span></p>
+                            <p class="text-sm"><strong class="text-[10px] uppercase text-gray-400 mr-1">User:</strong> ${src.username || 'N/A'}</p>
+                         </div>`;
+                html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Destination</h4>
+                            <p class="text-sm mb-1 truncate" title="${dst.url}"><strong class="text-[10px] uppercase text-gray-400 mr-1">URL:</strong> <span class="font-mono">${dst.url || 'N/A'}</span></p>
+                            <p class="text-sm"><strong class="text-[10px] uppercase text-gray-400 mr-1">User:</strong> ${dst.username || 'N/A'}</p>
+                         </div>`;
+                html += `</div></div>`;
+
+                const rules = job.configDetails.rules || job.configDetails;
+                const targetTables = rules.targetTables || [];
+
+                html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Selected Collections / Tables</h3>`;
+                if (targetTables.length > 0) {
+                    html += `<div class="flex flex-wrap gap-2">${targetTables.map(t => `<span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-mono border border-gray-200">${t}</span>`).join('')}</div>`;
+                } else {
+                    html += `<p class="text-sm text-gray-400 italic">No tables selected.</p>`;
+                }
+                html += `</div>`;
+            }
+
+            const rulesObj = job.jobType === 'json' ? job.configDetails : (job.configDetails.rules || job.configDetails);
+
+            html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Masking Rules Applied</h3>`;
+
+            const renderRules = (title, rulesList, colorClass) => {
+                if (!rulesList || rulesList.length === 0) return '';
+                return `<div class="mb-4">
+                            <h4 class="text-[10px] font-bold text-gray-500 uppercase mb-2">${title}</h4>
+                            <div class="flex flex-wrap gap-1.5">
+                                ${rulesList.map(r => `<span class="text-[10px] font-bold px-2 py-1 rounded-md ${colorClass} shadow-sm">${r}</span>`).join('')}
+                            </div>
+                        </div>`;
+            };
+
+            const sfdHtml = renderRules('SFD (Standard Faker Data)', rulesObj.maskingColumns, 'bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20');
+            const pmdHtml = renderRules('PMD (Partial Masking Data)', rulesObj.partialMaskingColumns, 'bg-orange-100 text-orange-700 border border-orange-200');
+            const fphHtml = renderRules('FPH (Format Preserving Hashing)', rulesObj.constraintColumns, 'bg-purple-100 text-purple-700 border border-purple-200');
+
+            if (!sfdHtml && !pmdHtml && !fphHtml) {
+                html += `<p class="text-sm text-gray-400 italic">No masking rules applied.</p>`;
+            } else {
+                html += sfdHtml + pmdHtml + fphHtml;
+            }
+            html += `</div>`;
+
+            container.innerHTML = html;
+
+            if (job.comments) {
+                document.getElementById('approverComments').value = job.comments;
+            } else {
+                document.getElementById('approverComments').value = '';
+            }
+
+            // UI adjustments based on role and status
+            const cSec = document.getElementById('commentsSection');
+            const sSec = document.getElementById('schedulerActions');
+            const aActions = document.getElementById('approverActions');
+            const cBox = document.getElementById('approverComments');
+
+            cSec.classList.remove('hidden');
+            sSec.classList.add('hidden');
+            aActions.classList.remove('hidden');
+            cBox.disabled = false;
+
+            if (currentUserRole !== 'APPROVER' || job.status !== 'WAITING') {
+                aActions.classList.add('hidden');
+                if (job.comments) {
+                    cBox.disabled = true;
+                } else {
+                    cSec.classList.add('hidden');
+                }
+            }
+
+            if (currentUserRole === 'SCHEDULER' && job.status === 'APPROVED') {
+                sSec.classList.remove('hidden');
+            }
+
+            document.getElementById('reviewModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('reviewModal').style.display = 'none';
+            activeJobId = null;
+        }
+
+        async function approveJob() {
+            const comments = document.getElementById('approverComments').value;
+            await fetch(`/api/jobs/${activeJobId}/approve`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({comments})
+            });
+            closeModal();
+            fetchJobs();
+        }
+
+        async function rejectJob() {
+            const comments = document.getElementById('approverComments').value;
+            await fetch(`/api/jobs/${activeJobId}/reject`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({comments})
+            });
+            closeModal();
+            fetchJobs();
+        }
+
+        async function runJob() {
+            const btn = document.getElementById('btnRun');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
+            btn.disabled = true;
+
+            try {
+                // Post config to backend depending on job type
+                let endpoint = '';
+                if (activeJobType === 'json') {
+                    await fetch('/api/config/json', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(activeJobConfig) });
+                    const form = document.createElement('form'); form.method = 'POST'; form.action = '/api/migration/json/start'; document.body.appendChild(form); form.submit();
+                } else {
+                    const rulesObj = activeJobConfig.rules || activeJobConfig;
+                    await fetch('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(rulesObj) });
+                    const form = document.createElement('form'); form.method = 'POST'; form.action = '/api/migration/start'; document.body.appendChild(form); form.submit();
+                }
+            } catch(e) {
+                alert('Failed to launch');
+                btn.innerHTML = 'RUN MIGRATION <i class="fas fa-play ml-2"></i>';
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

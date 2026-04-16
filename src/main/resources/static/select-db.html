@@ -60,6 +60,7 @@
         <nav>
             <ul>
                 <li><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+                <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
                 <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
             </ul>
         </nav>
@@ -67,11 +68,11 @@
 
     <main>
         <div class="text-center mb-12">
-            <h2 class="text-3xl font-bold text-bnp-dark-grey tracking-tight">Select Action</h2>
-            <p class="text-gray-500 mt-3 font-medium">Choose the data source or action you want to perform.</p>
+            <h2 class="text-3xl font-bold text-bnp-dark-grey tracking-tight">Select Migration Type</h2>
+            <p class="text-gray-500 mt-3 font-medium">Choose the data source you want to migrate and mask.</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 w-full max-w-7xl">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl">
             <div class="db-card p-8 text-center group" onclick="selectDbType('postgres')">
                 <div class="icon-container shadow-inner"><i class="fas fa-database"></i></div>
                 <h3 class="text-xl font-bold text-gray-800 mb-2">Relational SQL</h3>
@@ -98,15 +99,6 @@
                     Configure Workflow <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
                 </div>
             </div>
-
-            <div class="db-card p-8 text-center group" onclick="selectDbType('json-generate')">
-                <div class="icon-container shadow-inner"><i class="fas fa-magic"></i></div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Generate JSON</h3>
-                <p class="text-sm text-gray-500 mb-6">Create dummy JSON files based on template</p>
-                <div class="flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-bnp-emerald transition-colors">
-                    Open Generator <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
-                </div>
-            </div>
         </div>
     </main>
 
@@ -119,7 +111,11 @@
 
     <script>
         fetch('/api/auth/check').then(r => r.json()).then(data => {
-            if(!data.authenticated) window.location.href = '/login.html';
+            if(!data.authenticated) {
+                window.location.href = '/login.html';
+            } else if (data.role === 'APPROVER') {
+                window.location.href = '/jobs.html';
+            }
         });
 
         async function logout() {
@@ -132,7 +128,6 @@
             if (type === 'postgres') window.location.href = '/workflow.html';
             else if (type === 'mongo') window.location.href = '/workflow-mongo.html';
             else if (type === 'json') window.location.href = '/workflow-json.html';
-            else if (type === 'json-generate') window.location.href = '/generate-json.html';
         }
     </script>
 </body>

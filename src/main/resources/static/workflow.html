@@ -190,7 +190,7 @@
                                         <button type="button" id="btnFetchDest" onclick="fetchSchemas('dest')" class="text-xs text-emerald-600 hover:text-emerald-800 normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch</button>
                                     </label>
                                     <select name="schema" id="destSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
-                                        <option value="">Fetch schemas first...</option>
+                                        <option value="">Fetch databases first...</option>
                                     </select>
                                 </div>
                             </form>
@@ -282,12 +282,12 @@
                                 </div>
                                 <!-- Partial -->
                                 <div>
-                                    <h5 class="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-orange-100 flex items-center justify-center mr-1.5"><i class="fas fa-eye-slash"></i></div> PMD (Partial masking DATA(keep Last 4 Letters))</h5>
+                                    <h5 class="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-orange-100 flex items-center justify-center mr-1.5"><i class="fas fa-eye-slash"></i></div> PMD (Partial masking DATA)</h5>
                                     <div id="tags-partial" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-orange-200 shadow-sm"></div>
                                 </div>
                                 <!-- Encrypt -->
                                 <div>
-                                    <h5 class="text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-purple-100 flex items-center justify-center mr-1.5"><i class="fas fa-key"></i></div> FPH (Format Perserving Hashing)</h5>
+                                    <h5 class="text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-purple-100 flex items-center justify-center mr-1.5"><i class="fas fa-key"></i></div> FPH (Format Perserving Hashing(keep Last 4))</h5>
                                     <div id="tags-constraint" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-purple-200 shadow-sm"></div>
                                 </div>
                             </div>
@@ -302,8 +302,8 @@
                             <div class="w-16 h-16 bg-bnp-emerald/10 text-bnp-emerald rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-bnp-emerald/5">
                                 <i class="fas fa-check"></i>
                             </div>
-                            <h3 class="text-2xl font-bold text-gray-900">Ready to Launch</h3>
-                            <p class="text-sm text-gray-500 mt-2">Review your configuration summary before initiating the migration.</p>
+                            <h3 class="text-2xl font-bold text-gray-900">Ready to Submit</h3>
+                            <p class="text-sm text-gray-500 mt-2">Review your configuration summary before submitting for approval.</p>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 shrink-0">
@@ -360,7 +360,7 @@
                     <div class="flex-1"></div>
                     <button id="btnNext" onclick="nextStep()" class="btn btn-primary px-8 text-sm font-bold tracking-wide shadow-md hover:shadow-lg">CONTINUE <i class="fas fa-chevron-right ml-2 text-xs"></i></button>
                     <button id="btnStart" onclick="submitWorkflow()" class="btn btn-success px-10 py-3 text-base font-bold tracking-wide shadow-lg hover:shadow-xl hidden animate-pulse bg-bnp-emerald hover:bg-[#007a4c]">
-                        LAUNCH MIGRATION <i class="fas fa-rocket ml-2"></i>
+                        SUBMIT FOR APPROVAL <i class="fas fa-paper-plane ml-2"></i>
                     </button>
                 </div>
 
@@ -378,7 +378,11 @@
 <script>
     // Authentication Check
     fetch('/api/auth/check').then(r => r.json()).then(data => {
-        if(!data.authenticated) window.location.href = '/login.html';
+        if(!data.authenticated) {
+            window.location.href = '/login.html';
+        } else if (data.role === 'APPROVER') {
+            window.location.href = '/jobs.html';
+        }
     });
 
     async function logout() {
@@ -697,17 +701,35 @@
     async function submitWorkflow() {
         const btn = document.getElementById('btnStart');
         const origHtml = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Launching...';
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Submitting...';
         btn.disabled = true;
 
         try {
             state.rules.targetTables = state.selectedTables;
 
-            await fetch('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(state.rules) });
+            const payload = {
+                jobType: 'postgres',
+                configDetails: {
+                    source: Object.fromEntries(new FormData(document.getElementById('sourceForm')).entries()),
+                    dest: Object.fromEntries(new FormData(document.getElementById('destForm')).entries()),
+                    rules: state.rules
+                }
+            };
 
-            const f = document.createElement('form'); f.method = 'POST'; f.action = '/api/migration/start'; document.body.appendChild(f); f.submit();
+            const res = await fetch('/api/jobs/request', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                alert('Job submitted for approval successfully!');
+                window.location.href = '/jobs.html';
+            } else {
+                throw new Error('Failed to submit job.');
+            }
         } catch (e) {
-            alert('Failed to launch migration.');
+            alert('Failed to submit migration job.');
             btn.innerHTML = origHtml;
             btn.disabled = false;
         }

@@ -119,7 +119,7 @@
                 const data = await response.json();
 
                 if (response.ok && data.status === 'SUCCESS') {
-                    window.location.href = '/select-db.html';
+                    window.location.href = data.role === 'APPROVER' ? '/jobs.html' : '/select-db.html';
                 } else {
                     errSpan.textContent = data.message || 'Invalid credentials';
                     errBox.classList.remove('hidden');
@@ -134,7 +134,9 @@
         }
 
         fetch('/api/auth/check').then(r => r.json()).then(data => {
-            if(data.authenticated) window.location.href = '/select-db.html';
+            if(data.authenticated) {
+                window.location.href = data.role === 'APPROVER' ? '/jobs.html' : '/select-db.html';
+            }
         });
     </script>
 </body>
