@@ -94,7 +94,7 @@
     </div>
     <nav>
         <ul>
-            <li><a href="/select-db.html"><i class="fas fa-arrow-left mr-1.5"></i> Back to Hub</a></li>
+            <li><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
             <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
         </ul>
     </nav>
@@ -134,8 +134,10 @@
                         <form id="sourceForm" class="space-y-5 flex-1 flex flex-col">
                             <input type="hidden" name="type" value="source">
                             <div>
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Connection URI</label>
-                                <input type="text" name="url" class="input-field" placeholder="mongodb://user:pass@host:port/admin" oninput="validateStep1()">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Connection Endpoint</label>
+                                <select name="id" id="sourceId" class="input-field cursor-pointer bg-white" required onchange="validateStep1()">
+                                    <option value="">Loading connections...</option>
+                                </select>
                             </div>
                             <div class="mt-auto pt-6 border-t border-gray-50">
                                 <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
@@ -143,7 +145,7 @@
                                     <button type="button" id="btnFetchSrc" onclick="fetchSchemas('source')" class="text-xs text-bnp-emerald hover:text-[#007a4c] normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch Databases</button>
                                 </label>
                                 <select name="schema" id="sourceSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
-                                    <option value="">Fetch databases first...</option>
+                                    <option value="">Select connection and fetch databases...</option>
                                 </select>
                             </div>
                         </form>
@@ -164,8 +166,10 @@
                         <form id="destForm" class="space-y-5 flex-1 flex flex-col">
                             <input type="hidden" name="type" value="destination">
                             <div>
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Connection URI</label>
-                                <input type="text" name="url" class="input-field" placeholder="mongodb://user:pass@host:port/admin" oninput="validateStep1()">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Connection Endpoint</label>
+                                <select name="id" id="destId" class="input-field cursor-pointer bg-white" required onchange="validateStep1()">
+                                    <option value="">Loading connections...</option>
+                                </select>
                             </div>
                             <div class="mt-auto pt-6 border-t border-gray-50">
                                 <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
@@ -173,7 +177,7 @@
                                     <button type="button" id="btnFetchDest" onclick="fetchSchemas('dest')" class="text-xs text-emerald-600 hover:text-emerald-800 normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch Databases</button>
                                 </label>
                                 <select name="schema" id="destSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
-                                    <option value="">Fetch databases first...</option>
+                                    <option value="">Select connection and fetch databases...</option>
                                 </select>
                             </div>
                         </form>
@@ -294,6 +298,8 @@
             window.location.href = '/login.html';
         } else if (data.role === 'APPROVER') {
             window.location.href = '/jobs.html';
+        } else {
+            fetchConnections();
         }
     });
 
@@ -308,26 +314,45 @@
         tables: [],
         selectedTables: [],
         columnsCache: {},
-        rules: { maskingColumns: [], constraintColumns: [], partialMaskingColumns: [], targetTables: [] }
+        rules: { maskingColumns: [], constraintColumns: [], partialMaskingColumns: [], targetTables: [] },
+        connections: []
     };
+
+    async function fetchConnections() {
+        // Fetch source connections for mongo
+        const resSrc = await fetch('/api/connections?dbType=mongo&envType=source');
+        if (resSrc.ok) {
+            const srcConns = await resSrc.json();
+            const srcSelect = document.getElementById('sourceId');
+            srcSelect.innerHTML = '<option value="">Select a source database...</option>';
+            srcConns.forEach(c => srcSelect.add(new Option(c.name + ' (' + c.url + ')', c.id)));
+        }
+
+        // Fetch destination connections for mongo
+        const resDest = await fetch('/api/connections?dbType=mongo&envType=destination');
+        if (resDest.ok) {
+            const destConns = await resDest.json();
+            const destSelect = document.getElementById('destId');
+            destSelect.innerHTML = '<option value="">Select a destination database...</option>';
+            destConns.forEach(c => destSelect.add(new Option(c.name + ' (' + c.url + ')', c.id)));
+        }
+
+        validateStep1();
+    }
 
     function validateStep1() {
         const forms = ['sourceForm', 'destForm'];
-        const mongoRegex = /^mongodb(\+srv)?:\/\/.+/i;
         let allValid = true;
 
         forms.forEach(id => {
             const form = document.getElementById(id);
-            const url = form.url.value;
-            const schema = form.querySelector('select').value;
+            const connectionId = form.id.value;
+            const schema = form.querySelector('select[name="schema"]').value;
             const fetchBtn = document.getElementById(id === 'sourceForm' ? 'btnFetchSrc' : 'btnFetchDest');
 
-            const isUrlValid = mongoRegex.test(url);
-            form.url.classList.toggle('error', url && !isUrlValid);
+            fetchBtn.disabled = !connectionId;
 
-            fetchBtn.disabled = !isUrlValid;
-
-            if (!isUrlValid || !schema) allValid = false;
+            if (!connectionId || !schema) allValid = false;
         });
 
         document.getElementById('btnNext').disabled = !allValid;
@@ -380,7 +405,10 @@
             btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Connecting...';
             btn.disabled = true;
             try {
-                await new Promise(r => setTimeout(r, 800));
+                // Wait briefly for simulation
+                await new Promise(r => setTimeout(r, 500));
+
+                // Set dummy collections since we don't connect from UI anymore directly
                 state.tables = ['users_collection', 'orders_collection', 'products_collection', 'sessions_log'];
                 renderAvailableTables();
             } catch (e) {
@@ -408,6 +436,7 @@
 
         select.innerHTML = '<option value="">Loading...</option>';
         try {
+            // Note: Since this is NoSQL simulation, just populate some DBs
             await new Promise(r => setTimeout(r, 500));
             const schemas = ['admin', 'local', 'application_db', 'analytics_db'];
 
@@ -550,8 +579,10 @@
     }
 
     function populatePreview() {
-        document.getElementById('previewSrc').innerText = document.getElementById('sourceForm').url.value;
-        document.getElementById('previewDest').innerText = document.getElementById('destForm').url.value;
+        const srcSelect = document.getElementById('sourceId');
+        const destSelect = document.getElementById('destId');
+        document.getElementById('previewSrc').innerText = srcSelect.options[srcSelect.selectedIndex]?.text || '';
+        document.getElementById('previewDest').innerText = destSelect.options[destSelect.selectedIndex]?.text || '';
 
         const body = document.getElementById('previewRulesTable');
         body.innerHTML = '';
@@ -576,11 +607,22 @@
         try {
             state.rules.targetTables = state.selectedTables;
 
+            const srcSelect = document.getElementById('sourceId');
+            const destSelect = document.getElementById('destId');
+
             const payload = {
                 jobType: 'mongo',
                 configDetails: {
-                    source: Object.fromEntries(new FormData(document.getElementById('sourceForm')).entries()),
-                    dest: Object.fromEntries(new FormData(document.getElementById('destForm')).entries()),
+                    source: {
+                        id: srcSelect.value,
+                        url: srcSelect.options[srcSelect.selectedIndex]?.text,
+                        schema: document.getElementById('sourceSchema').value
+                    },
+                    dest: {
+                        id: destSelect.value,
+                        url: destSelect.options[destSelect.selectedIndex]?.text,
+                        schema: document.getElementById('destSchema').value
+                    },
                     rules: state.rules
                 }
             };

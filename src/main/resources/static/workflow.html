@@ -143,12 +143,10 @@
                             <form id="sourceForm" class="space-y-5 flex-1 flex flex-col">
                                 <input type="hidden" name="type" value="source">
                                 <div>
-                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">JDBC URL</label>
-                                    <input type="text" name="url" class="input-field" placeholder="jdbc:postgresql://localhost:5432/mydb" oninput="validateStep1()">
-                                </div>
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div><label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Username</label><input type="text" name="username" class="input-field" oninput="validateStep1()"></div>
-                                    <div><label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Password</label><input type="password" name="password" class="input-field" oninput="validateStep1()"></div>
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Connection Endpoint</label>
+                                    <select name="id" id="sourceId" class="input-field cursor-pointer bg-white" required onchange="validateStep1()">
+                                        <option value="">Loading connections...</option>
+                                    </select>
                                 </div>
                                 <div class="mt-auto pt-6 border-t border-gray-50">
                                     <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
@@ -156,7 +154,7 @@
                                         <button type="button" id="btnFetchSrc" onclick="fetchSchemas('source')" class="text-xs text-bnp-emerald hover:text-[#007a4c] normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch</button>
                                     </label>
                                     <select name="schema" id="sourceSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
-                                        <option value="">Fetch schemas first...</option>
+                                        <option value="">Select connection and fetch schemas...</option>
                                     </select>
                                 </div>
                             </form>
@@ -177,12 +175,10 @@
                             <form id="destForm" class="space-y-5 flex-1 flex flex-col">
                                 <input type="hidden" name="type" value="destination">
                                 <div>
-                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">JDBC URL</label>
-                                    <input type="text" name="url" class="input-field" placeholder="jdbc:postgresql://localhost:5432/mydb_target" oninput="validateStep1()">
-                                </div>
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div><label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Username</label><input type="text" name="username" class="input-field" oninput="validateStep1()"></div>
-                                    <div><label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Password</label><input type="password" name="password" class="input-field" oninput="validateStep1()"></div>
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Connection Endpoint</label>
+                                    <select name="id" id="destId" class="input-field cursor-pointer bg-white" required onchange="validateStep1()">
+                                        <option value="">Loading connections...</option>
+                                    </select>
                                 </div>
                                 <div class="mt-auto pt-6 border-t border-gray-50">
                                     <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
@@ -190,7 +186,7 @@
                                         <button type="button" id="btnFetchDest" onclick="fetchSchemas('dest')" class="text-xs text-emerald-600 hover:text-emerald-800 normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch</button>
                                     </label>
                                     <select name="schema" id="destSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
-                                        <option value="">Fetch databases first...</option>
+                                        <option value="">Select connection and fetch schemas...</option>
                                     </select>
                                 </div>
                             </form>
@@ -376,12 +372,13 @@
     </footer>
 
 <script>
-    // Authentication Check
     fetch('/api/auth/check').then(r => r.json()).then(data => {
         if(!data.authenticated) {
             window.location.href = '/login.html';
         } else if (data.role === 'APPROVER') {
             window.location.href = '/jobs.html';
+        } else {
+            fetchConnections();
         }
     });
 
@@ -396,30 +393,45 @@
         tables: [],
         selectedTables: [],
         columnsCache: {},
-        rules: { maskingColumns: [], constraintColumns: [], partialMaskingColumns: [], targetTables: [] }
+        rules: { maskingColumns: [], constraintColumns: [], partialMaskingColumns: [], targetTables: [] },
+        connections: []
     };
 
-    // --- VALIDATION LOGIC ---
+    async function fetchConnections() {
+        // Fetch source connections for postgres
+        const resSrc = await fetch('/api/connections?dbType=postgres&envType=source');
+        if (resSrc.ok) {
+            const srcConns = await resSrc.json();
+            const srcSelect = document.getElementById('sourceId');
+            srcSelect.innerHTML = '<option value="">Select a source database...</option>';
+            srcConns.forEach(c => srcSelect.add(new Option(c.name + ' (' + c.url + ')', c.id)));
+        }
+
+        // Fetch destination connections for postgres
+        const resDest = await fetch('/api/connections?dbType=postgres&envType=destination');
+        if (resDest.ok) {
+            const destConns = await resDest.json();
+            const destSelect = document.getElementById('destId');
+            destSelect.innerHTML = '<option value="">Select a destination database...</option>';
+            destConns.forEach(c => destSelect.add(new Option(c.name + ' (' + c.url + ')', c.id)));
+        }
+
+        validateStep1();
+    }
 
     function validateStep1() {
         const forms = ['sourceForm', 'destForm'];
-        const jdbcRegex = /^jdbc:(postgresql|oracle|db2):\/\/.+/i;
         let allValid = true;
 
         forms.forEach(id => {
             const form = document.getElementById(id);
-            const url = form.url.value;
-            const user = form.username.value;
-            const pass = form.password.value;
-            const schema = form.querySelector('select').value;
+            const connectionId = form.id.value;
+            const schema = form.querySelector('select[name="schema"]').value;
             const fetchBtn = document.getElementById(id === 'sourceForm' ? 'btnFetchSrc' : 'btnFetchDest');
 
-            const isUrlValid = jdbcRegex.test(url);
-            form.url.classList.toggle('error', url && !isUrlValid);
+            fetchBtn.disabled = !connectionId;
 
-            fetchBtn.disabled = !(isUrlValid && user && pass);
-
-            if (!isUrlValid || !user || !pass || !schema) allValid = false;
+            if (!connectionId || !schema) allValid = false;
         });
 
         document.getElementById('btnNext').disabled = !allValid;
@@ -435,13 +447,10 @@
         document.getElementById('btnNext').disabled = false;
     }
 
-    // --- NAVIGATION & UI ---
-
     function updateUI() {
         document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active'));
         document.getElementById(`step${currentStep}`).classList.add('active');
 
-        // Stepper
         for(let i=1; i<=totalSteps; i++) {
             const el = document.getElementById(`step${i}-indicator`);
             if(el) {
@@ -462,7 +471,6 @@
         document.getElementById('btnNext').classList.toggle('hidden', currentStep === totalSteps);
         document.getElementById('btnStart').classList.toggle('hidden', currentStep !== totalSteps);
 
-        // Trigger specific step validations
         if (currentStep === 1) validateStep1();
         if (currentStep === 2) validateStep2();
         if (currentStep === 3) validateStep3();
@@ -505,8 +513,6 @@
     }
 
     function prevStep() { if (currentStep > 1) { currentStep--; updateUI(); } }
-
-    // --- STEP LOGIC ---
 
     async function fetchSchemas(type) {
         const formId = type === 'source' ? 'sourceForm' : 'destForm';
@@ -676,8 +682,10 @@
     }
 
     function populatePreview() {
-        document.getElementById('previewSrc').innerText = document.getElementById('sourceForm').url.value;
-        document.getElementById('previewDest').innerText = document.getElementById('destForm').url.value;
+        const srcSelect = document.getElementById('sourceId');
+        const destSelect = document.getElementById('destId');
+        document.getElementById('previewSrc').innerText = srcSelect.options[srcSelect.selectedIndex]?.text || '';
+        document.getElementById('previewDest').innerText = destSelect.options[destSelect.selectedIndex]?.text || '';
 
         const totalRules = state.rules.maskingColumns.length + state.rules.constraintColumns.length + state.rules.partialMaskingColumns.length;
         document.getElementById('previewTableCount').innerText = state.selectedTables.length;
@@ -707,11 +715,22 @@
         try {
             state.rules.targetTables = state.selectedTables;
 
+            const srcSelect = document.getElementById('sourceId');
+            const destSelect = document.getElementById('destId');
+
             const payload = {
                 jobType: 'postgres',
                 configDetails: {
-                    source: Object.fromEntries(new FormData(document.getElementById('sourceForm')).entries()),
-                    dest: Object.fromEntries(new FormData(document.getElementById('destForm')).entries()),
+                    source: {
+                        id: srcSelect.value,
+                        url: srcSelect.options[srcSelect.selectedIndex]?.text,
+                        schema: document.getElementById('sourceSchema').value
+                    },
+                    dest: {
+                        id: destSelect.value,
+                        url: destSelect.options[destSelect.selectedIndex]?.text,
+                        schema: document.getElementById('destSchema').value
+                    },
                     rules: state.rules
                 }
             };

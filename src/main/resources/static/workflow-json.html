@@ -105,7 +105,7 @@
     </div>
     <nav>
         <ul>
-            <li><a href="/select-db.html"><i class="fas fa-arrow-left mr-1.5"></i> Back to Hub</a></li>
+            <li><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
             <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
         </ul>
     </nav>
@@ -143,9 +143,10 @@
                         </div>
                         <form id="sourceForm" class="space-y-5 flex-1 flex flex-col" onsubmit="event.preventDefault(); fetchFiles();">
                             <div>
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Directory Path</label>
-                                <input type="text" name="path" id="sourcePath" class="input-field font-mono text-sm" placeholder="e.g. C:\data\input or /var/data" oninput="validateStep1()">
-                                <p class="text-[10px] text-gray-400 mt-1">Enter absolute server path where the JSON files are located.</p>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Directory Location</label>
+                                <select name="id" id="sourceId" class="input-field cursor-pointer bg-white" required onchange="validateStep1()">
+                                    <option value="">Loading connections...</option>
+                                </select>
                             </div>
                             <div class="mt-auto pt-6 border-t border-gray-50">
                                 <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
@@ -153,7 +154,7 @@
                                     <button type="button" id="btnFetchSrc" onclick="fetchFiles()" class="text-xs text-bnp-emerald hover:text-[#007a4c] normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Scan Directory</button>
                                 </label>
                                 <div id="fileCountDisplay" class="input-field bg-gray-50 text-gray-500 flex items-center justify-center border-dashed border-gray-300">
-                                    <i class="fas fa-info-circle mr-2 opacity-50"></i> Enter path and click Scan
+                                    <i class="fas fa-info-circle mr-2 opacity-50"></i> Select location and click Scan
                                 </div>
                             </div>
                         </form>
@@ -173,9 +174,10 @@
                         </div>
                         <form id="destForm" class="space-y-5 flex-1 flex flex-col">
                             <div>
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Directory Path</label>
-                                <input type="text" name="path" id="destPath" class="input-field font-mono text-sm" placeholder="e.g. C:\data\output or /var/data/output" oninput="validateStep1()">
-                                <p class="text-[10px] text-gray-400 mt-1">Directory will be created if it doesn't exist.</p>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Directory Location</label>
+                                <select name="id" id="destId" class="input-field cursor-pointer bg-white" required onchange="validateStep1()">
+                                    <option value="">Loading connections...</option>
+                                </select>
                             </div>
                         </form>
                     </div>
@@ -316,6 +318,8 @@
             window.location.href = '/login.html';
         } else if (data.role === 'APPROVER') {
             window.location.href = '/jobs.html';
+        } else {
+            fetchConnections();
         }
     });
 
@@ -332,21 +336,44 @@
         rules: { maskingColumns: [], partialMaskingColumns: [], sourceDir: '', destDir: '' }
     };
 
+    async function fetchConnections() {
+        const resSrc = await fetch('/api/connections?dbType=json&envType=source');
+        if (resSrc.ok) {
+            const srcConns = await resSrc.json();
+            const srcSelect = document.getElementById('sourceId');
+            srcSelect.innerHTML = '<option value="">Select a source directory...</option>';
+            srcConns.forEach(c => srcSelect.add(new Option(c.name + ' (' + c.url + ')', c.id)));
+        }
+
+        const resDest = await fetch('/api/connections?dbType=json&envType=destination');
+        if (resDest.ok) {
+            const destConns = await resDest.json();
+            const destSelect = document.getElementById('destId');
+            destSelect.innerHTML = '<option value="">Select a destination directory...</option>';
+            destConns.forEach(c => destSelect.add(new Option(c.name + ' (' + c.url + ')', c.id)));
+        }
+
+        validateStep1();
+    }
+
     function validateStep1() {
-        const src = document.getElementById('sourcePath').value.trim();
-        const dest = document.getElementById('destPath').value.trim();
+        const srcId = document.getElementById('sourceId').value;
+        const destId = document.getElementById('destId').value;
         const btnFetch = document.getElementById('btnFetchSrc');
         const btnNext = document.getElementById('btnNext');
 
-        btnFetch.disabled = !src;
+        btnFetch.disabled = !srcId;
+
         // Require both paths AND a successful scan to proceed
-        btnNext.disabled = !(src && dest && scanSuccess);
+        btnNext.disabled = !(srcId && destId && scanSuccess);
 
         // If user edits path after scanning, invalidate the scan
-        if (src !== state.rules.sourceDir && scanSuccess) {
+        const srcSelect = document.getElementById('sourceId');
+        const currentSrcDir = srcSelect.options[srcSelect.selectedIndex]?.text;
+        if (currentSrcDir && currentSrcDir !== state.rules.sourceDir && scanSuccess) {
             scanSuccess = false;
             const display = document.getElementById('fileCountDisplay');
-            display.innerHTML = '<i class="fas fa-info-circle mr-2 opacity-50"></i> Path changed. Please scan again.';
+            display.innerHTML = '<i class="fas fa-info-circle mr-2 opacity-50"></i> Location changed. Please scan again.';
             display.className = 'input-field bg-gray-50 text-gray-500 flex items-center justify-center border-dashed border-gray-300';
             btnNext.disabled = true;
         }
@@ -381,13 +408,15 @@
     }
 
     async function fetchFiles() {
-        const srcPath = document.getElementById('sourcePath').value.trim();
+        const srcSelect = document.getElementById('sourceId');
+        const srcId = srcSelect.value;
+        const srcText = srcSelect.options[srcSelect.selectedIndex]?.text;
         const btn = document.getElementById('btnFetchSrc');
         const display = document.getElementById('fileCountDisplay');
         const origHtml = btn.innerHTML;
 
-        if (!srcPath) {
-             alert("Please enter a valid absolute path.");
+        if (!srcId) {
+             alert("Please select a source location.");
              return;
         }
 
@@ -400,7 +429,7 @@
             const response = await fetch('/api/fs/scan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: srcPath })
+                body: JSON.stringify({ id: srcId })
             });
 
             const data = await response.json();
@@ -410,7 +439,7 @@
                     display.innerHTML = `<span class="text-green-600 font-bold"><i class="fas fa-check-circle mr-1"></i> Found ${data.fileCount} JSON files</span>`;
                     display.className = 'input-field bg-green-50 flex items-center justify-center border-green-200';
                     scanSuccess = true;
-                    state.rules.sourceDir = srcPath; // lock it in
+                    state.rules.sourceDir = srcText; // log description
                     availableKeys = data.sampleKeys || [];
                     renderAvailableKeys();
                 } else {
@@ -435,8 +464,8 @@
 
     async function nextStep() {
         if (currentStep === 1) {
-            state.rules.sourceDir = document.getElementById('sourcePath').value.trim();
-            state.rules.destDir = document.getElementById('destPath').value.trim();
+            const destSelect = document.getElementById('destId');
+            state.rules.destDir = destSelect.options[destSelect.selectedIndex]?.text;
             renderTags();
         }
         currentStep++;
@@ -565,10 +594,26 @@
         try {
             const payload = {
                 jobType: 'json',
-                configDetails: state.rules
+                configDetails: {
+                    source: {
+                        id: document.getElementById('sourceId').value,
+                        url: state.rules.sourceDir,
+                        schema: ''
+                    },
+                    dest: {
+                        id: document.getElementById('destId').value,
+                        url: state.rules.destDir,
+                        schema: ''
+                    },
+                    rules: state.rules
+                }
             };
 
-            const res = await fetch('/api/jobs/request', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+            const res = await fetch('/api/jobs/request', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
 
             if (res.ok) {
                 alert('Job submitted for approval successfully!');
@@ -581,54 +626,6 @@
             btn.innerHTML = origHtml;
             btn.disabled = false;
         }
-    }
-
-    let pollInterval;
-    function showProgressModal(executionId) {
-        const modal = document.getElementById('progressModal');
-        modal.style.display = 'block';
-
-        pollInterval = setInterval(async () => {
-            try {
-                const res = await fetch(`/api/migration/json/status/${executionId}`);
-                const progress = await res.json();
-
-                const processed = progress.processedFiles || 0;
-                const total = progress.totalFiles || 0;
-                const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
-
-                let statusText = 'Processing files...';
-                if (progress.status === 'COMPLETED') statusText = 'Migration Complete!';
-                if (progress.status === 'FAILED') statusText = 'Migration Failed!';
-
-                document.getElementById('progressStatusText').innerText = statusText;
-                document.getElementById('progressPercent').innerText = `${pct}%`;
-                document.getElementById('progressBar').style.width = `${pct}%`;
-                document.getElementById('progressDetailText').innerText = `Files Processed: ${processed} / ${total}`;
-
-                if (progress.status === 'FAILED') {
-                    document.getElementById('progressBar').classList.remove('bg-bnp-emerald');
-                    document.getElementById('progressBar').classList.add('bg-red-500');
-                    if (progress.errorMessage) {
-                        document.getElementById('progressDetailText').innerText += `\nError: ${progress.errorMessage}`;
-                    }
-                }
-
-                if (progress.status === 'COMPLETED' || progress.status === 'FAILED') {
-                    clearInterval(pollInterval);
-                    document.getElementById('progressCloseBtn').classList.remove('hidden');
-
-                    const spinner = document.querySelector('#progressModal .fa-spinner');
-                    if (spinner) {
-                        spinner.classList.remove('fa-spinner', 'fa-spin', 'text-bnp-emerald');
-                        if (progress.status === 'COMPLETED') spinner.classList.add('fa-check-circle', 'text-green-500');
-                        if (progress.status === 'FAILED') spinner.classList.add('fa-times-circle', 'text-red-500');
-                    }
-                }
-            } catch (e) {
-                console.error('Error polling status', e);
-            }
-        }, 1000);
     }
 
     updateUI();

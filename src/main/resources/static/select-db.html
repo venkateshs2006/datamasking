@@ -61,6 +61,7 @@
             <ul>
                 <li><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
                 <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-cog mr-1.5"></i> Admin</a></li>
                 <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
             </ul>
         </nav>
@@ -115,6 +116,8 @@
                 window.location.href = '/login.html';
             } else if (data.role === 'APPROVER') {
                 window.location.href = '/jobs.html';
+            } else if (data.role === 'ADMIN') {
+                document.getElementById('adminDbLink').style.display = 'block';
             }
         });
 

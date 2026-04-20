@@ -1,7 +1,10 @@
 package com.enterprise.seedm.controller;
 
+import com.enterprise.seedm.model.DbConnection;
+import com.enterprise.seedm.service.DbConnectionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,13 +27,24 @@ import java.util.stream.Stream;
 @RestController
 @RequestMapping("/api/fs")
 @Slf4j
+@RequiredArgsConstructor
 public class FileSystemController {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final DbConnectionService dbConnectionService;
 
     @PostMapping("/scan")
     public ResponseEntity<?> scanDirectory(@RequestBody Map<String, String> request) {
         String dirPath = request.get("path");
+        String id = request.get("id");
+        
+        if (id != null && !id.isEmpty()) {
+            DbConnection conn = dbConnectionService.getConnection(id);
+            if (conn != null) {
+                dirPath = conn.getUrl();
+            }
+        }
+
         if (dirPath == null || dirPath.trim().isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Path is required"));
         }

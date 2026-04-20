@@ -62,6 +62,7 @@
                 <li class="nav-scheduler-only"><a href="index.html">Dashboard</a></li>
                 <li class="nav-scheduler-only"><a href="select-db.html">New Migration</a></li>
                 <li><a href="jobs.html" style="color: var(--bnp-emerald);">Jobs</a></li>
+                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-cog mr-1.5"></i> Admin</a></li>
                 <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
             </ul>
         </nav>
@@ -130,6 +131,30 @@
         </div>
     </footer>
 
+    <!-- Progress Modal (JSON only) -->
+    <div id="progressModal" class="modal" style="z-index: 2000;">
+        <div class="modal-content" style="max-width: 500px; height: auto;">
+            <h2 class="text-xl font-bold text-bnp-dark-grey mb-6 flex items-center">
+                <i class="fas fa-spinner fa-spin mr-3 text-bnp-emerald" id="progressSpinnerIcon"></i> Migrating JSON Files
+            </h2>
+            <div class="mb-5">
+                <div class="flex justify-between text-sm font-semibold text-gray-600 mb-2">
+                    <span id="progressStatusText">Starting...</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner">
+                    <div class="bg-bnp-emerald h-3 rounded-full transition-all duration-300" id="progressBar" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="text-xs text-gray-600 font-mono bg-gray-50 p-3 rounded-lg border border-gray-200" id="progressDetailText">
+                Files Processed: 0 / 0
+            </div>
+            <div class="mt-6 text-right hidden" id="progressCloseBtn">
+                <button onclick="window.location.href='/index.html'" class="px-6 py-2 bg-bnp-emerald text-white font-bold rounded-lg">Done</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentUserRole = null;
         let activeJobId = null;
@@ -142,6 +167,9 @@
             if (currentUserRole === 'APPROVER') {
                 document.body.classList.add('role-approver');
                 document.getElementById('approverLogoLink').style.display = 'block';
+            }
+            if (currentUserRole === 'ADMIN') {
+                document.getElementById('adminDbLink').style.display = 'block';
             }
             fetchJobs();
         });
@@ -170,9 +198,9 @@
                 let actionBtn = '';
                 if (job.status === 'WAITING' && currentUserRole === 'APPROVER') {
                     actionBtn = `<button onclick="openReview('${job.id}')" class="text-bnp-emerald font-bold text-sm hover:underline">Review</button>`;
-                } else if (job.status === 'WAITING' && currentUserRole === 'SCHEDULER') {
+                } else if (job.status === 'WAITING' && (currentUserRole === 'SCHEDULER' || currentUserRole === 'ADMIN')) {
                     actionBtn = `<button onclick="openReview('${job.id}')" class="text-gray-500 font-bold text-sm hover:underline">View</button>`;
-                } else if (job.status === 'APPROVED' && currentUserRole === 'SCHEDULER') {
+                } else if (job.status === 'APPROVED' && (currentUserRole === 'SCHEDULER' || currentUserRole === 'ADMIN')) {
                     actionBtn = `<button onclick="openReview('${job.id}')" class="text-blue-600 font-bold text-sm hover:underline"><i class="fas fa-play mr-1"></i> Run / View</button>`;
                 } else {
                     actionBtn = `<button onclick="openReview('${job.id}')" class="text-gray-500 font-bold text-sm hover:underline">View Details</button>`;
@@ -205,8 +233,8 @@
             if (job.jobType === 'json') {
                 html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Directory Configuration</h3>`;
                 html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">`;
-                html += `<p class="text-sm mb-2"><strong class="text-gray-500 uppercase text-[10px] mr-2">Source Directory:</strong><br> <span class="font-mono text-gray-800 break-all">${job.configDetails.sourceDir || 'N/A'}</span></p>`;
-                html += `<p class="text-sm"><strong class="text-gray-500 uppercase text-[10px] mr-2">Destination Directory:</strong><br> <span class="font-mono text-gray-800 break-all">${job.configDetails.destDir || 'N/A'}</span></p>`;
+                html += `<p class="text-sm mb-2"><strong class="text-gray-500 uppercase text-[10px] mr-2">Source Directory:</strong><br> <span class="font-mono text-gray-800 break-all">${job.configDetails.source.url || 'N/A'}</span></p>`;
+                html += `<p class="text-sm"><strong class="text-gray-500 uppercase text-[10px] mr-2">Destination Directory:</strong><br> <span class="font-mono text-gray-800 break-all">${job.configDetails.dest.url || 'N/A'}</span></p>`;
                 html += `</div></div>`;
             } else {
                 const src = job.configDetails.source || {};
@@ -216,12 +244,10 @@
                 html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
                             <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Source</h4>
                             <p class="text-sm mb-1 truncate" title="${src.url}"><strong class="text-[10px] uppercase text-gray-400 mr-1">URL:</strong> <span class="font-mono">${src.url || 'N/A'}</span></p>
-                            <p class="text-sm"><strong class="text-[10px] uppercase text-gray-400 mr-1">User:</strong> ${src.username || 'N/A'}</p>
                          </div>`;
                 html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
                             <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Destination</h4>
                             <p class="text-sm mb-1 truncate" title="${dst.url}"><strong class="text-[10px] uppercase text-gray-400 mr-1">URL:</strong> <span class="font-mono">${dst.url || 'N/A'}</span></p>
-                            <p class="text-sm"><strong class="text-[10px] uppercase text-gray-400 mr-1">User:</strong> ${dst.username || 'N/A'}</p>
                          </div>`;
                 html += `</div></div>`;
 
@@ -237,7 +263,7 @@
                 html += `</div>`;
             }
 
-            const rulesObj = job.jobType === 'json' ? job.configDetails : (job.configDetails.rules || job.configDetails);
+            const rulesObj = job.jobType === 'json' ? (job.configDetails.rules || job.configDetails) : (job.configDetails.rules || job.configDetails);
 
             html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Masking Rules Applied</h3>`;
 
@@ -290,7 +316,7 @@
                 }
             }
 
-            if (currentUserRole === 'SCHEDULER' && job.status === 'APPROVED') {
+            if ((currentUserRole === 'SCHEDULER' || currentUserRole === 'ADMIN') && job.status === 'APPROVED') {
                 sSec.classList.remove('hidden');
             }
 
@@ -324,18 +350,33 @@
             fetchJobs();
         }
 
+        let pollInterval;
         async function runJob() {
             const btn = document.getElementById('btnRun');
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
             btn.disabled = true;
 
             try {
-                // Post config to backend depending on job type
-                let endpoint = '';
                 if (activeJobType === 'json') {
-                    await fetch('/api/config/json', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(activeJobConfig) });
-                    const form = document.createElement('form'); form.method = 'POST'; form.action = '/api/migration/json/start'; document.body.appendChild(form); form.submit();
+                    const rulesObj = activeJobConfig.rules || activeJobConfig;
+                    await fetch('/api/config/json', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(rulesObj) });
+
+                    const res = await fetch('/api/migration/json/start', { method: 'POST' });
+                    const data = await res.json();
+
+                    if (data.status === 'SUCCESS' && data.executionId) {
+                        closeModal();
+                        showJsonProgressModal(data.executionId);
+                    } else {
+                        alert('Failed to launch JSON migration.');
+                        btn.innerHTML = 'RUN MIGRATION <i class="fas fa-play ml-2"></i>';
+                        btn.disabled = false;
+                    }
                 } else {
+                    // Update connections for SQL/Mongo
+                    await fetch('/api/connection/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: activeJobConfig.source.id, type: 'source', schema: activeJobConfig.source.schema})});
+                    await fetch('/api/connection/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: activeJobConfig.dest.id, type: 'destination', schema: activeJobConfig.dest.schema})});
+
                     const rulesObj = activeJobConfig.rules || activeJobConfig;
                     await fetch('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(rulesObj) });
                     const form = document.createElement('form'); form.method = 'POST'; form.action = '/api/migration/start'; document.body.appendChild(form); form.submit();
@@ -345,6 +386,53 @@
                 btn.innerHTML = 'RUN MIGRATION <i class="fas fa-play ml-2"></i>';
                 btn.disabled = false;
             }
+        }
+
+        function showJsonProgressModal(executionId) {
+            const modal = document.getElementById('progressModal');
+            modal.style.display = 'block';
+
+            pollInterval = setInterval(async () => {
+                try {
+                    const res = await fetch(`/api/migration/json/status/${executionId}`);
+                    const progress = await res.json();
+
+                    const processed = progress.processedFiles || 0;
+                    const total = progress.totalFiles || 0;
+                    const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
+
+                    let statusText = 'Processing files...';
+                    if (progress.status === 'COMPLETED') statusText = 'Migration Complete!';
+                    if (progress.status === 'FAILED') statusText = 'Migration Failed!';
+
+                    document.getElementById('progressStatusText').innerText = statusText;
+                    document.getElementById('progressPercent').innerText = `${pct}%`;
+                    document.getElementById('progressBar').style.width = `${pct}%`;
+                    document.getElementById('progressDetailText').innerText = `Files Processed: ${processed} / ${total}`;
+
+                    if (progress.status === 'FAILED') {
+                        document.getElementById('progressBar').classList.remove('bg-bnp-emerald');
+                        document.getElementById('progressBar').classList.add('bg-red-500');
+                        if (progress.errorMessage) {
+                            document.getElementById('progressDetailText').innerText += `\nError: ${progress.errorMessage}`;
+                        }
+                    }
+
+                    if (progress.status === 'COMPLETED' || progress.status === 'FAILED') {
+                        clearInterval(pollInterval);
+                        document.getElementById('progressCloseBtn').classList.remove('hidden');
+
+                        const spinner = document.getElementById('progressSpinnerIcon');
+                        if (spinner) {
+                            spinner.classList.remove('fa-spinner', 'fa-spin', 'text-bnp-emerald');
+                            if (progress.status === 'COMPLETED') spinner.classList.add('fa-check-circle', 'text-green-500');
+                            if (progress.status === 'FAILED') spinner.classList.add('fa-times-circle', 'text-red-500');
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error polling status', e);
+                }
+            }, 1000);
         }
     </script>
 </body>
