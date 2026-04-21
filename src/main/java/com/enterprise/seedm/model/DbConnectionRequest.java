@@ -4,7 +4,7 @@ import lombok.Data;
 
 @Data
 public class DbConnectionRequest {
-    private String id; // Optional, references a saved DbConnection
+    private Long id; // Optional, references a saved DbConnection
     private String type; // "source" or "destination"
     private String url;
     private String username;

@@ -65,7 +65,7 @@ public class DbConnectionController {
     }
     
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteConnection(@PathVariable String id, HttpServletRequest request) {
+    public ResponseEntity<?> deleteConnection(@PathVariable Long id, HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         if (session == null || !"ADMIN".equals(session.getAttribute("role"))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Only Admins can delete connections"));

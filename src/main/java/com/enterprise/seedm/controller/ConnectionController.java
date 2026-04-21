@@ -21,7 +21,7 @@ public class ConnectionController {
     private final DbConnectionService connectionService;
 
     private void resolveConnection(DbConnectionRequest request) {
-        if (request.getId() != null && !request.getId().isEmpty()) {
+        if (request.getId() != null) {
             DbConnection saved = connectionService.getConnection(request.getId());
             if (saved != null) {
                 request.setUrl(saved.getUrl());

@@ -1,19 +1,39 @@
 package com.enterprise.seedm.model;
 
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+@Entity
+@Table(name = "db_connections")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class DbConnection {
-    private String id;
+    
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "connection_name", nullable = false)
     private String name;
-    private String department; // "Finance", "HR", "IT", "Admin"
+
+    @Column(name = "department", nullable = false)
+    private String department; // "Finance", "HR", "IT", "Admin", etc.
+
+    @Column(name = "type_of_database", nullable = false)
     private String dbType; // "postgres", "mongo", "json"
+
+    @Column(name = "environment", nullable = false)
     private String envType; // "source", "destination"
+
+    @Column(name = "dburi", nullable = false)
     private String url; // For json this is the directory path
+
+    @Column(name = "username")
     private String username;
+
+    @Column(name = "password")
     private String password;
 }

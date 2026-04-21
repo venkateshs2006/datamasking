@@ -34,11 +34,26 @@ public class FileSystemController {
     private final DbConnectionService dbConnectionService;
 
     @PostMapping("/scan")
-    public ResponseEntity<?> scanDirectory(@RequestBody Map<String, String> request) {
-        String dirPath = request.get("path");
-        String id = request.get("id");
+    public ResponseEntity<?> scanDirectory(@RequestBody Map<String, Object> request) {
+        String dirPath = (String) request.get("path");
+        Object idObj = request.get("id");
+        Long id = null;
         
-        if (id != null && !id.isEmpty()) {
+        if (idObj != null) {
+            if (idObj instanceof Integer) {
+                id = ((Integer) idObj).longValue();
+            } else if (idObj instanceof Long) {
+                id = (Long) idObj;
+            } else if (idObj instanceof String) {
+                try {
+                    id = Long.parseLong((String) idObj);
+                } catch (NumberFormatException e) {
+                    // Ignore
+                }
+            }
+        }
+        
+        if (id != null) {
             DbConnection conn = dbConnectionService.getConnection(id);
             if (conn != null) {
                 dirPath = conn.getUrl();

@@ -31,7 +31,7 @@ public class JobApprovalController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getJob(@PathVariable String id) {
+    public ResponseEntity<?> getJob(@PathVariable Long id) {
         JobRequest job = jobApprovalService.getJob(id);
         if (job == null) {
             return ResponseEntity.notFound().build();
@@ -40,7 +40,7 @@ public class JobApprovalController {
     }
 
     @PostMapping("/{id}/approve")
-    public ResponseEntity<?> approveJob(@PathVariable String id, @RequestBody Map<String, String> payload) {
+    public ResponseEntity<?> approveJob(@PathVariable Long id, @RequestBody Map<String, String> payload) {
         JobRequest job = jobApprovalService.approveJob(id, payload.get("comments"));
         if (job == null) {
             return ResponseEntity.notFound().build();
@@ -49,7 +49,7 @@ public class JobApprovalController {
     }
 
     @PostMapping("/{id}/reject")
-    public ResponseEntity<?> rejectJob(@PathVariable String id, @RequestBody Map<String, String> payload) {
+    public ResponseEntity<?> rejectJob(@PathVariable Long id, @RequestBody Map<String, String> payload) {
         JobRequest job = jobApprovalService.rejectJob(id, payload.get("comments"));
         if (job == null) {
             return ResponseEntity.notFound().build();

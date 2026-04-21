@@ -1,6 +1,8 @@
 package com.enterprise.seedm.config;
 
 import com.enterprise.seedm.model.AppUser;
+import com.enterprise.seedm.model.DbConnection;
+import com.enterprise.seedm.repository.DbConnectionRepository;
 import com.enterprise.seedm.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ import java.util.Set;
 public class UserDatabaseInitializer {
 
     private final UserRepository userRepository;
+    private final DbConnectionRepository dbConnectionRepository;
     private final DataSource dataSource;
 
     @PostConstruct
@@ -27,7 +30,7 @@ public class UserDatabaseInitializer {
         try {
             // First, run the schema creation script
             ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
-            populator.addScript(new ClassPathResource("schema-user.sql"));
+            populator.addScript(new ClassPathResource("db-scripts.sql"));
             populator.setContinueOnError(true); // Tables might already exist
             populator.execute(dataSource);
 
@@ -108,6 +111,20 @@ public class UserDatabaseInitializer {
                 userRepository.save(multiUser);
 
                 log.info("Successfully populated sample users and roles.");
+            }
+            
+            // Populate sample connections if db_connections table is empty
+            if (dbConnectionRepository.count() == 0) {
+                dbConnectionRepository.save(new DbConnection(null, "Finance Prod DB", "Finance", "postgres", "source", "jdbc:postgresql://localhost:5432/finance_prod", "fin_user", "fin_pass"));
+                dbConnectionRepository.save(new DbConnection(null, "Finance QA DB", "Finance", "postgres", "destination", "jdbc:postgresql://localhost:5432/finance_qa", "qa_user", "qa_pass"));
+                dbConnectionRepository.save(new DbConnection(null, "HR Prod Mongo", "HR", "mongo", "source", "mongodb://localhost:27017/hr_prod", "hr_user", "hr_pass"));
+                dbConnectionRepository.save(new DbConnection(null, "HR Test Mongo", "HR", "mongo", "destination", "mongodb://localhost:27017/hr_test", "hr_test", "hr_test"));
+                dbConnectionRepository.save(new DbConnection(null, "IT Logs Dir", "IT", "json", "source", "/var/logs/it/prod", "", ""));
+                dbConnectionRepository.save(new DbConnection(null, "IT Masked Logs Dir", "IT", "json", "destination", "/var/logs/it/masked", "", ""));
+                dbConnectionRepository.save(new DbConnection(null, "Admin Master DB", "Admin", "postgres", "source", "jdbc:postgresql://localhost:5432/admin_master", "admin_db", "admin_db"));
+                dbConnectionRepository.save(new DbConnection(null, "Admin Masked DB", "Admin", "postgres", "destination", "jdbc:postgresql://localhost:5432/admin_masked", "admin_db", "admin_db"));
+                
+                log.info("Successfully populated sample database connections.");
             }
         } catch (Exception e) {
             log.error("Failed to initialize user database", e);

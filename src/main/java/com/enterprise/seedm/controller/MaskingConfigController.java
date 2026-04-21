@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/config")
@@ -25,11 +27,19 @@ public class MaskingConfigController {
         return maskingConfigService.getConfig();
     }
 
+    @GetMapping("/random-salt")
+    public Map<String, String> getRandomSalt() {
+        String randomSuffix = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        return Map.of("saltPrefix", randomSuffix);
+    }
+
     @PostMapping
     public void updateConfig(@RequestBody MaskingConfig config) {
-        String existingKey = maskingConfigService.getConfig().getMaskingKey();
-        if (config.getMaskingKey() == null || config.getMaskingKey().trim().isEmpty() || config.getMaskingKey().equals("DefaultSecretKey123")) {
-            config.setMaskingKey(existingKey);
+        if (config.getMaskingKey() != null && config.getMaskingKey().length() == 16) {
+            // Valid FPH key format provided by user
+        } else {
+            // Keep existing key if an invalid/empty one is sent
+            config.setMaskingKey(maskingConfigService.getConfig().getMaskingKey());
         }
         maskingConfigService.updateConfig(config);
     }

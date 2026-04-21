@@ -82,7 +82,7 @@
                     <table class="w-full text-left border-collapse">
                         <thead>
                             <tr class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-200">
-                                <th class="px-6 py-4 font-semibold">Job ID / Type</th>
+                                <th class="px-6 py-4 font-semibold">Job Name / Type</th>
                                 <th class="px-6 py-4 font-semibold">Submitted By</th>
                                 <th class="px-6 py-4 font-semibold">Date</th>
                                 <th class="px-6 py-4 font-semibold">Status</th>
@@ -102,7 +102,10 @@
     <div id="reviewModal" class="modal">
         <div class="modal-content flex flex-col h-[80vh]">
             <div class="flex justify-between items-center mb-4 pb-4 border-b border-gray-200 shrink-0">
-                <h2 class="text-2xl font-bold text-bnp-dark-grey">Review Job Details</h2>
+                <div>
+                    <h2 class="text-2xl font-bold text-bnp-dark-grey" id="modalJobName">Review Job Details</h2>
+                    <p class="text-xs text-gray-500 font-mono mt-1" id="modalJobId"></p>
+                </div>
                 <button onclick="closeModal()" class="text-gray-500 hover:text-gray-800 text-xl"><i class="fas fa-times"></i></button>
             </div>
             <div class="flex-1 overflow-y-auto mb-4 pr-2" id="jobDetailsContainer">
@@ -196,9 +199,9 @@
                 tr.className = 'hover:bg-gray-50 transition-colors';
 
                 let actionBtn = '';
-                if (job.status === 'WAITING' && currentUserRole === 'APPROVER') {
+                if (job.status === 'WAITING' && (currentUserRole === 'APPROVER' || currentUserRole === 'ADMIN')) {
                     actionBtn = `<button onclick="openReview('${job.id}')" class="text-bnp-emerald font-bold text-sm hover:underline">Review</button>`;
-                } else if (job.status === 'WAITING' && (currentUserRole === 'SCHEDULER' || currentUserRole === 'ADMIN')) {
+                } else if (job.status === 'WAITING' && currentUserRole === 'SCHEDULER') {
                     actionBtn = `<button onclick="openReview('${job.id}')" class="text-gray-500 font-bold text-sm hover:underline">View</button>`;
                 } else if (job.status === 'APPROVED' && (currentUserRole === 'SCHEDULER' || currentUserRole === 'ADMIN')) {
                     actionBtn = `<button onclick="openReview('${job.id}')" class="text-blue-600 font-bold text-sm hover:underline"><i class="fas fa-play mr-1"></i> Run / View</button>`;
@@ -208,8 +211,8 @@
 
                 tr.innerHTML = `
                     <td class="px-6 py-4">
-                        <div class="font-bold text-bnp-dark-grey uppercase text-xs tracking-wider mb-1">${job.jobType}</div>
-                        <div class="text-xs text-gray-400 font-mono">${job.id}</div>
+                        <div class="font-bold text-bnp-dark-grey tracking-wide mb-1 text-sm">${job.migrationName || 'Untitled Job'}</div>
+                        <div class="text-[10px] uppercase font-bold text-gray-400 bg-gray-100 border inline-block px-1.5 rounded">${job.jobType}</div>
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-600">${job.submittedBy}</td>
                     <td class="px-6 py-4 text-sm text-gray-500">${date}</td>
@@ -227,14 +230,17 @@
             activeJobType = job.jobType;
             activeJobConfig = job.configDetails;
 
+            document.getElementById('modalJobName').innerText = job.migrationName || 'Review Job Details';
+            document.getElementById('modalJobId').innerText = 'ID: ' + job.id;
+
             const container = document.getElementById('jobDetailsContainer');
             let html = '';
 
             if (job.jobType === 'json') {
                 html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Directory Configuration</h3>`;
                 html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">`;
-                html += `<p class="text-sm mb-2"><strong class="text-gray-500 uppercase text-[10px] mr-2">Source Directory:</strong><br> <span class="font-mono text-gray-800 break-all">${job.configDetails.source.url || 'N/A'}</span></p>`;
-                html += `<p class="text-sm"><strong class="text-gray-500 uppercase text-[10px] mr-2">Destination Directory:</strong><br> <span class="font-mono text-gray-800 break-all">${job.configDetails.dest.url || 'N/A'}</span></p>`;
+                html += `<p class="text-sm mb-2"><strong class="text-gray-500 uppercase text-[10px] mr-2">Source Directory:</strong><br> <span class="font-mono text-gray-800 break-all">${job.configDetails.source?.url || job.configDetails.sourceDir || 'N/A'}</span></p>`;
+                html += `<p class="text-sm"><strong class="text-gray-500 uppercase text-[10px] mr-2">Destination Directory:</strong><br> <span class="font-mono text-gray-800 break-all">${job.configDetails.dest?.url || job.configDetails.destDir || 'N/A'}</span></p>`;
                 html += `</div></div>`;
             } else {
                 const src = job.configDetails.source || {};
@@ -307,7 +313,7 @@
             aActions.classList.remove('hidden');
             cBox.disabled = false;
 
-            if (currentUserRole !== 'APPROVER' || job.status !== 'WAITING') {
+            if ((currentUserRole !== 'APPROVER' && currentUserRole !== 'ADMIN') || job.status !== 'WAITING') {
                 aActions.classList.add('hidden');
                 if (job.comments) {
                     cBox.disabled = true;

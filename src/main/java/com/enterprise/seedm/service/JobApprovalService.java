@@ -1,52 +1,49 @@
 package com.enterprise.seedm.service;
 
 import com.enterprise.seedm.model.JobRequest;
+import com.enterprise.seedm.repository.JobRequestRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class JobApprovalService {
-    private final Map<String, JobRequest> jobs = new ConcurrentHashMap<>();
+    
+    private final JobRequestRepository jobRequestRepository;
 
     public JobRequest submitJob(JobRequest request) {
-        request.setId(UUID.randomUUID().toString());
         request.setStatus("WAITING");
         request.setCreatedAt(System.currentTimeMillis());
-        jobs.put(request.getId(), request);
-        return request;
+        return jobRequestRepository.save(request);
     }
 
     public List<JobRequest> getAllJobs() {
-        return new ArrayList<>(jobs.values()).stream()
-                .sorted((a, b) -> Long.compare(b.getCreatedAt(), a.getCreatedAt()))
-                .collect(Collectors.toList());
+        return jobRequestRepository.findAllByOrderByCreatedAtDesc();
     }
 
-    public JobRequest getJob(String id) {
-        return jobs.get(id);
+    public JobRequest getJob(Long id) {
+        return jobRequestRepository.findById(id).orElse(null);
     }
 
-    public JobRequest approveJob(String id, String comments) {
-        JobRequest job = jobs.get(id);
+    public JobRequest approveJob(Long id, String comments) {
+        JobRequest job = getJob(id);
         if (job != null) {
             job.setStatus("APPROVED");
             job.setComments(comments);
+            return jobRequestRepository.save(job);
         }
-        return job;
+        return null;
     }
 
-    public JobRequest rejectJob(String id, String comments) {
-        JobRequest job = jobs.get(id);
+    public JobRequest rejectJob(Long id, String comments) {
+        JobRequest job = getJob(id);
         if (job != null) {
             job.setStatus("REJECTED");
             job.setComments(comments);
+            return jobRequestRepository.save(job);
         }
-        return job;
+        return null;
     }
 }

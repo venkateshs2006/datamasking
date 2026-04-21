@@ -49,7 +49,7 @@
         .stepper-item { flex: 1; text-align: center; position: relative; }
         .stepper-item::after { content: ''; position: absolute; top: 16px; left: 50%; width: 100%; height: 2px; background-color: #e2e8f0; z-index: 1; transition: background-color 0.3s; }
         .stepper-item:last-child::after { display: none; }
-        .stepper-item.completed::after { background-color: var(--bnp-emerald); }
+        .stepper-item.completed::after { background-color: var(--bnp-emerald); } /* Yellow -> Emerald for BNP */
         .stepper-circle { width: 34px; height: 34px; border-radius: 50%; background-color: #fff; border: 2px solid #cbd5e1; color: #94a3b8; display: flex; align-items: center; justify-content: center; font-weight: 600; margin: 0 auto; position: relative; z-index: 2; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
 
         .stepper-item.active .stepper-circle { border-color: var(--bnp-emerald); color: var(--bnp-emerald); background-color: #fff; box-shadow: 0 0 0 4px rgba(0, 150, 94, 0.1); }
@@ -239,6 +239,11 @@
                         </div>
                         <h3 class="text-2xl font-bold text-gray-900">Ready to Submit</h3>
                         <p class="text-sm text-gray-500 mt-2">Review your configuration summary before submitting for approval.</p>
+                    </div>
+
+                    <div class="mb-6 max-w-lg mx-auto">
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Migration Name</label>
+                        <input type="text" id="migrationName" class="input-field" placeholder="e.g. JSON Log Archival" required>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 shrink-0">
@@ -578,8 +583,10 @@
     }
 
     function populatePreview() {
-        document.getElementById('previewSrc').innerText = state.rules.sourceDir;
-        document.getElementById('previewDest').innerText = state.rules.destDir;
+        const srcSelect = document.getElementById('sourceId');
+        const destSelect = document.getElementById('destId');
+        document.getElementById('previewSrc').innerText = srcSelect.options[srcSelect.selectedIndex]?.text || '';
+        document.getElementById('previewDest').innerText = destSelect.options[destSelect.selectedIndex]?.text || '';
 
         const totalRules = state.rules.maskingColumns.length + state.rules.partialMaskingColumns.length;
         document.getElementById('previewRuleCount').innerText = totalRules;
@@ -587,22 +594,34 @@
 
     async function submitWorkflow() {
         const btn = document.getElementById('btnStart');
+        const mNameInput = document.getElementById('migrationName');
+        const migrationName = mNameInput ? mNameInput.value.trim() : '';
+
+        if (!migrationName) {
+            alert("Please enter a Migration Name");
+            return;
+        }
+
         const origHtml = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Submitting...';
         btn.disabled = true;
 
         try {
+            const srcSelect = document.getElementById('sourceId');
+            const destSelect = document.getElementById('destId');
+
             const payload = {
+                migrationName: migrationName,
                 jobType: 'json',
                 configDetails: {
                     source: {
-                        id: document.getElementById('sourceId').value,
-                        url: state.rules.sourceDir,
+                        id: srcSelect.value,
+                        url: srcSelect.options[srcSelect.selectedIndex]?.text,
                         schema: ''
                     },
                     dest: {
-                        id: document.getElementById('destId').value,
-                        url: state.rules.destDir,
+                        id: destSelect.value,
+                        url: destSelect.options[destSelect.selectedIndex]?.text,
                         schema: ''
                     },
                     rules: state.rules

@@ -1,8 +1,8 @@
 package com.enterprise.seedm.service;
 
 import com.enterprise.seedm.util.DataTypeConstrants;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -17,12 +17,13 @@ import java.util.UUID;
  */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class FormatPreservingEncryptionService {
 
-    private final String salt;
+    private final MaskingConfigService maskingConfigService;
 
-    public FormatPreservingEncryptionService(@Value("${seedm.migration.masking-key:DefaultSecretKey123}") String salt) {
-        this.salt = salt;
+    private String getSalt() {
+        return maskingConfigService.getConfig().getMaskingKey();
     }
 
     /**
@@ -180,7 +181,7 @@ public class FormatPreservingEncryptionService {
 
     private byte[] getHashBytes(String input) throws NoSuchAlgorithmException {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        String inputWithSalt = input + salt;
+        String inputWithSalt = input + getSalt();
         return digest.digest(inputWithSalt.getBytes(StandardCharsets.UTF_8));
     }
 }
