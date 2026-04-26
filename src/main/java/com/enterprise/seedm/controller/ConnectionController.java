@@ -6,6 +6,7 @@ import com.enterprise.seedm.service.DbConnectionService;
 import com.enterprise.seedm.service.DynamicDataSourceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -38,6 +39,18 @@ public class ConnectionController {
         resolveConnection(request);
         log.info("Fetching schemas for {} connection", request.getType());
         return dynamicDataSourceService.fetchSchemas(request);
+    }
+
+    @PostMapping("/create-schema")
+    public ResponseEntity<?> createSchema(@RequestBody DbConnectionRequest request) {
+        try {
+            resolveConnection(request);
+            dynamicDataSourceService.createSchema(request);
+            return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "Schema '" + request.getSchema() + "' created successfully."));
+        } catch (Exception e) {
+            log.error("Failed to create schema", e);
+            return ResponseEntity.internalServerError().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        }
     }
 
     @PostMapping("/update")

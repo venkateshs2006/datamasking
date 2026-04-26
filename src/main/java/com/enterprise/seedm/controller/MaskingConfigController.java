@@ -28,8 +28,12 @@ public class MaskingConfigController {
     }
 
     @GetMapping("/random-salt")
-    public Map<String, String> getRandomSalt() {
-        String randomSuffix = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+    public Map<String, String> getRandomSalt(@RequestParam(required = false, defaultValue = "8") int length) {
+        String randomStr = UUID.randomUUID().toString().replace("-", "");
+        if (length > randomStr.length()) {
+             randomStr += UUID.randomUUID().toString().replace("-", "");
+        }
+        String randomSuffix = randomStr.substring(0, length);
         return Map.of("saltPrefix", randomSuffix);
     }
 

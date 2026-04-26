@@ -18,16 +18,6 @@ public class DynamicDataSourceService {
 
     private final SwappableDataSource sourceDataSource;
     private final SwappableDataSource destinationDataSource;
-
-    // We need to update the schema property in the application context or service
-    // Since @Value is injected at startup, we need a way to update it dynamically for the services that use it.
-    // For now, let's assume we update the datasource, and the schema is passed or updated in a shared config bean.
-    // But TableDiscoveryService uses @Value. We might need to make TableDiscoveryService schema-aware or update it.
-    
-    // Actually, TableDiscoveryService and DestinationSchemaService use @Value("${migration.source.schema}")
-    // We need to make these services updateable or fetch schema from a dynamic source.
-    // Let's introduce a SchemaConfig bean.
-    
     private final SchemaConfig schemaConfig;
 
     public DynamicDataSourceService(@Qualifier("sourceDataSource") SwappableDataSource sourceDataSource,
@@ -39,12 +29,11 @@ public class DynamicDataSourceService {
     }
 
     public List<String> fetchSchemas(DbConnectionRequest request) {
-        // Create a temporary datasource to fetch schemas
         DataSource tempDs = DataSourceBuilder.create()
                 .url(request.getUrl())
                 .username(request.getUsername())
                 .password(request.getPassword())
-                .driverClassName("org.postgresql.Driver") // Assuming Postgres for now
+                .driverClassName("org.postgresql.Driver") 
                 .type(HikariDataSource.class)
                 .build();
         
@@ -60,6 +49,33 @@ public class DynamicDataSourceService {
         return schemas;
     }
 
+    public void createSchema(DbConnectionRequest request) {
+        log.info("Creating schema {} for {} connection", request.getSchema(), request.getType());
+        
+        DataSource tempDs = DataSourceBuilder.create()
+                .url(request.getUrl())
+                .username(request.getUsername())
+                .password(request.getPassword())
+                .driverClassName("org.postgresql.Driver")
+                .type(HikariDataSource.class)
+                .build();
+        
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(tempDs);
+        try {
+            // Prevent SQL injection via basic regex validation
+            if (request.getSchema() != null && request.getSchema().matches("^[a-zA-Z_][a-zA-Z0-9_]*$")) {
+                jdbcTemplate.execute("CREATE SCHEMA IF NOT EXISTS " + request.getSchema());
+                log.info("Schema {} created successfully.", request.getSchema());
+            } else {
+                throw new IllegalArgumentException("Invalid schema name. Must contain only alphanumeric characters and underscores.");
+            }
+        } finally {
+            if (tempDs instanceof HikariDataSource) {
+                ((HikariDataSource) tempDs).close();
+            }
+        }
+    }
+
     public void updateConnection(DbConnectionRequest request) {
         log.info("Updating {} connection to {}", request.getType(), request.getUrl());
         
@@ -71,7 +87,6 @@ public class DynamicDataSourceService {
                 .type(HikariDataSource.class)
                 .build();
         
-        // Configure pool settings similar to original
         newDataSource.setMaximumPoolSize(10);
         newDataSource.setMinimumIdle(2);
 

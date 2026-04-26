@@ -55,26 +55,26 @@ CREATE TABLE IF NOT EXISTS job_requests (
 -- The hash below for 'pass123' is: $2a$10$tV7Xy8N/qV9wP.M/A2M.4uQ2yR/X2wQ.P.yN7V/A4yM/T8wP.E6M.3Oq
 
 -- 1. Insert Admin User (Access to ALL departments)
-INSERT INTO users (id, username, password) VALUES (1, 'admin', '$2a$10$wE.6C.K5R7Vw2k7hX.4p8eLw9Ym4q/N7V2X.y9R/pT8wP.E6M.3Oq') ON CONFLICT DO NOTHING;
-INSERT INTO user_roles (user_id, role) VALUES (1, 'ADMIN') ON CONFLICT DO NOTHING;
-INSERT INTO user_departments (user_id, department) VALUES (1, 'ALL') ON CONFLICT DO NOTHING;
+INSERT INTO users (id, username, password) VALUES (1, 'admin', '$2a$10$wE.6C.K5R7Vw2k7hX.4p8eLw9Ym4q/N7V2X.y9R/pT8wP.E6M.3Oq') ON CONFLICT (id) DO NOTHING;
+INSERT INTO user_roles (user_id, role) VALUES (1, 'ADMIN');
+INSERT INTO user_departments (user_id, department) VALUES (1, 'ALL');
 
 -- 2. Insert Finance Scheduler
-INSERT INTO users (id, username, password) VALUES (2, 'finance_sched', '$2a$10$tV7Xy8N/qV9wP.M/A2M.4uQ2yR/X2wQ.P.yN7V/A4yM/T8wP.E6M.3Oq') ON CONFLICT DO NOTHING;
-INSERT INTO user_roles (user_id, role) VALUES (2, 'SCHEDULER') ON CONFLICT DO NOTHING;
-INSERT INTO user_departments (user_id, department) VALUES (2, 'Finance') ON CONFLICT DO NOTHING;
+INSERT INTO users (id, username, password) VALUES (2, 'finance_sched', '$2a$10$tV7Xy8N/qV9wP.M/A2M.4uQ2yR/X2wQ.P.yN7V/A4yM/T8wP.E6M.3Oq') ON CONFLICT (id) DO NOTHING;
+INSERT INTO user_roles (user_id, role) VALUES (2, 'SCHEDULER');
+INSERT INTO user_departments (user_id, department) VALUES (2, 'Finance');
 
 -- 3. Insert Finance Approver
-INSERT INTO users (id, username, password) VALUES (3, 'finance_appr', '$2a$10$tV7Xy8N/qV9wP.M/A2M.4uQ2yR/X2wQ.P.yN7V/A4yM/T8wP.E6M.3Oq') ON CONFLICT DO NOTHING;
-INSERT INTO user_roles (user_id, role) VALUES (3, 'APPROVER') ON CONFLICT DO NOTHING;
-INSERT INTO user_departments (user_id, department) VALUES (3, 'Finance') ON CONFLICT DO NOTHING;
+INSERT INTO users (id, username, password) VALUES (3, 'finance_appr', '$2a$10$tV7Xy8N/qV9wP.M/A2M.4uQ2yR/X2wQ.P.yN7V/A4yM/T8wP.E6M.3Oq') ON CONFLICT (id) DO NOTHING;
+INSERT INTO user_roles (user_id, role) VALUES (3, 'APPROVER');
+INSERT INTO user_departments (user_id, department) VALUES (3, 'Finance');
 
 -- 4. Insert Multi-Department Approver (Demonstrating multiple roles and departments)
-INSERT INTO users (id, username, password) VALUES (4, 'manager_appr', '$2a$10$tV7Xy8N/qV9wP.M/A2M.4uQ2yR/X2wQ.P.yN7V/A4yM/T8wP.E6M.3Oq') ON CONFLICT DO NOTHING;
-INSERT INTO user_roles (user_id, role) VALUES (4, 'APPROVER') ON CONFLICT DO NOTHING;
-INSERT INTO user_roles (user_id, role) VALUES (4, 'SCHEDULER') ON CONFLICT DO NOTHING;
-INSERT INTO user_departments (user_id, department) VALUES (4, 'Finance') ON CONFLICT DO NOTHING;
-INSERT INTO user_departments (user_id, department) VALUES (4, 'HR') ON CONFLICT DO NOTHING;
+INSERT INTO users (id, username, password) VALUES (4, 'manager_appr', '$2a$10$tV7Xy8N/qV9wP.M/A2M.4uQ2yR/X2wQ.P.yN7V/A4yM/T8wP.E6M.3Oq') ON CONFLICT (id) DO NOTHING;
+INSERT INTO user_roles (user_id, role) VALUES (4, 'APPROVER');
+INSERT INTO user_roles (user_id, role) VALUES (4, 'SCHEDULER');
+INSERT INTO user_departments (user_id, department) VALUES (4, 'Finance');
+INSERT INTO user_departments (user_id, department) VALUES (4, 'HR');
 
 -- 5. Insert Sample DB Connections
 INSERT INTO db_connections (id, connection_name, environment, department, dburi, username, password, type_of_database) VALUES
@@ -86,12 +86,12 @@ INSERT INTO db_connections (id, connection_name, environment, department, dburi,
 (6, 'IT Masked Logs Dir', 'destination', 'IT', '/var/logs/it/masked', '', '', 'json'),
 (7, 'Admin Master DB', 'source', 'Admin', 'jdbc:postgresql://localhost:5432/admin_master', 'admin_db', 'admin_db', 'postgres'),
 (8, 'Admin Masked DB', 'destination', 'Admin', 'jdbc:postgresql://localhost:5432/admin_masked', 'admin_db', 'admin_db', 'postgres')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 -- 6. Insert Sample Job Requests
 INSERT INTO job_requests (id, migration_name, job_type, status, comments, submitted_by, created_at, config_details) VALUES
 (1, 'Finance Q3 Data Migration', 'postgres', 'WAITING', NULL, 'finance_sched', 1700000000000, '{"source":{"id":"1","url":"jdbc:postgresql://localhost:5432/finance_prod","schema":"public"},"dest":{"id":"2","url":"jdbc:postgresql://localhost:5432/finance_qa","schema":"public"},"rules":{"maskingColumns":["public.employees.salary"],"constraintColumns":[],"partialMaskingColumns":[],"targetTables":["public.employees"]}}')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 -- Update sequence to prevent ID collisions on future inserts
 -- SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
