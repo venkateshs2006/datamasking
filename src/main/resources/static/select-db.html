@@ -61,7 +61,8 @@
             <ul>
                 <li><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
                 <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
-                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-cog mr-1.5"></i> Admin</a></li>
+                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
+                <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
                 <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
             </ul>
         </nav>
@@ -95,7 +96,7 @@
             <div class="db-card p-8 text-center group" onclick="selectDbType('json')">
                 <div class="icon-container shadow-inner"><i class="fas fa-file-code"></i></div>
                 <h3 class="text-xl font-bold text-gray-800 mb-2">JSON Migration</h3>
-                <p class="text-sm text-gray-500 mb-6">Directory to Directory Masking</p>
+                <p class="text-sm text-gray-500 mb-6">Local & Cloud Object Storage</p>
                 <div class="flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-bnp-emerald transition-colors">
                     Configure Workflow <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
                 </div>
@@ -118,6 +119,7 @@
                 window.location.href = '/jobs.html';
             } else if (data.role === 'ADMIN') {
                 document.getElementById('adminDbLink').style.display = 'block';
+                document.getElementById('adminCosLink').style.display = 'block';
             }
         });
 

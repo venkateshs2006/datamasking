@@ -47,6 +47,25 @@ CREATE TABLE IF NOT EXISTS job_requests (
     config_details TEXT
 );
 
+-- 6. Create the COS Connections table
+CREATE TABLE IF NOT EXISTS cos_connections (
+    id BIGSERIAL PRIMARY KEY,
+    cos_name VARCHAR(255) NOT NULL,
+    location VARCHAR(255),
+    apikey VARCHAR(255),
+    service_instance_id VARCHAR(255),
+    accesskey VARCHAR(255),
+    secretkey VARCHAR(255),
+    bucketurl VARCHAR(500),
+    bucket_id VARCHAR(255),
+    bucket_name VARCHAR(255) NOT NULL,
+    authendication_type VARCHAR(50),
+    department_id VARCHAR(50) NOT NULL,
+    env_type VARCHAR(50) NOT NULL,
+    created_by VARCHAR(255),
+    created_at BIGINT
+);
+
 -- ==========================================
 -- DML: SAMPLE DATA INSERTION SCRIPTS
 -- ==========================================
@@ -93,7 +112,14 @@ INSERT INTO job_requests (id, migration_name, job_type, status, comments, submit
 (1, 'Finance Q3 Data Migration', 'postgres', 'WAITING', NULL, 'finance_sched', 1700000000000, '{"source":{"id":"1","url":"jdbc:postgresql://localhost:5432/finance_prod","schema":"public"},"dest":{"id":"2","url":"jdbc:postgresql://localhost:5432/finance_qa","schema":"public"},"rules":{"maskingColumns":["public.employees.salary"],"constraintColumns":[],"partialMaskingColumns":[],"targetTables":["public.employees"]}}')
 ON CONFLICT (id) DO NOTHING;
 
+-- 7. Insert Sample COS Connections
+INSERT INTO cos_connections (id, cos_name, location, apikey, service_instance_id, accesskey, secretkey, bucketurl, bucket_id, bucket_name, authendication_type, department_id, env_type, created_by, created_at) VALUES
+(1, 'Finance Prod Bucket', 'us-south', 'dummy-api-key', 'crn:v1:bluemix:public:cloud-object-storage:global:a/12345:12345::', 'dummy-access', 'dummy-secret', 'https://s3.us-south.cloud-object-storage.appdomain.cloud', 'bucket-123', 'fin-prod-data', 'IAM', 'Finance', 'source', 'admin', 1700000000000),
+(2, 'Finance QA Bucket', 'us-south', 'dummy-api-key', 'crn:v1:bluemix:public:cloud-object-storage:global:a/12345:67890::', 'dummy-access', 'dummy-secret', 'https://s3.us-south.cloud-object-storage.appdomain.cloud', 'bucket-456', 'fin-qa-data', 'IAM', 'Finance', 'destination', 'admin', 1700000000000)
+ON CONFLICT (id) DO NOTHING;
+
 -- Update sequence to prevent ID collisions on future inserts
 -- SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
 -- SELECT setval('db_connections_id_seq', (SELECT MAX(id) FROM db_connections));
 -- SELECT setval('job_requests_id_seq', (SELECT MAX(id) FROM job_requests));
+-- SELECT setval('cos_connections_id_seq', (SELECT MAX(id) FROM cos_connections));

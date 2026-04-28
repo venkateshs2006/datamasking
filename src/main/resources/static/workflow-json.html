@@ -138,20 +138,42 @@
                             <div class="w-10 h-10 rounded-lg bg-bnp-emerald/10 flex items-center justify-center text-bnp-emerald mr-4 border border-bnp-emerald/20"><i class="fas fa-folder-open text-lg"></i></div>
                             <div>
                                 <h3 class="text-lg font-bold text-gray-800 leading-tight">Source Directory</h3>
-                                <p class="text-xs text-gray-500">Select folder containing input JSON files</p>
+                                <p class="text-xs text-gray-500">Select folder or COS bucket containing input JSON files</p>
                             </div>
                         </div>
                         <form id="sourceForm" class="space-y-5 flex-1 flex flex-col" onsubmit="event.preventDefault(); fetchFiles();">
-                            <div>
+                            <div class="mb-2">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2 block">Storage Type</label>
+                                <div class="flex space-x-4">
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="radio" name="storageTypeSrc" value="local" class="form-radio text-bnp-emerald" checked onchange="toggleStorageType('source')">
+                                        <span class="ml-2 text-sm text-gray-700">Local Directory</span>
+                                    </label>
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="radio" name="storageTypeSrc" value="cos" class="form-radio text-bnp-emerald" onchange="toggleStorageType('source')">
+                                        <span class="ml-2 text-sm text-gray-700">IBM Cloud Object Storage</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="srcLocalContainer">
                                 <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Directory Location</label>
-                                <select name="id" id="sourceId" class="input-field cursor-pointer bg-white" required onchange="validateStep1()">
+                                <select name="id" id="sourceId" class="input-field cursor-pointer bg-white" onchange="validateStep1()">
                                     <option value="">Loading connections...</option>
                                 </select>
                             </div>
+
+                            <div id="srcCosContainer" style="display: none;">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">COS Bucket Connection</label>
+                                <select name="cosId" id="sourceCosId" class="input-field cursor-pointer bg-white" onchange="validateStep1()">
+                                    <option value="">Loading COS connections...</option>
+                                </select>
+                            </div>
+
                             <div class="mt-auto pt-6 border-t border-gray-50">
                                 <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
                                     Files to Process
-                                    <button type="button" id="btnFetchSrc" onclick="fetchFiles()" class="text-xs text-bnp-emerald hover:text-[#007a4c] normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Scan Directory</button>
+                                    <button type="button" id="btnFetchSrc" onclick="fetchFiles()" class="text-xs text-bnp-emerald hover:text-[#007a4c] normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Scan Source</button>
                                 </label>
                                 <div id="fileCountDisplay" class="input-field bg-gray-50 text-gray-500 flex items-center justify-center border-dashed border-gray-300">
                                     <i class="fas fa-info-circle mr-2 opacity-50"></i> Select location and click Scan
@@ -169,14 +191,35 @@
                             <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 mr-4 border border-emerald-100"><i class="fas fa-folder-plus text-lg"></i></div>
                             <div>
                                 <h3 class="text-lg font-bold text-gray-800 leading-tight">Destination Directory</h3>
-                                <p class="text-xs text-gray-500">Select folder to write masked JSON files</p>
+                                <p class="text-xs text-gray-500">Select folder or COS bucket to write masked JSON files</p>
                             </div>
                         </div>
                         <form id="destForm" class="space-y-5 flex-1 flex flex-col">
-                            <div>
+                            <div class="mb-2">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2 block">Storage Type</label>
+                                <div class="flex space-x-4">
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="radio" name="storageTypeDest" value="local" class="form-radio text-bnp-emerald" checked onchange="toggleStorageType('dest')">
+                                        <span class="ml-2 text-sm text-gray-700">Local Directory</span>
+                                    </label>
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="radio" name="storageTypeDest" value="cos" class="form-radio text-bnp-emerald" onchange="toggleStorageType('dest')">
+                                        <span class="ml-2 text-sm text-gray-700">IBM Cloud Object Storage</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="destLocalContainer">
                                 <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Directory Location</label>
-                                <select name="id" id="destId" class="input-field cursor-pointer bg-white" required onchange="validateStep1()">
+                                <select name="id" id="destId" class="input-field cursor-pointer bg-white" onchange="validateStep1()">
                                     <option value="">Loading connections...</option>
+                                </select>
+                            </div>
+
+                            <div id="destCosContainer" style="display: none;">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">COS Bucket Connection</label>
+                                <select name="cosId" id="destCosId" class="input-field cursor-pointer bg-white" onchange="validateStep1()">
+                                    <option value="">Loading COS connections...</option>
                                 </select>
                             </div>
                         </form>
@@ -325,6 +368,7 @@
             window.location.href = '/jobs.html';
         } else {
             fetchConnections();
+            fetchCosConnections();
         }
     });
 
@@ -338,8 +382,28 @@
     let scanSuccess = false;
     let availableKeys = [];
     let state = {
-        rules: { maskingColumns: [], partialMaskingColumns: [], sourceDir: '', destDir: '' }
+        rules: { maskingColumns: [], partialMaskingColumns: [], sourceDir: '', destDir: '', sourceType: 'local', destType: 'local', sourceCosId: null, destCosId: null }
     };
+
+    function toggleStorageType(env) {
+        const type = document.querySelector(`input[name="storageType${env === 'source' ? 'Src' : 'Dest'}"]:checked`).value;
+        const localContainer = document.getElementById(`${env === 'source' ? 'src' : 'dest'}LocalContainer`);
+        const cosContainer = document.getElementById(`${env === 'source' ? 'src' : 'dest'}CosContainer`);
+
+        if (type === 'local') {
+            localContainer.style.display = 'block';
+            cosContainer.style.display = 'none';
+            if (env === 'source') state.rules.sourceType = 'local';
+            else state.rules.destType = 'local';
+        } else {
+            localContainer.style.display = 'none';
+            cosContainer.style.display = 'block';
+            if (env === 'source') state.rules.sourceType = 'cos';
+            else state.rules.destType = 'cos';
+        }
+
+        validateStep1();
+    }
 
     async function fetchConnections() {
         const resSrc = await fetch('/api/connections?dbType=json&envType=source');
@@ -361,21 +425,45 @@
         validateStep1();
     }
 
+    async function fetchCosConnections() {
+        const resSrc = await fetch('/api/cos-connections?envType=source');
+        if (resSrc.ok) {
+            const srcConns = await resSrc.json();
+            const srcSelect = document.getElementById('sourceCosId');
+            srcSelect.innerHTML = '<option value="">Select a source COS bucket...</option>';
+            srcConns.forEach(c => srcSelect.add(new Option(c.cosName + ' (' + c.bucketName + ')', c.id)));
+        }
+
+        const resDest = await fetch('/api/cos-connections?envType=destination');
+        if (resDest.ok) {
+            const destConns = await resDest.json();
+            const destSelect = document.getElementById('destCosId');
+            destSelect.innerHTML = '<option value="">Select a destination COS bucket...</option>';
+            destConns.forEach(c => destSelect.add(new Option(c.cosName + ' (' + c.bucketName + ')', c.id)));
+        }
+    }
+
     function validateStep1() {
-        const srcId = document.getElementById('sourceId').value;
-        const destId = document.getElementById('destId').value;
+        const srcType = state.rules.sourceType;
+        const destType = state.rules.destType;
+
+        const srcVal = srcType === 'local' ? document.getElementById('sourceId').value : document.getElementById('sourceCosId').value;
+        const destVal = destType === 'local' ? document.getElementById('destId').value : document.getElementById('destCosId').value;
+
         const btnFetch = document.getElementById('btnFetchSrc');
         const btnNext = document.getElementById('btnNext');
 
-        btnFetch.disabled = !srcId;
+        btnFetch.disabled = !srcVal;
 
         // Require both paths AND a successful scan to proceed
-        btnNext.disabled = !(srcId && destId && scanSuccess);
+        btnNext.disabled = !(srcVal && destVal && scanSuccess);
 
-        // If user edits path after scanning, invalidate the scan
-        const srcSelect = document.getElementById('sourceId');
-        const currentSrcDir = srcSelect.options[srcSelect.selectedIndex]?.text;
-        if (currentSrcDir && currentSrcDir !== state.rules.sourceDir && scanSuccess) {
+        // Invalidate scan if connection changes
+        const currentSrcText = srcType === 'local' ?
+            document.getElementById('sourceId').options[document.getElementById('sourceId').selectedIndex]?.text :
+            document.getElementById('sourceCosId').options[document.getElementById('sourceCosId').selectedIndex]?.text;
+
+        if (currentSrcText && currentSrcText !== state.rules.sourceDir && scanSuccess) {
             scanSuccess = false;
             const display = document.getElementById('fileCountDisplay');
             display.innerHTML = '<i class="fas fa-info-circle mr-2 opacity-50"></i> Location changed. Please scan again.';
@@ -413,9 +501,11 @@
     }
 
     async function fetchFiles() {
-        const srcSelect = document.getElementById('sourceId');
+        const srcType = state.rules.sourceType;
+        const srcSelect = srcType === 'local' ? document.getElementById('sourceId') : document.getElementById('sourceCosId');
         const srcId = srcSelect.value;
         const srcText = srcSelect.options[srcSelect.selectedIndex]?.text;
+
         const btn = document.getElementById('btnFetchSrc');
         const display = document.getElementById('fileCountDisplay');
         const origHtml = btn.innerHTML;
@@ -431,10 +521,11 @@
         display.className = 'input-field bg-bnp-emerald/10 text-bnp-emerald flex items-center justify-center border-bnp-emerald/30';
 
         try {
+            // Include source type and ID
             const response = await fetch('/api/fs/scan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: srcId })
+                body: JSON.stringify({ id: srcId, type: srcType })
             });
 
             const data = await response.json();
@@ -444,7 +535,8 @@
                     display.innerHTML = `<span class="text-green-600 font-bold"><i class="fas fa-check-circle mr-1"></i> Found ${data.fileCount} JSON files</span>`;
                     display.className = 'input-field bg-green-50 flex items-center justify-center border-green-200';
                     scanSuccess = true;
-                    state.rules.sourceDir = srcText; // log description
+                    state.rules.sourceDir = srcText;
+                    if(srcType === 'cos') state.rules.sourceCosId = srcId;
                     availableKeys = data.sampleKeys || [];
                     renderAvailableKeys();
                 } else {
@@ -469,8 +561,10 @@
 
     async function nextStep() {
         if (currentStep === 1) {
-            const destSelect = document.getElementById('destId');
+            const destType = state.rules.destType;
+            const destSelect = destType === 'local' ? document.getElementById('destId') : document.getElementById('destCosId');
             state.rules.destDir = destSelect.options[destSelect.selectedIndex]?.text;
+            if(destType === 'cos') state.rules.destCosId = destSelect.value;
             renderTags();
         }
         currentStep++;
@@ -583,8 +677,9 @@
     }
 
     function populatePreview() {
-        const srcSelect = document.getElementById('sourceId');
-        const destSelect = document.getElementById('destId');
+        const srcSelect = state.rules.sourceType === 'local' ? document.getElementById('sourceId') : document.getElementById('sourceCosId');
+        const destSelect = state.rules.destType === 'local' ? document.getElementById('destId') : document.getElementById('destCosId');
+
         document.getElementById('previewSrc').innerText = srcSelect.options[srcSelect.selectedIndex]?.text || '';
         document.getElementById('previewDest').innerText = destSelect.options[destSelect.selectedIndex]?.text || '';
 
@@ -607,8 +702,8 @@
         btn.disabled = true;
 
         try {
-            const srcSelect = document.getElementById('sourceId');
-            const destSelect = document.getElementById('destId');
+            const srcSelect = state.rules.sourceType === 'local' ? document.getElementById('sourceId') : document.getElementById('sourceCosId');
+            const destSelect = state.rules.destType === 'local' ? document.getElementById('destId') : document.getElementById('destCosId');
 
             const payload = {
                 migrationName: migrationName,
@@ -616,12 +711,14 @@
                 configDetails: {
                     source: {
                         id: srcSelect.value,
-                        url: srcSelect.options[srcSelect.selectedIndex]?.text,
+                        url: state.rules.sourceDir,
+                        storageType: state.rules.sourceType,
                         schema: ''
                     },
                     dest: {
                         id: destSelect.value,
-                        url: destSelect.options[destSelect.selectedIndex]?.text,
+                        url: state.rules.destDir,
+                        storageType: state.rules.destType,
                         schema: ''
                     },
                     rules: state.rules

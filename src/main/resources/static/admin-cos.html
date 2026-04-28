@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNP Paribas - Admin COS Setup</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
+
+        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
+        .bnp-logo { height: 48px; display: block; }
+        nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
+        nav ul li { margin-left: 25px; }
+        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
+        nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+        nav ul li a.active { color: var(--bnp-emerald); border-bottom: 2px solid var(--bnp-emerald); padding-bottom: 4px; }
+
+        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
+        .tagline { font-weight: 300; letter-spacing: 1px; }
+
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #f1f5f9; }
+
+        .input-field { w-full; padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.875rem; transition: all 0.2s; background-color: #f8fafc; color: #334155; }
+        .input-field:focus { outline: none; border-color: var(--bnp-emerald); box-shadow: 0 0 0 3px rgba(0, 150, 94, 0.15); background-color: #fff; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="flex items-center">
+            <a href="/index.html" class="logo-link mr-6">
+                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+            </a>
+            <div class="hidden md:block border-l border-gray-300 pl-6">
+                <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
+                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Admin Central</p>
+            </div>
+        </div>
+        <nav>
+            <ul>
+                <li><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+                <li><a href="/select-db.html"><i class="fas fa-database mr-1.5"></i> Workflows</a></li>
+                <li><a href="/admin-db.html">Admin DB</a></li>
+                <li><a href="/admin-cos.html" class="active">Admin COS</a></li>
+                <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="flex-1 p-8">
+        <div class="max-w-7xl mx-auto w-full">
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h2 class="text-3xl font-bold text-bnp-dark-grey">IBM Cloud Object Storage (COS) Endpoints</h2>
+                    <p class="text-gray-500 mt-1">Manage global COS buckets by department.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                <!-- Add New COS Form -->
+                <div class="card p-6 lg:col-span-1 h-fit">
+                    <h3 class="text-lg font-bold text-bnp-dark-grey mb-4 border-b pb-2">Add New Bucket Connection</h3>
+                    <form id="cosForm" onsubmit="saveCos(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">COS Name</label>
+                            <input type="text" id="cosName" required class="input-field w-full" placeholder="e.g. Finance Prod Bucket">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department</label>
+                                <select id="department" required class="input-field w-full">
+                                    <option value="Finance">Finance</option>
+                                    <option value="HR">HR</option>
+                                    <option value="IT">IT</option>
+                                    <option value="Admin">Admin</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Environment</label>
+                                <select id="envType" required class="input-field w-full">
+                                    <option value="source">Source</option>
+                                    <option value="destination">Destination</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Authentication Type</label>
+                            <select id="authenticationType" class="input-field w-full" onchange="toggleAuthFields()">
+                                <option value="IAM">IAM</option>
+                                <option value="HMAC">HMAC</option>
+                            </select>
+                        </div>
+
+                        <div id="iamFields" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">API Key</label>
+                                <input type="password" id="apiKey" class="input-field w-full">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Service Instance ID</label>
+                                <input type="text" id="serviceInstanceId" class="input-field w-full" placeholder="crn:v1:bluemix:...">
+                            </div>
+                        </div>
+
+                        <div id="hmacFields" class="space-y-4" style="display: none;">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Access Key</label>
+                                <input type="text" id="accessKey" class="input-field w-full">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Secret Key</label>
+                                <input type="password" id="secretKey" class="input-field w-full">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Bucket URL / Endpoint</label>
+                            <input type="text" id="bucketUrl" required class="input-field w-full" placeholder="https://s3.us-south.cloud-object-storage...">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Location</label>
+                            <input type="text" id="location" class="input-field w-full" placeholder="us-south">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Bucket Name</label>
+                                <input type="text" id="bucketName" required class="input-field w-full">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Bucket ID</label>
+                                <input type="text" id="bucketId" class="input-field w-full">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full bg-bnp-emerald text-white py-2 rounded-lg font-bold shadow hover:bg-[#007a4c] transition mt-4">
+                            Save Connection
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Existing COS -->
+                <div class="card overflow-hidden lg:col-span-2 h-fit">
+                    <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Registered COS Buckets</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-white border-b border-gray-200 text-xs text-gray-500 uppercase">
+                                <tr>
+                                    <th class="px-6 py-3">Name / Bucket</th>
+                                    <th class="px-6 py-3">Dept / Env</th>
+                                    <th class="px-6 py-3">Auth / Location</th>
+                                    <th class="px-6 py-3">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cosTableBody" class="divide-y divide-gray-100">
+                                <tr><td colspan="4" class="px-6 py-8 text-center text-gray-400">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <p>© BNP Paribas - 2026</p>
+            <p class="tagline">The bank for a changing world</p>
+        </div>
+    </footer>
+
+    <script>
+        fetch('/api/auth/check').then(r => r.json()).then(data => {
+            if(!data.authenticated || data.role !== 'ADMIN') {
+                window.location.href = '/login.html';
+            }
+            fetchCos();
+        });
+
+        async function logout() {
+            await fetch('/api/auth/logout', {method: 'POST'});
+            window.location.href = '/login.html';
+        }
+
+        function toggleAuthFields() {
+            const authType = document.getElementById('authenticationType').value;
+            if (authType === 'IAM') {
+                document.getElementById('iamFields').style.display = 'block';
+                document.getElementById('hmacFields').style.display = 'none';
+            } else {
+                document.getElementById('iamFields').style.display = 'none';
+                document.getElementById('hmacFields').style.display = 'block';
+            }
+        }
+
+        async function fetchCos() {
+            // Get all connections by passing department=ALL
+            const res = await fetch('/api/cos-connections?department=ALL');
+            if(res.ok) {
+                const data = await res.json();
+                const tbody = document.getElementById('cosTableBody');
+                tbody.innerHTML = '';
+                if(data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-8 text-center text-gray-400">No COS connections configured.</td></tr>';
+                    return;
+                }
+
+                data.forEach(db => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="px-6 py-4">
+                            <div class="font-bold text-gray-800">${db.cosName}</div>
+                            <div class="text-xs text-gray-500 font-mono mt-1">${db.bucketName}</div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-[10px] font-bold uppercase mr-1">${db.department}</span><br>
+                            <span class="bg-bnp-emerald/10 text-bnp-emerald px-2 py-1 rounded text-[10px] font-bold uppercase mt-1 inline-block">${db.envType}</span>
+                        </td>
+                        <td class="px-6 py-4 text-xs font-mono text-gray-500 truncate max-w-xs">
+                            <span class="font-bold">${db.authenticationType}</span><br>
+                            ${db.location}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <button onclick="deleteCos('${db.id}')" class="text-red-500 hover:text-red-700 transition"><i class="fas fa-trash-alt"></i></button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        async function saveCos(e) {
+            e.preventDefault();
+            const payload = {
+                cosName: document.getElementById('cosName').value,
+                department: document.getElementById('department').value,
+                envType: document.getElementById('envType').value,
+                authenticationType: document.getElementById('authenticationType').value,
+                apiKey: document.getElementById('apiKey').value,
+                serviceInstanceId: document.getElementById('serviceInstanceId').value,
+                accessKey: document.getElementById('accessKey').value,
+                secretKey: document.getElementById('secretKey').value,
+                bucketUrl: document.getElementById('bucketUrl').value,
+                location: document.getElementById('location').value,
+                bucketName: document.getElementById('bucketName').value,
+                bucketId: document.getElementById('bucketId').value
+            };
+
+            const res = await fetch('/api/cos-connections', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                document.getElementById('cosForm').reset();
+                toggleAuthFields();
+                fetchCos();
+            } else {
+                alert('Failed to save connection');
+            }
+        }
+
+        async function deleteCos(id) {
+            if(confirm("Are you sure you want to delete this COS endpoint?")) {
+                await fetch('/api/cos-connections/' + id, {method: 'DELETE'});
+                fetchCos();
+            }
+        }
+    </script>
+</body>
+</html>

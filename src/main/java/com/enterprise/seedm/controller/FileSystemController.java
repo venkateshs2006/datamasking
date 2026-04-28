@@ -1,7 +1,9 @@
 package com.enterprise.seedm.controller;
 
 import com.enterprise.seedm.model.DbConnection;
+import com.enterprise.seedm.model.CosConnection;
 import com.enterprise.seedm.service.DbConnectionService;
+import com.enterprise.seedm.service.CosConnectionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -32,31 +34,56 @@ public class FileSystemController {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final DbConnectionService dbConnectionService;
+    private final CosConnectionService cosConnectionService;
 
     @PostMapping("/scan")
     public ResponseEntity<?> scanDirectory(@RequestBody Map<String, Object> request) {
         String dirPath = (String) request.get("path");
         Object idObj = request.get("id");
-        Long id = null;
+        Object cosIdObj = request.get("cosId");
         
+        Long id = null;
         if (idObj != null) {
-            if (idObj instanceof Integer) {
-                id = ((Integer) idObj).longValue();
-            } else if (idObj instanceof Long) {
-                id = (Long) idObj;
-            } else if (idObj instanceof String) {
-                try {
-                    id = Long.parseLong((String) idObj);
-                } catch (NumberFormatException e) {
-                    // Ignore
-                }
+            if (idObj instanceof Integer) id = ((Integer) idObj).longValue();
+            else if (idObj instanceof Long) id = (Long) idObj;
+            else if (idObj instanceof String) {
+                try { id = Long.parseLong((String) idObj); } catch (Exception e) {}
             }
         }
         
+        Long cosId = null;
+        if (cosIdObj != null) {
+            if (cosIdObj instanceof Integer) cosId = ((Integer) cosIdObj).longValue();
+            else if (cosIdObj instanceof Long) cosId = (Long) cosIdObj;
+            else if (cosIdObj instanceof String) {
+                try { cosId = Long.parseLong((String) cosIdObj); } catch (Exception e) {}
+            }
+        }
+
+        // Mock COS logic since actual IBM COS SDK is out of scope
+        if (cosId != null) {
+            CosConnection conn = cosConnectionService.getConnection(cosId);
+            if (conn == null) return ResponseEntity.badRequest().body(Map.of("error", "COS Connection not found"));
+            
+            // Mocking sample keys that would be found in a COS bucket JSON file
+            Set<String> mockedKeys = Set.of("customer.id", "customer.name", "customer.email", "customer.phone", "customer.address.city", "transaction.amount", "transaction.date");
+            
+            return ResponseEntity.ok(Map.of(
+                    "status", "SUCCESS",
+                    "path", "cos://" + conn.getBucketName(),
+                    "fileCount", 5, // Mock 5 files found in bucket
+                    "sampleKeys", new ArrayList<>(mockedKeys)
+            ));
+        }
+
         if (id != null) {
             DbConnection conn = dbConnectionService.getConnection(id);
             if (conn != null) {
-                dirPath = conn.getUrl();
+                if ("json".equalsIgnoreCase(conn.getDbType())) {
+                    dirPath = conn.getUrl();
+                } else {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Connection type is not json. Cannot scan directory for a database connection."));
+                }
             }
         }
 

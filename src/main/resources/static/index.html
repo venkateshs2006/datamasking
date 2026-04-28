@@ -52,13 +52,19 @@
         .close:hover, .close:focus { color: #0f172a; text-decoration: none; }
         .error-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 500px; display: inline-block; vertical-align: middle; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
         .error-full { display: none; white-space: pre-wrap; word-break: break-word; margin-top: 12px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; color: #475569; }
+
+        /* Hide some nav links for approvers */
+        body.role-approver .nav-scheduler-only { display: none !important; }
     </style>
 </head>
 <body>
 
     <header>
         <div class="flex items-center">
-            <a href="/index.html" class="logo-link mr-6">
+            <a href="/index.html" class="logo-link mr-6 nav-scheduler-only">
+                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+            </a>
+            <a href="/jobs.html" class="logo-link mr-6" style="display: none;" id="approverLogoLink">
                 <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
             </a>
             <div class="hidden md:block border-l border-gray-300 pl-6">
@@ -68,7 +74,10 @@
         </div>
         <nav>
             <ul>
-                <li><a href="/select-db.html"><i class="fas fa-plus mr-1.5"></i> New Migration</a></li>
+                <li class="nav-scheduler-only"><a href="/select-db.html"><i class="fas fa-plus mr-1.5"></i> New Migration</a></li>
+                <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
+                <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
                 <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
             </ul>
         </nav>
@@ -242,7 +251,15 @@
     <script>
         // Authentication Check
         fetch('/api/auth/check').then(r => r.json()).then(data => {
-            if(!data.authenticated) window.location.href = '/login.html';
+            if(!data.authenticated) {
+                window.location.href = '/login.html';
+            } else if (data.role === 'APPROVER') {
+                document.body.classList.add('role-approver');
+                document.getElementById('approverLogoLink').style.display = 'block';
+            } else if (data.role === 'ADMIN') {
+                document.getElementById('adminDbLink').style.display = 'block';
+                document.getElementById('adminCosLink').style.display = 'block';
+            }
         });
 
         async function logout() {

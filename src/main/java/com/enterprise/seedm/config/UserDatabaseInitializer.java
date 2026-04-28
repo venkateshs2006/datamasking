@@ -1,7 +1,9 @@
 package com.enterprise.seedm.config;
 
 import com.enterprise.seedm.model.AppUser;
+import com.enterprise.seedm.model.CosConnection;
 import com.enterprise.seedm.model.DbConnection;
+import com.enterprise.seedm.repository.CosConnectionRepository;
 import com.enterprise.seedm.repository.DbConnectionRepository;
 import com.enterprise.seedm.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
@@ -14,6 +16,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
+import java.util.Date;
 import java.util.Set;
 
 @Component
@@ -23,6 +26,7 @@ public class UserDatabaseInitializer {
 
     private final UserRepository userRepository;
     private final DbConnectionRepository dbConnectionRepository;
+    private final CosConnectionRepository cosConnectionRepository;
     private final DataSource dataSource;
 
     @PostConstruct
@@ -126,6 +130,13 @@ public class UserDatabaseInitializer {
                 
                 log.info("Successfully populated sample database connections.");
             }
+
+            if (cosConnectionRepository.count() == 0) {
+                cosConnectionRepository.save(new CosConnection(null, "Finance Prod Bucket", "us-south", "dummy-api-key", "crn:v1:bluemix:public:cloud-object-storage:global:a/12345:12345::", "dummy-access", "dummy-secret", "https://s3.us-south.cloud-object-storage.appdomain.cloud", "bucket-123", "fin-prod-data", "IAM", "Finance", "source", "admin", System.currentTimeMillis()));
+                cosConnectionRepository.save(new CosConnection(null, "Finance QA Bucket", "us-south", "dummy-api-key", "crn:v1:bluemix:public:cloud-object-storage:global:a/12345:67890::", "dummy-access", "dummy-secret", "https://s3.us-south.cloud-object-storage.appdomain.cloud", "bucket-456", "fin-qa-data", "IAM", "Finance", "destination", "admin", System.currentTimeMillis()));
+                log.info("Successfully populated sample COS connections.");
+            }
+
         } catch (Exception e) {
             log.error("Failed to initialize user database", e);
         }
