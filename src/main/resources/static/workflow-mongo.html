@@ -72,251 +72,330 @@
         .btn-primary:hover:not(:disabled) { background-color: #007a4c; box-shadow: 0 4px 6px rgba(0, 150, 94, 0.2); transform: translateY(-1px); }
         .btn-secondary { background-color: #fff; color: #475569; border: 1px solid #cbd5e1; }
         .btn-secondary:hover:not(:disabled) { background-color: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
+        .btn-success { background-color: #10b981; color: white; border: 1px solid transparent; }
+        .btn-success:hover:not(:disabled) { background-color: #059669; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2); transform: translateY(-1px); }
 
         .list-container { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; overflow: hidden; display: flex; flex-direction: column; }
         .list-item { padding: 0.6rem 0.875rem; border-radius: 6px; font-size: 0.875rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; transition: all 0.15s; border: 1px solid transparent; }
         .list-item:hover { background-color: #f8fafc; border-color: #e2e8f0; }
-        .list-item.selected { background-color: rgba(0, 150, 94, 0.05); color: var(--bnp-emerald); font-weight: 600; border-color: rgba(0, 150, 94, 0.2); box-shadow: inset 3px 0 0 var(--bnp-emerald); }
+        .list-item.selected { background-color: rgba(0,150,94,0.05); color: var(--bnp-emerald); font-weight: 600; border-color: rgba(0,150,94,0.2); box-shadow: inset 3px 0 0 var(--bnp-emerald); }
+
+        .rule-btn { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; transition: all 0.2s; border: 1px solid transparent; }
+        .rule-btn-std { color: var(--bnp-emerald); background: rgba(0,150,94,0.05); border-color: rgba(0,150,94,0.2); }
+        .rule-btn-std:hover { background: rgba(0,150,94,0.1); }
+        .rule-btn-prt { color: #ea580c; background: #fff7ed; border-color: #fed7aa; }
+        .rule-btn-prt:hover { background: #ffedd5; }
+        .rule-btn-enc { color: #7c3aed; background: #faf5ff; border-color: #e9d5ff; }
+        .rule-btn-enc:hover { background: #f3e8ff; }
     </style>
 </head>
-<body class="h-screen flex flex-col">
+<body>
 
-<!-- Top Navigation -->
-<header>
-    <div class="flex items-center">
-        <a href="/index.html" class="logo-link mr-6">
-            <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
-        </a>
-        <div class="hidden md:block border-l border-gray-300 pl-6">
-            <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
-            <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">MongoDB Migration</p>
+    <header>
+        <div class="flex items-center">
+            <a href="/index.html" class="logo-link mr-6">
+                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+            </a>
+            <div class="hidden md:block border-l border-gray-300 pl-6">
+                <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
+                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">MongoDB Migration</p>
+            </div>
         </div>
-    </div>
-    <nav>
-        <ul>
-            <li><a href="/select-db.html"><i class="fas fa-arrow-left mr-1.5"></i> Back to Hub</a></li>
-            <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
-        </ul>
-    </nav>
-</header>
+        <nav>
+            <ul>
+                <li><a href="/select-db.html"><i class="fas fa-arrow-left mr-1.5"></i> Back to Hub</a></li>
+                <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
+            </ul>
+        </nav>
+    </header>
 
-<main class="flex-1 flex flex-col overflow-hidden bg-transparent">
-    <div class="w-full max-w-6xl mx-auto px-6 py-8 flex flex-col h-full">
+    <main class="flex-1 flex flex-col overflow-hidden bg-transparent">
+        <div class="w-full max-w-6xl mx-auto px-6 py-8 flex flex-col h-full">
 
-        <div class="mb-8 shrink-0 text-center">
-            <h2 class="text-3xl font-bold text-gray-900">Configure NoSQL Migration</h2>
-            <p class="text-sm text-gray-500 mt-2">Connect to MongoDB clusters, map collections, and apply masking rules.</p>
-        </div>
+            <div class="mb-8 shrink-0 text-center">
+                <h2 class="text-3xl font-bold text-gray-900">Configure NoSQL Migration</h2>
+                <p class="text-sm text-gray-500 mt-2">Connect to MongoDB clusters, map collections, and apply masking rules.</p>
+            </div>
 
-        <!-- Stepper -->
-        <div class="flex items-start mb-8 px-4 w-[80%] mx-auto shrink-0">
-            <div class="stepper-item active" id="step1-indicator"><div class="stepper-circle"><i class="fas fa-plug text-sm"></i></div><div class="stepper-label">Connection</div></div>
-            <div class="stepper-item" id="step2-indicator"><div class="stepper-circle"><i class="fas fa-layer-group text-sm"></i></div><div class="stepper-label">Collections</div></div>
-            <div class="stepper-item" id="step3-indicator"><div class="stepper-circle"><i class="fas fa-mask text-sm"></i></div><div class="stepper-label">Rules</div></div>
-            <div class="stepper-item" id="step4-indicator"><div class="stepper-circle"><i class="fas fa-flag-checkered text-sm"></i></div><div class="stepper-label">Review</div></div>
-        </div>
+            <!-- Stepper -->
+            <div class="flex items-start mb-8 px-4 w-[80%] mx-auto shrink-0">
+                <div class="stepper-item active" id="step1-indicator"><div class="stepper-circle"><i class="fas fa-plug text-sm"></i></div><div class="stepper-label">Connection</div></div>
+                <div class="stepper-item" id="step2-indicator"><div class="stepper-circle"><i class="fas fa-layer-group text-sm"></i></div><div class="stepper-label">Collections</div></div>
+                <div class="stepper-item" id="step3-indicator"><div class="stepper-circle"><i class="fas fa-mask text-sm"></i></div><div class="stepper-label">Rules</div></div>
+                <div class="stepper-item" id="step4-indicator"><div class="stepper-circle"><i class="fas fa-flag-checkered text-sm"></i></div><div class="stepper-label">Review</div></div>
+            </div>
 
-        <!-- Main Card -->
-        <div class="card flex-1 flex flex-col overflow-hidden relative shadow-md bg-white rounded-xl">
+            <!-- Main Card -->
+            <div class="card flex-1 flex flex-col overflow-hidden relative shadow-md bg-white rounded-xl">
 
-            <!-- STEP 1: CONNECTIONS -->
-            <div id="step1" class="step-container active p-8">
-                <div class="flex flex-col md:flex-row flex-1 gap-12 relative h-full">
-                    <!-- Source Form -->
-                    <div class="flex-1 flex flex-col">
-                        <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
-                            <div class="w-10 h-10 rounded-lg bg-bnp-emerald/10 flex items-center justify-center text-bnp-emerald mr-4 border border-bnp-emerald/20"><i class="fas fa-database text-lg"></i></div>
-                            <div>
-                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Source Cluster</h3>
-                                <p class="text-xs text-gray-500">MongoDB to read data from</p>
+                <!-- STEP 1: CONNECTIONS -->
+                <div id="step1" class="step-container active p-8">
+                    <div class="flex flex-col md:flex-row flex-1 gap-12 relative h-full">
+                        <!-- Source Form -->
+                        <div class="flex-1 flex flex-col">
+                            <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
+                                <div class="w-10 h-10 rounded-lg bg-bnp-emerald/10 flex items-center justify-center text-bnp-emerald mr-4 border border-bnp-emerald/20"><i class="fas fa-database text-lg"></i></div>
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-800 leading-tight">Source Cluster</h3>
+                                    <p class="text-xs text-gray-500">MongoDB to read data from</p>
+                                </div>
                             </div>
+                            <form id="sourceForm" class="space-y-5 flex-1 flex flex-col">
+                                <input type="hidden" name="type" value="source">
+                                <div>
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Connection Endpoint</label>
+                                    <select name="id" id="sourceId" class="input-field cursor-pointer bg-white" required onchange="validateStep1()">
+                                        <option value="">Loading connections...</option>
+                                    </select>
+                                </div>
+                                <div class="mt-auto pt-6 border-t border-gray-50">
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
+                                        Target Database
+                                        <button type="button" id="btnFetchSrc" onclick="fetchSchemas('source')" class="text-xs text-bnp-emerald hover:text-[#007a4c] normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch Databases</button>
+                                    </label>
+                                    <select name="schema" id="sourceSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
+                                        <option value="">Fetch databases first...</option>
+                                    </select>
+                                </div>
+                            </form>
                         </div>
-                        <form id="sourceForm" class="space-y-5 flex-1 flex flex-col">
-                            <input type="hidden" name="type" value="source">
-                            <div>
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Connection Endpoint</label>
-                                <select name="id" id="sourceId" class="input-field cursor-pointer bg-white" required onchange="validateStep1()">
-                                    <option value="">Loading connections...</option>
-                                </select>
+
+                        <!-- Divider -->
+                        <div class="hidden md:block absolute left-1/2 top-4 bottom-4 w-px bg-gray-200 transform -translate-x-1/2"></div>
+
+                        <!-- Destination Form -->
+                        <div class="flex-1 flex flex-col pl-2">
+                            <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
+                                <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 mr-4 border border-emerald-100"><i class="fas fa-server text-lg"></i></div>
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-800 leading-tight">Destination Cluster</h3>
+                                    <p class="text-xs text-gray-500">MongoDB to write masked data to</p>
+                                </div>
                             </div>
-                            <div class="mt-auto pt-6 border-t border-gray-50">
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
-                                    Target Database
-                                    <button type="button" id="btnFetchSrc" onclick="fetchSchemas('source')" class="text-xs text-bnp-emerald hover:text-[#007a4c] normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch Databases</button>
-                                </label>
-                                <select name="schema" id="sourceSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
-                                    <option value="">Select connection and fetch databases...</option>
-                                </select>
-                            </div>
-                        </form>
+                            <form id="destForm" class="space-y-5 flex-1 flex flex-col">
+                                <input type="hidden" name="type" value="destination">
+                                <div>
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Connection Endpoint</label>
+                                    <select name="id" id="destId" class="input-field cursor-pointer bg-white" required onchange="validateStep1()">
+                                        <option value="">Loading connections...</option>
+                                    </select>
+                                </div>
+                                <div class="mt-auto pt-6 border-t border-gray-50">
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
+                                        Target Database
+                                        <div class="flex space-x-3">
+                                            <button type="button" id="btnCreateSchema" onclick="createDestSchema()" class="text-xs text-blue-600 hover:text-blue-800 normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-plus mr-1"></i>Create</button>
+                                            <button type="button" id="btnFetchDest" onclick="fetchSchemas('dest')" class="text-xs text-emerald-600 hover:text-emerald-800 normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch Databases</button>
+                                        </div>
+                                    </label>
+                                    <select name="schema" id="destSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
+                                        <option value="">Select connection and fetch databases...</option>
+                                    </select>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 2: COLLECTIONS -->
+                <div id="step2" class="step-container p-8 flex flex-col">
+                    <div class="mb-6 flex justify-between items-end">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800">Select Collections</h3>
+                            <p class="text-sm text-gray-500 mt-1">Move collections from left to right to include them in the job.</p>
+                        </div>
+                        <button onclick="selectAllTables()" class="text-sm font-semibold text-bnp-emerald hover:text-[#007a4c] transition flex items-center bg-bnp-emerald/10 px-3 py-1.5 rounded-lg border border-bnp-emerald/20 shadow-sm hover:shadow">
+                            <i class="fas fa-check-double mr-2"></i> Select All
+                        </button>
                     </div>
 
-                    <!-- Divider -->
-                    <div class="hidden md:block absolute left-1/2 top-4 bottom-4 w-px bg-gray-200 transform -translate-x-1/2"></div>
+                    <div class="flex flex-1 gap-8 min-h-0 bg-gray-50/50 p-4 rounded-xl border border-gray-200">
+                        <!-- Available -->
+                        <div class="list-container flex-1 bg-white shadow-sm border-gray-200 flex flex-col h-full overflow-hidden">
+                            <div class="list-header bg-white border-b border-gray-100 py-3 shrink-0">
+                                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Available Source Collections</span>
+                            </div>
+                            <div id="availableTables" class="list-body p-3 space-y-1 overflow-y-auto flex-1"></div>
+                        </div>
 
-                    <!-- Destination Form -->
-                    <div class="flex-1 flex flex-col pl-2">
-                        <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
-                            <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 mr-4 border border-emerald-100"><i class="fas fa-server text-lg"></i></div>
-                            <div>
-                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Destination Cluster</h3>
-                                <p class="text-xs text-gray-500">MongoDB to write masked data to</p>
+                        <div class="flex items-center justify-center shrink-0">
+                            <div class="w-10 h-10 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-400">
+                                <i class="fas fa-arrow-right"></i>
                             </div>
                         </div>
-                        <form id="destForm" class="space-y-5 flex-1 flex flex-col">
-                            <input type="hidden" name="type" value="destination">
-                            <div>
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Connection Endpoint</label>
-                                <select name="id" id="destId" class="input-field cursor-pointer bg-white" required onchange="validateStep1()">
-                                    <option value="">Loading connections...</option>
-                                </select>
+
+                        <!-- Selected -->
+                        <div class="list-container flex-1 border-bnp-emerald/30 bg-bnp-emerald/5 shadow-sm flex flex-col h-full overflow-hidden">
+                            <div class="list-header bg-white border-b border-bnp-emerald/20 py-3 shrink-0">
+                                <span class="text-xs font-bold text-bnp-emerald uppercase tracking-wider">Selected (<span id="selectedTableCount">0</span>)</span>
                             </div>
-                            <div class="mt-auto pt-6 border-t border-gray-50">
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
-                                    Target Database
-                                    <div class="flex space-x-3">
-                                        <button type="button" id="btnCreateSchema" onclick="createDestSchema()" class="text-xs text-blue-600 hover:text-blue-800 normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-plus mr-1"></i>Create</button>
-                                        <button type="button" id="btnFetchDest" onclick="fetchSchemas('dest')" class="text-xs text-emerald-600 hover:text-emerald-800 normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch Databases</button>
+                            <div id="selectedTablesList" class="list-body p-3 space-y-1 overflow-y-auto flex-1"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 3: RULES -->
+                <div id="step3" class="step-container p-8 flex flex-col">
+                    <div class="flex justify-between items-start mb-6 shrink-0">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800">Assign Masking Rules</h3>
+                            <p class="text-sm text-gray-500 mt-1">Configure how sensitive fields should be transformed.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-1 gap-6 min-h-0">
+                        <!-- Tables List -->
+                        <div class="list-container w-1/4 bg-white shadow-sm border-gray-200 flex flex-col overflow-hidden">
+                            <div class="list-header bg-gray-50 py-3 shrink-0"><span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Collections</span></div>
+                            <div id="ruleTablesList" class="list-body p-2 overflow-y-auto flex-1"></div>
+                        </div>
+
+                        <!-- Columns List -->
+                        <div class="list-container w-1/3 bg-white shadow-sm border-gray-200 flex flex-col overflow-hidden">
+                            <div class="list-header bg-gray-50 py-3 flex justify-between shrink-0">
+                                <span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Fields</span>
+                                <span id="activeTableName" class="text-[10px] font-mono text-bnp-emerald bg-bnp-emerald/10 px-2 py-0.5 rounded border border-bnp-emerald/20 hidden"></span>
+                            </div>
+                            <div id="ruleColumnsList" class="list-body p-2 overflow-y-auto flex-1 relative">
+                                <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 text-sm bg-white z-10" id="columnsPlaceholder">
+                                    <i class="fas fa-arrow-left text-2xl mb-2 opacity-50"></i>
+                                    Select a collection to view fields
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Applied Rules Overview -->
+                        <div class="list-container flex-1 bg-gray-50 border-gray-200 shadow-inner flex flex-col overflow-hidden">
+                            <div class="list-header bg-gray-100 py-3 border-b border-gray-200 shrink-0">
+                                <span class="text-xs font-bold text-gray-700 uppercase tracking-wider">Active Rules Overview</span>
+                            </div>
+                            <div class="p-5 space-y-5 flex-1 overflow-y-auto relative">
+                                <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 text-sm bg-gray-50 z-10 hidden" id="rulesPlaceholder">
+                                    <i class="fas fa-info-circle text-2xl mb-2 opacity-50"></i>
+                                    Select a collection to view its rules
+                                </div>
+                                <!-- Standard -->
+                                <div>
+                                    <h5 class="text-[10px] font-bold text-bnp-emerald uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-bnp-emerald/10 flex items-center justify-center mr-1.5"><i class="fas fa-mask"></i></div> SFD (STANDARD FAKER DATA)</h5>
+                                    <div id="tags-masking" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-bnp-emerald/40 shadow-sm"></div>
+                                </div>
+                                <!-- Partial -->
+                                <div>
+                                    <h5 class="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-orange-100 flex items-center justify-center mr-1.5"><i class="fas fa-eye-slash"></i></div> PMD (Partial masking DATA)</h5>
+                                    <div id="tags-partial" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-orange-200 shadow-sm"></div>
+                                </div>
+                                <!-- Encrypt -->
+                                <div>
+                                    <h5 class="text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-purple-100 flex items-center justify-center mr-1.5"><i class="fas fa-key"></i></div> FPH (Format Perserving Hashing(keep Last 4))</h5>
+                                    <div id="tags-constraint" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-purple-200 shadow-sm"></div>
+                                </div>
+
+                                <!-- New FPH Key Container -->
+                                <div class="mt-4 p-4 bg-white border border-gray-200 rounded-lg shadow-sm" id="fphKeyContainer" style="display: none;">
+                                    <label class="text-[10px] font-bold text-purple-800 uppercase tracking-wider mb-2 flex items-center">
+                                        <i class="fas fa-key mr-1.5"></i> FPH Encryption Key Configuration
+                                    </label>
+
+                                    <div class="mb-3 flex items-center">
+                                        <input type="checkbox" id="autoGenerateKey" class="mr-2 cursor-pointer" onchange="toggleAutoGenerateKey()" checked>
+                                        <label for="autoGenerateKey" class="text-xs text-gray-600 cursor-pointer font-semibold">Generate 16-character salt key automatically</label>
                                     </div>
-                                </label>
-                                <select name="schema" id="destSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
-                                    <option value="">Select connection and fetch databases...</option>
-                                </select>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
 
-            <!-- STEP 2: COLLECTIONS -->
-            <div id="step2" class="step-container p-6 flex flex-col">
-                <div class="mb-4 shrink-0">
-                    <h3 class="text-lg font-semibold text-gray-800">Select Collections</h3>
-                    <p class="text-sm text-gray-500">Move collections from left to right to include them in the job.</p>
-                </div>
-
-                <div class="flex flex-1 gap-6 min-h-0">
-                    <!-- Available -->
-                    <div class="list-container w-1/2">
-                        <div class="list-header bg-gray-50 px-4 py-3 flex justify-between items-center border-b">
-                            <span class="text-xs font-bold text-gray-600 uppercase">Available Source Collections</span>
-                            <button onclick="selectAllTables()" class="text-xs text-bnp-emerald hover:underline font-medium">Select All</button>
-                        </div>
-                        <div class="list-body p-2" id="availableTables">
-                            <div class="p-8 text-center text-gray-400 text-sm"><i class="fas fa-circle-notch fa-spin mb-2 text-xl"></i><br>Loading collections...</div>
-                        </div>
-                    </div>
-
-                    <!-- Selected -->
-                    <div class="list-container w-1/2 border-bnp-emerald/30">
-                        <div class="list-header bg-bnp-emerald/10 text-bnp-emerald px-4 py-3 flex justify-between items-center border-b border-bnp-emerald/20">
-                            <span class="text-xs font-bold uppercase">Selected for Migration</span>
-                            <span class="bg-white text-bnp-emerald px-2 py-0.5 rounded text-xs border border-bnp-emerald/30" id="selectedTableCount">0</span>
-                        </div>
-                        <div class="list-body bg-gray-50/50 p-2" id="selectedTablesList">
-                            <div class="flex flex-col items-center justify-center h-full text-gray-400 text-sm">
-                                <i class="fas fa-arrow-right text-3xl mb-3 text-gray-300"></i>
-                                <p>Select collections to migrate</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- STEP 3: RULES -->
-            <div id="step3" class="step-container p-6 flex flex-col">
-                <div class="flex justify-between items-center mb-4 shrink-0">
-                    <h3 class="font-bold text-gray-800">Assign Masking Rules</h3>
-                </div>
-                <div class="flex flex-1 gap-4 min-h-0">
-                    <div class="list-container w-1/4">
-                        <div class="bg-gray-50 p-2 border-b text-xs font-bold">COLLECTIONS</div>
-                        <div id="ruleTablesList" class="list-body p-1 overflow-y-auto"></div>
-                    </div>
-                    <div class="list-container w-1/3">
-                        <div class="bg-gray-50 p-2 border-b text-xs font-bold">FIELDS <span id="activeTableName" class="ml-2 text-bnp-emerald"></span></div>
-                        <div id="ruleColumnsList" class="list-body p-1 overflow-y-auto"></div>
-                    </div>
-                    <div class="list-container w-5/12 bg-gray-50/30 p-4 border-none">
-                        <h4 class="text-xs font-bold text-gray-500 mb-4">APPLIED RULES</h4>
-                        <div class="space-y-3 overflow-y-auto">
-                            <div class="bg-white p-3 rounded border border-bnp-emerald/20"><h5 class="text-[10px] font-bold text-bnp-emerald mb-2 uppercase">SFD (STANDARD FAKER DATA)</h5><div id="tags-masking" class="flex flex-wrap gap-1"></div></div>
-                            <div class="bg-white p-3 rounded border border-orange-100"><h5 class="text-[10px] font-bold text-orange-600 mb-2 uppercase">PMD (Partial masking DATA)</h5><div id="tags-partial" class="flex flex-wrap gap-1"></div></div>
-                            <div class="bg-white p-3 rounded border border-purple-100"><h5 class="text-[10px] font-bold text-purple-600 mb-2 uppercase">FPH (Format Perserving Hashing(keep Last 4))</h5><div id="tags-constraint" class="flex flex-wrap gap-1"></div></div>
-
-                            <!-- New FPH Key Container -->
-                            <div class="mt-4 p-4 bg-white border border-gray-200 rounded-lg shadow-sm" id="fphKeyContainer" style="display: none;">
-                                <label class="text-[10px] font-bold text-purple-800 uppercase tracking-wider mb-2 flex items-center">
-                                    <i class="fas fa-key mr-1.5"></i> FPH Encryption Key Configuration
-                                </label>
-
-                                <div class="mb-3 flex items-center">
-                                    <input type="checkbox" id="autoGenerateKey" class="mr-2 cursor-pointer" onchange="toggleAutoGenerateKey()" checked>
-                                    <label for="autoGenerateKey" class="text-xs text-gray-600 cursor-pointer font-semibold">Generate 16-character salt key automatically</label>
+                                    <div class="flex shadow-sm rounded" id="keyInputsWrapper">
+                                        <input type="text" id="saltPrefix" class="w-full p-2 text-sm font-mono border border-purple-200 bg-purple-50 text-purple-800 rounded focus:outline-none cursor-not-allowed text-center tracking-widest" readonly title="Generated by backend">
+                                        <input type="text" id="userSalt" class="w-1/2 p-2 text-sm font-mono border border-purple-200 rounded-r focus:border-purple-500 focus:ring-purple-200 outline-none transition text-center tracking-widest" placeholder="Enter 8 chars" maxlength="8" oninput="validateStep3()" style="display: none;">
+                                    </div>
+                                    <p class="text-[10px] text-gray-400 mt-2" id="keyHintText">Full 16-character salt key is auto-generated by the backend.</p>
                                 </div>
-
-                                <div class="flex shadow-sm rounded" id="keyInputsWrapper">
-                                    <input type="text" id="saltPrefix" class="w-full p-2 text-sm font-mono border border-purple-200 bg-purple-50 text-purple-800 rounded focus:outline-none cursor-not-allowed text-center tracking-widest" readonly title="Generated by backend">
-                                    <input type="text" id="userSalt" class="w-1/2 p-2 text-sm font-mono border border-purple-200 rounded-r focus:border-purple-500 focus:ring-purple-200 outline-none transition text-center tracking-widest" placeholder="Enter 8 chars" maxlength="8" oninput="validateStep3()" style="display: none;">
-                                </div>
-                                <p class="text-[10px] text-gray-400 mt-2" id="keyHintText">Full 16-character salt key is auto-generated by the backend.</p>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- STEP 4: PREVIEW -->
-            <div id="step4" class="step-container p-8 overflow-y-auto">
-                <div class="text-center mb-8 shrink-0">
-                    <div class="w-16 h-16 bg-bnp-emerald/10 text-bnp-emerald rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-bnp-emerald/5">
-                        <i class="fas fa-check"></i>
+                <!-- STEP 4: PREVIEW -->
+                <div id="step4" class="step-container p-8 overflow-y-auto">
+                    <div class="max-w-4xl mx-auto w-full flex flex-col h-full">
+                        <div class="text-center mb-8 shrink-0">
+                            <div class="w-16 h-16 bg-bnp-emerald/10 text-bnp-emerald rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-bnp-emerald/5">
+                                <i class="fas fa-check"></i>
+                            </div>
+                            <h3 class="text-2xl font-bold text-gray-900">Ready to Submit</h3>
+                            <p class="text-sm text-gray-500 mt-2">Review your configuration summary before submitting for approval.</p>
+                        </div>
+
+                        <div class="mb-6 max-w-lg mx-auto">
+                            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Migration Name</label>
+                            <input type="text" id="migrationName" class="input-field" placeholder="e.g. Q3 Mongo Sync" required>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 shrink-0">
+                            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                                <div class="absolute top-0 right-0 p-4 opacity-5 text-4xl"><i class="fas fa-network-wired"></i></div>
+                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">Environment Targets</h4>
+                                <div class="space-y-4">
+                                    <div>
+                                        <span class="text-[10px] font-bold text-bnp-emerald uppercase flex items-center"><i class="fas fa-database mr-1.5"></i> Source</span>
+                                        <div id="previewSrc" class="text-xs font-mono text-gray-700 mt-1 truncate" title=""></div>
+                                    </div>
+                                    <div>
+                                        <span class="text-[10px] font-bold text-emerald-600 uppercase flex items-center"><i class="fas fa-server mr-1.5"></i> Destination</span>
+                                        <div id="previewDest" class="text-xs font-mono text-gray-700 mt-1 truncate" title=""></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-center gap-12 relative overflow-hidden">
+                                <div class="absolute top-0 right-0 p-4 opacity-5 text-4xl"><i class="fas fa-chart-pie"></i></div>
+                                <div class="text-center">
+                                    <span class="block text-5xl font-black text-bnp-emerald" id="previewTableCount">0</span>
+                                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2 block">Collections</span>
+                                </div>
+                                <div class="w-px h-20 bg-gray-100"></div>
+                                <div class="text-center">
+                                    <span class="block text-5xl font-black text-purple-600" id="previewRuleCount">0</span>
+                                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2 block">Rules applied</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col min-h-[300px]">
+                            <div class="bg-gray-50 px-5 py-4 border-b border-gray-200 flex justify-between items-center">
+                                <span class="text-xs font-bold text-gray-600 uppercase tracking-wider"><i class="fas fa-list-ul mr-2"></i> Migration Scope Details</span>
+                            </div>
+                            <div class="overflow-y-auto flex-1 p-0">
+                                <table class="w-full text-sm text-left">
+                                    <thead class="bg-white sticky top-0 border-b border-gray-100 shadow-sm z-10">
+                                        <tr>
+                                            <th class="p-4 pl-6 font-semibold text-gray-500 text-xs uppercase w-1/3">Collection</th>
+                                            <th class="p-4 font-semibold text-gray-500 text-xs uppercase w-2/3">Transformations</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="previewRulesTable" class="divide-y divide-gray-50"></tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-900">Ready to Submit</h3>
-                    <p class="text-sm text-gray-500 mt-2">Review your configuration summary before submitting for approval.</p>
                 </div>
 
-                <div class="mb-6 max-w-lg mx-auto">
-                    <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Migration Name</label>
-                    <input type="text" id="migrationName" class="input-field" placeholder="e.g. Q3 Mongo Sync" required>
+                <!-- Card Footer -->
+                <div class="mt-auto border-t border-gray-200 px-8 py-4 bg-gray-50 flex justify-between items-center shrink-0 rounded-b-xl z-10 relative">
+                    <button id="btnPrev" onclick="prevStep()" class="btn btn-secondary text-sm font-bold tracking-wide"><i class="fas fa-chevron-left mr-2 text-xs"></i> BACK</button>
+                    <div class="flex-1"></div>
+                    <button id="btnNext" onclick="nextStep()" class="btn btn-primary px-8 text-sm font-bold tracking-wide shadow-md hover:shadow-lg">CONTINUE <i class="fas fa-chevron-right ml-2 text-xs"></i></button>
+                    <button id="btnStart" onclick="submitWorkflow()" class="btn btn-success px-10 py-3 text-base font-bold tracking-wide shadow-lg hover:shadow-xl hidden animate-pulse bg-bnp-emerald hover:bg-[#007a4c]">
+                        SUBMIT FOR APPROVAL <i class="fas fa-paper-plane ml-2"></i>
+                    </button>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4 mb-6 shrink-0">
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <label class="text-[10px] font-bold text-gray-400 block mb-1 uppercase">Source Connection</label>
-                        <div id="previewSrc" class="text-xs font-mono break-all"></div>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <label class="text-[10px] font-bold text-gray-400 block mb-1 uppercase">Destination Connection</label>
-                        <div id="previewDest" class="text-xs font-mono break-all"></div>
-                    </div>
-                </div>
-                <div class="border rounded-lg overflow-hidden flex-1 overflow-y-auto">
-                    <table class="w-full text-sm text-left">
-                        <thead class="bg-gray-100 text-[11px] font-bold uppercase sticky top-0"><tr><th class="p-3">Collection</th><th class="p-3">Rules Applied</th></tr></thead>
-                        <tbody id="previewRulesTable" class="divide-y"></tbody>
-                    </table>
-                </div>
             </div>
-
-            <!-- Card Footer -->
-            <div class="mt-auto border-t p-4 bg-gray-50 flex justify-between items-center shrink-0 rounded-b-xl z-10 relative">
-                <button id="btnPrev" onclick="prevStep()" class="btn btn-secondary text-sm hidden">Back</button>
-                <div class="flex-1"></div>
-                <button id="btnNext" onclick="nextStep()" class="btn btn-primary text-sm shadow-md transition-all">Continue <i class="fas fa-chevron-right ml-2 text-xs"></i></button>
-                <button id="btnStart" onclick="submitWorkflow()" class="btn btn-success text-sm shadow-md hidden animate-pulse bg-bnp-emerald hover:bg-[#007a4c]">SUBMIT FOR APPROVAL <i class="fas fa-paper-plane ml-2"></i></button>
-            </div>
-
         </div>
-    </div>
-</main>
+    </main>
 
-<footer>
-    <div class="footer-content">
-        <p>© BNP Paribas - 2026</p>
-        <p class="tagline">The bank for a changing world</p>
-    </div>
-</footer>
+    <footer>
+        <div class="footer-content">
+            <p>© BNP Paribas - 2026</p>
+            <p class="tagline">The bank for a changing world</p>
+        </div>
+    </footer>
 
 <script>
     async function loadRandomSalt() {
@@ -452,7 +531,8 @@
 
     function validateStep2() {
         const btnNext = document.getElementById('btnNext');
-        btnNext.disabled = state.selectedTables.length === 0;
+        const valid = state.selectedTables.length > 0;
+        btnNext.disabled = !valid;
     }
 
     function validateStep3() {
@@ -482,6 +562,7 @@
         document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active'));
         document.getElementById(`step${currentStep}`).classList.add('active');
 
+        // Stepper
         for(let i=1; i<=totalSteps; i++) {
             const el = document.getElementById(`step${i}-indicator`);
             if(el) {
@@ -498,7 +579,7 @@
             }
         }
 
-        document.getElementById('btnPrev').style.display = currentStep > 1 ? 'inline-flex' : 'none';
+        document.getElementById('btnPrev').style.visibility = currentStep > 1 ? 'visible' : 'hidden';
         document.getElementById('btnNext').classList.toggle('hidden', currentStep === totalSteps);
         document.getElementById('btnStart').classList.toggle('hidden', currentStep !== totalSteps);
 
@@ -516,11 +597,12 @@
             btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Connecting...';
             btn.disabled = true;
             try {
-                // Wait briefly for simulation
-                await new Promise(r => setTimeout(r, 500));
-
-                // Set dummy collections since we don't connect from UI anymore directly
-                state.tables = ['users_collection', 'orders_collection', 'products_collection', 'sessions_log'];
+                const sourceId = document.getElementById('sourceId').value;
+                const sourceSchema = document.getElementById('sourceSchema').value;
+                const res = await fetch(`/api/mongo/collections?connectionId=${sourceId}&database=${sourceSchema}`);
+                if (!res.ok) throw new Error('Failed to fetch collections');
+                const data = await res.json();
+                state.tables = data;
                 renderAvailableTables();
             } catch (e) {
                 alert("Connection failed.");
@@ -539,18 +621,22 @@
 
     function prevStep() { if (currentStep > 1) { currentStep--; updateUI(); } }
 
+    // --- STEP LOGIC ---
+
     async function fetchSchemas(type) {
         const formId = type === 'source' ? 'sourceForm' : 'destForm';
         const selectId = type === 'source' ? 'sourceSchema' : 'destSchema';
         const form = document.getElementById(formId);
         const select = document.getElementById(selectId);
+        const connectionId = form.id.value;
+
+        if (!connectionId) return;
 
         select.innerHTML = '<option value="">Loading...</option>';
         try {
-            // Note: Since this is NoSQL simulation, just populate some DBs
-            await new Promise(r => setTimeout(r, 500));
-            const schemas = ['admin', 'local', 'application_db', 'analytics_db'];
-
+            const res = await fetch(`/api/mongo/databases?connectionId=${connectionId}`);
+            if (!res.ok) throw new Error('Failed to fetch databases');
+            const schemas = await res.json();
             select.innerHTML = '<option value="">Select Database</option>';
             schemas.forEach(s => select.add(new Option(s, s)));
             select.disabled = false;
@@ -572,8 +658,8 @@
 
         filtered.forEach(t => {
             const d = document.createElement('div');
-            d.className = 'list-item border px-2 py-1 mb-1 rounded hover:bg-gray-50';
-            d.innerHTML = `<span><i class="fas fa-file-alt text-gray-400 mr-2"></i>${t}</span><i class="fas fa-plus text-gray-300"></i>`;
+            d.className = 'list-item bg-white border border-gray-200 hover:border-bnp-emerald/40 shadow-sm text-gray-700 font-medium group';
+            d.innerHTML = `<span>${t}</span><div class="w-6 h-6 rounded bg-gray-50 flex items-center justify-center group-hover:bg-bnp-emerald/10 transition"><i class="fas fa-plus text-[10px] text-gray-400 group-hover:text-bnp-emerald"></i></div>`;
             d.onclick = () => { state.selectedTables.push(t); renderAvailableTables(); renderSelectedTables(); validateStep2(); };
             container.appendChild(d);
         });
@@ -591,9 +677,9 @@
 
         state.selectedTables.forEach(t => {
             const d = document.createElement('div');
-            d.className = 'list-item border border-bnp-emerald/20 bg-bnp-emerald/10 px-2 py-1 mb-1 rounded';
-            d.innerHTML = `<span><i class="fas fa-file-alt text-bnp-emerald mr-2"></i>${t}</span><i class="fas fa-times text-bnp-emerald/60"></i>`;
-            d.onclick = () => { state.selectedTables = state.selectedTables.filter(x => x !== t); renderAvailableTables(); renderSelectedTables(); validateStep2(); };
+            d.className = 'list-item bg-bnp-emerald/10 border border-bnp-emerald/20 text-bnp-emerald font-semibold shadow-sm group';
+            d.innerHTML = `<span>${t}</span><button class="w-6 h-6 rounded hover:bg-red-100 flex items-center justify-center transition"><i class="fas fa-times text-[10px] text-bnp-emerald/50 hover:text-red-500"></i></button>`;
+            d.querySelector('button').onclick = (e) => { e.stopPropagation(); state.selectedTables = state.selectedTables.filter(x => x !== t); renderAvailableTables(); renderSelectedTables(); validateStep2(); };
             container.appendChild(d);
         });
     }
@@ -608,7 +694,7 @@
         state.selectedTables.forEach(t => {
             const d = document.createElement('div');
             d.className = 'list-item border-b rounded-none px-3 py-2';
-            d.innerHTML = `<span>${t}</span><i class="fas fa-chevron-right text-gray-200"></i>`;
+            d.innerHTML = `<span class="font-medium text-gray-700">${t}</span><i class="fas fa-chevron-right text-[10px] text-gray-300"></i>`;
             d.onclick = () => loadColumns(t, d);
             container.appendChild(d);
         });
@@ -624,11 +710,25 @@
         nameDisplay.innerText = `(${table})`;
         nameDisplay.classList.remove('hidden');
 
+        const cp = document.getElementById('columnsPlaceholder');
+        if (cp) cp.classList.add('hidden');
+
+        const rp = document.getElementById('rulesPlaceholder');
+        if (rp) rp.classList.add('hidden');
+
         const colList = document.getElementById('ruleColumnsList');
         if(!state.columnsCache[table]) {
             colList.innerHTML = '<div class="text-center text-gray-400 mt-10 text-xs"><i class="fas fa-circle-notch fa-spin mb-2 text-lg"></i><br>Loading fields...</div>';
-            await new Promise(r => setTimeout(r, 300));
-            state.columnsCache[table] = ['_id', 'firstName', 'lastName', 'email', 'phone', 'address.city', 'address.zip', 'creditCard.number'];
+            try {
+                const sourceId = document.getElementById('sourceId').value;
+                const sourceSchema = document.getElementById('sourceSchema').value;
+                const res = await fetch(`/api/mongo/fields?connectionId=${sourceId}&database=${sourceSchema}&collection=${table}`);
+                if (!res.ok) throw new Error('Failed to fetch fields');
+                const data = await res.json();
+                state.columnsCache[table] = data;
+            } catch(e) {
+                state.columnsCache[table] = [];
+            }
         }
         renderColumnList(table, state.columnsCache[table]);
         renderTags(table);
@@ -640,14 +740,18 @@
         columns.forEach(col => {
             const full = `${table}.${col}`;
             const d = document.createElement('div');
-            d.className = 'p-3 border-b';
+            d.className = 'p-2.5 border-b border-gray-100 bg-white hover:bg-gray-50 transition';
+
+            const isStd = state.rules.maskingColumns.includes(full);
+            const isPrt = state.rules.partialMaskingColumns.includes(full);
+            const isEnc = state.rules.constraintColumns.includes(full);
 
             d.innerHTML = `
                 <div class="text-[11px] font-bold text-gray-700 mb-1.5 truncate" title="${col}">${col}</div>
                 <div class="flex gap-1.5">
-                    <button class="flex-1 text-[8px] border rounded py-1 uppercase" onclick="toggleRule('${full}','maskingColumns','${table}')">SFD</button>
-                    <button class="flex-1 text-[8px] border rounded py-1 uppercase" onclick="toggleRule('${full}','partialMaskingColumns','${table}')">PMD</button>
-                    <button class="flex-1 text-[8px] border rounded py-1 uppercase" onclick="toggleRule('${full}','constraintColumns','${table}')">FPH</button>
+                    <button class="flex-1 rule-btn rule-btn-std ${isStd ? 'ring-2 ring-bnp-emerald/50 ring-offset-1' : ''}" onclick="toggleRule('${full}','maskingColumns','${table}')">SFD</button>
+                    <button class="flex-1 rule-btn rule-btn-prt ${isPrt ? 'ring-2 ring-orange-400 ring-offset-1' : ''}" onclick="toggleRule('${full}','partialMaskingColumns','${table}')">PMD</button>
+                    <button class="flex-1 rule-btn rule-btn-enc ${isEnc ? 'ring-2 ring-purple-400 ring-offset-1' : ''}" onclick="toggleRule('${full}','constraintColumns','${table}')">FPH</button>
                 </div>
             `;
             container.appendChild(d);
@@ -666,6 +770,10 @@
         const idx = list.indexOf(full);
         if(idx === -1) list.push(full); else list.splice(idx, 1);
 
+        if(state.columnsCache[table]) {
+             renderColumnList(table, state.columnsCache[table]);
+        }
+
         renderTags(table);
         if (currentStep === 3) validateStep3();
     }
@@ -676,16 +784,17 @@
             c.innerHTML = '';
             const rules = state.rules[type].filter(x => x.startsWith(table+'.'));
             if(rules.length === 0) {
+                c.innerHTML = '<span class="text-[10px] text-gray-400 italic py-0.5">No fields assigned</span>';
                 return;
             }
             rules.forEach(full => {
                 const s = document.createElement('span');
-                s.className = `inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-md ${colorClass} shadow-sm`;
-                s.innerHTML = `${full.split('.')[1]} <i class="fas fa-times ml-1 cursor-pointer" onclick="toggleRule('${full}','${type}','${table}')"></i>`;
+                s.className = `inline-flex items-center text-[10px] font-bold px-2 py-1 rounded-md ${colorClass} shadow-sm`;
+                s.innerHTML = `${full.split('.')[1]} <button class="ml-1.5 hover:text-black focus:outline-none" onclick="toggleRule('${full}','${type}','${table}')"><i class="fas fa-times"></i></button>`;
                 c.appendChild(s);
             });
         };
-        f('maskingColumns','tags-masking','bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/30');
+        f('maskingColumns','tags-masking','bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20');
         f('partialMaskingColumns','tags-partial','bg-orange-100 text-orange-700 border border-orange-200');
         f('constraintColumns','tags-constraint','bg-purple-100 text-purple-700 border border-purple-200');
     }
@@ -696,6 +805,10 @@
         document.getElementById('previewSrc').innerText = srcSelect.options[srcSelect.selectedIndex]?.text || '';
         document.getElementById('previewDest').innerText = destSelect.options[destSelect.selectedIndex]?.text || '';
 
+        const totalRules = state.rules.maskingColumns.length + state.rules.constraintColumns.length + state.rules.partialMaskingColumns.length;
+        document.getElementById('previewTableCount').innerText = state.selectedTables.length;
+        document.getElementById('previewRuleCount').innerText = totalRules;
+
         const body = document.getElementById('previewRulesTable');
         body.innerHTML = '';
         state.selectedTables.forEach(t => {
@@ -703,9 +816,10 @@
             const parts = state.rules.partialMaskingColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-orange-50 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded text-[9px] font-bold mr-1 mb-1 inline-block shadow-sm">PMD: ${x.split('.')[1]}</span>`);
             const encs = state.rules.constraintColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded text-[9px] font-bold mr-1 mb-1 inline-block shadow-sm">FPH: ${x.split('.')[1]}</span>`);
 
-            const rules = [...masks, ...parts, ...encs].join('') || '<span class="text-gray-400 italic text-[10px]">Direct Copy</span>';
+            const rules = [...masks, ...parts, ...encs].join('') || '<span class="text-gray-400 italic text-[10px]">Direct Copy (No Rules)</span>';
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td class="p-3 font-medium">${t}</td><td class="p-3">${rules}</td>`;
+            tr.className = 'hover:bg-gray-50 transition-colors';
+            tr.innerHTML = `<td class="p-4 pl-6 font-semibold text-gray-800 align-top">${t}</td><td class="p-4 align-top">${rules}</td>`;
             body.appendChild(tr);
         });
     }
@@ -757,13 +871,17 @@
                 }
             };
 
-            const res = await fetch('/api/jobs/request', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+            const res = await fetch('/api/jobs/request', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
 
             if (res.ok) {
                 alert('Job submitted for approval successfully!');
                 window.location.href = '/jobs.html';
             } else {
-                throw new Error('Failed to submit');
+                throw new Error('Failed to submit job.');
             }
         } catch (e) {
             alert('Failed to submit migration job.');

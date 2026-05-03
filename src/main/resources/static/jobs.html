@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BNP Paribas - SeEDM Jobs</title>
+    <title>BNP Paribas - Migration Jobs</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -19,109 +19,182 @@
         }
     </script>
     <style>
-        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
-        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--bnp-dark-grey); display: flex; flex-direction: column; min-height: 100vh; }
+
+        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .bnp-logo { height: 48px; display: block; }
         nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
         nav ul li { margin-left: 25px; }
         nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
         nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+
         footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; }
         .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
-        .tagline { font-weight: 300; letter-spacing: 1px; }
-        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #f1f5f9; }
-        .badge { padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }
-        .badge-WAITING { background-color: #fef9c3; color: #a16207; }
-        .badge-APPROVED { background-color: #dcfce7; color: #166534; }
-        .badge-REJECTED { background-color: #fee2e2; color: #991b1b; }
-        .modal { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(51, 51, 51, 0.6); backdrop-filter: blur(4px); }
-        .modal-content { background-color: #fff; margin: 5% auto; padding: 32px; width: 90%; max-width: 800px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
 
-        /* Hide some nav links for approvers */
-        body.role-approver .nav-scheduler-only { display: none !important; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; backdrop-filter: blur(4px); }
+        .modal-content { background: white; margin: 5% auto; border-radius: 12px; width: 90%; max-width: 800px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); display: flex; flex-col; max-height: 85vh; }
+
+        .badge { padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+        .badge-WAITING { background: #fef3c7; color: #047857; border: 1px solid #a7f3d0; }
+        .badge-APPROVED { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .badge-REJECTED { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+
+        /* Specific to Approver UI adjustments */
+        body.role-approver .scheduler-only { display: none !important; }
+        body:not(.role-approver) .approver-only { display: none !important; }
+
+        /* ProgressBar overrides */
+        .progress-bar-fill {
+            background-color: var(--bnp-emerald);
+            background-image: linear-gradient(45deg, rgba(255,255,255,.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.15) 50%, rgba(255,255,255,.15) 75%, transparent 75%, transparent);
+            background-size: 1rem 1rem;
+            transition: width 0.4s ease;
+        }
+        .progress-bar-fill.active {
+            animation: progress-stripes 1s linear infinite;
+        }
+        @keyframes progress-stripes {
+            from { background-position: 1rem 0; }
+            to { background-position: 0 0; }
+        }
     </style>
 </head>
 <body>
 
     <header>
         <div class="flex items-center">
-            <a href="/index.html" class="logo-link mr-6 nav-scheduler-only">
-                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
-            </a>
-            <a href="/jobs.html" class="logo-link mr-6" style="display: none;" id="approverLogoLink">
+            <a href="/index.html" class="logo-link mr-6" id="logoLink">
                 <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
             </a>
             <div class="hidden md:block border-l border-gray-300 pl-6">
                 <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
+                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Job Management</p>
             </div>
         </div>
         <nav>
             <ul>
-                <li class="nav-scheduler-only"><a href="index.html">Dashboard</a></li>
-                <li class="nav-scheduler-only"><a href="select-db.html">New Migration</a></li>
-                <li><a href="jobs.html" style="color: var(--bnp-emerald);">Jobs</a></li>
-                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-cog mr-1.5"></i> Admin</a></li>
+                <li id="approverLogoLink" style="display: none;"><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Approvals</a></li>
+                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> Admin DB</a></li>
+                <li class="scheduler-only"><a href="/select-db.html"><i class="fas fa-plus-circle mr-1.5"></i> New Request</a></li>
                 <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
             </ul>
         </nav>
     </header>
 
-    <main class="flex-1 p-8">
-        <div class="max-w-7xl mx-auto w-full">
-            <div class="flex justify-between items-center mb-8">
-                <div>
-                    <h2 class="text-3xl font-bold text-bnp-dark-grey">Job Requests</h2>
-                    <p class="text-gray-500 mt-1">Manage scheduled migration jobs.</p>
-                </div>
+    <main class="flex-1 flex flex-col p-8 max-w-7xl mx-auto w-full">
+        <div class="flex justify-between items-end mb-8">
+            <div>
+                <h2 class="text-3xl font-bold text-gray-900 leading-tight">Migration Hub</h2>
+                <p class="text-sm text-gray-500 mt-2">Track, review, and manage database masking requests.</p>
             </div>
+            <div class="flex space-x-3 scheduler-only">
+                <a href="/select-db.html" class="bg-bnp-emerald text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-md hover:bg-[#007a4c] transition flex items-center">
+                    <i class="fas fa-plus mr-2"></i> New Migration
+                </a>
+            </div>
+        </div>
 
-            <div class="card overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-200">
-                                <th class="px-6 py-4 font-semibold">Job Name / Type</th>
-                                <th class="px-6 py-4 font-semibold">Submitted By</th>
-                                <th class="px-6 py-4 font-semibold">Date</th>
-                                <th class="px-6 py-4 font-semibold">Status</th>
-                                <th class="px-6 py-4 font-semibold text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100" id="jobsBody">
-                            <tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Loading jobs...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
+            <div class="overflow-x-auto flex-1">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider sticky top-0 shadow-sm z-10">
+                        <tr>
+                            <th class="px-6 py-4 font-bold">Migration details</th>
+                            <th class="px-6 py-4 font-bold">Requested By</th>
+                            <th class="px-6 py-4 font-bold">Submission Date</th>
+                            <th class="px-6 py-4 font-bold">Status</th>
+                            <th class="px-6 py-4 font-bold text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jobsTable" class="divide-y divide-gray-100">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
             </div>
         </div>
     </main>
 
     <!-- Review Modal -->
     <div id="reviewModal" class="modal">
-        <div class="modal-content flex flex-col h-[80vh]">
-            <div class="flex justify-between items-center mb-4 pb-4 border-b border-gray-200 shrink-0">
+        <div class="modal-content flex flex-col h-[85vh]">
+            <!-- Header -->
+            <div class="px-8 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0 rounded-t-xl">
                 <div>
-                    <h2 class="text-2xl font-bold text-bnp-dark-grey" id="modalJobName">Review Job Details</h2>
-                    <p class="text-xs text-gray-500 font-mono mt-1" id="modalJobId"></p>
+                    <h2 class="text-xl font-bold text-gray-800" id="modalJobName">Review Job Details</h2>
+                    <p class="text-xs text-gray-500 mt-1 font-mono" id="modalJobId"></p>
                 </div>
-                <button onclick="closeModal()" class="text-gray-500 hover:text-gray-800 text-xl"><i class="fas fa-times"></i></button>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 focus:outline-none"><i class="fas fa-times text-xl"></i></button>
             </div>
-            <div class="flex-1 overflow-y-auto mb-4 pr-2" id="jobDetailsContainer">
-                <!-- Details rendered dynamically -->
+
+            <!-- Body -->
+            <div class="p-8 overflow-y-auto flex-1" id="jobDetailsContainer"></div>
+
+            <!-- Approver Comments Section -->
+            <div id="commentsSection" class="px-8 py-4 border-t border-gray-100 bg-gray-50 shrink-0">
+                <label class="block text-xs font-bold text-gray-600 uppercase mb-2">Approver Comments</label>
+                <textarea id="approverComments" class="w-full p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-bnp-emerald focus:ring-1 focus:ring-bnp-emerald" rows="3" placeholder="Enter comments (required for rejection)..."></textarea>
             </div>
-            <div class="shrink-0 border-t border-gray-200 pt-4">
-                <div id="commentsSection">
-                    <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Comments</label>
-                    <textarea id="approverComments" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-bnp-emerald mb-4 text-sm" rows="3" placeholder="Add comments here before approving or rejecting..."></textarea>
-                    <div class="flex justify-end space-x-4" id="approverActions">
-                        <button onclick="rejectJob()" class="px-6 py-2 bg-red-50 text-red-600 font-bold rounded-lg border border-red-200 hover:bg-red-100 transition-colors">REJECT</button>
-                        <button onclick="approveJob()" class="px-6 py-2 bg-bnp-emerald text-white font-bold rounded-lg hover:bg-[#007a4c] transition-colors">APPROVE</button>
+
+            <!-- Footer / Actions -->
+            <div class="px-8 py-5 border-t border-gray-200 bg-white shrink-0 rounded-b-xl flex justify-between items-center">
+                <button onclick="closeModal()" class="text-sm font-bold text-gray-500 hover:text-gray-700">CANCEL</button>
+
+                <div id="approverActions" class="space-x-3 hidden">
+                    <button onclick="rejectJob()" class="px-6 py-2 border-2 border-red-200 text-red-600 font-bold rounded-lg hover:bg-red-50 transition-colors"><i class="fas fa-times mr-1.5"></i> REJECT</button>
+                    <button onclick="approveJob()" class="px-6 py-2 bg-bnp-emerald text-white font-bold rounded-lg shadow-md hover:bg-[#007a4c] transition-colors"><i class="fas fa-check mr-1.5"></i> APPROVE</button>
+                </div>
+
+                <div id="schedulerActions" class="space-x-3 hidden">
+                    <button id="btnRun" onclick="runJob()" class="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors">RUN MIGRATION <i class="fas fa-play ml-2"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Modal (JSON only) -->
+    <div id="progressModal" class="modal" style="z-index: 2000;">
+        <div class="modal-content" style="max-width: 500px; height: auto;">
+            <div class="p-8">
+                <h2 class="text-xl font-bold text-bnp-dark-grey mb-6 flex items-center">
+                    <i class="fas fa-spinner fa-spin mr-3 text-bnp-emerald" id="progressSpinnerIcon"></i> Migrating JSON Files
+                </h2>
+                <div class="mb-5">
+                    <div class="flex justify-between text-sm font-semibold text-gray-600 mb-2">
+                        <span id="progressText">Starting...</span>
+                        <span id="progressPct">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3.5 shadow-inner overflow-hidden">
+                        <div id="progressBar" class="progress-bar-fill active h-3.5 rounded-full" style="width: 0%"></div>
                     </div>
                 </div>
-                <div id="schedulerActions" class="hidden flex justify-end">
-                    <button id="btnRun" onclick="runJob()" class="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors">RUN MIGRATION <i class="fas fa-play ml-2"></i></button>
+                <div class="bg-gray-50 rounded border border-gray-100 p-4 mb-2">
+                    <p class="text-xs text-gray-500 font-mono" id="progressDetail">Initializing migration environment...</p>
+                </div>
+                <div class="mt-6 text-right hidden" id="progressCloseBtn">
+                    <button onclick="window.location.href='/index.html'" class="px-6 py-2 bg-bnp-emerald text-white font-bold rounded-lg shadow-md hover:bg-[#007a4c]">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DB Progress Modal (SQL/Mongo) -->
+    <div id="dbProgressModal" class="modal" style="z-index: 2000;">
+        <div class="modal-content" style="max-width: 500px; height: auto;">
+            <div class="p-8">
+                <h2 class="text-xl font-bold text-bnp-dark-grey mb-6 flex items-center">
+                    <i class="fas fa-spinner fa-spin mr-3 text-bnp-emerald" id="dbProgressSpinnerIcon"></i> Migrating Database
+                </h2>
+                <div class="mb-5">
+                    <div class="flex justify-between text-sm font-semibold text-gray-600 mb-2">
+                        <span id="dbProgressText">Starting...</span>
+                    </div>
+                </div>
+                <div class="bg-gray-50 rounded border border-gray-100 p-4 mb-2">
+                    <p class="text-xs text-gray-500 font-mono" id="dbProgressDetail">Initializing database migration environment...</p>
+                </div>
+                <div class="mt-6 text-right hidden" id="dbProgressCloseBtn">
+                    <button onclick="window.location.href='/index.html'" class="px-6 py-2 bg-bnp-emerald text-white font-bold rounded-lg shadow-md hover:bg-[#007a4c]">Done</button>
                 </div>
             </div>
         </div>
@@ -134,32 +207,8 @@
         </div>
     </footer>
 
-    <!-- Progress Modal (JSON only) -->
-    <div id="progressModal" class="modal" style="z-index: 2000;">
-        <div class="modal-content" style="max-width: 500px; height: auto;">
-            <h2 class="text-xl font-bold text-bnp-dark-grey mb-6 flex items-center">
-                <i class="fas fa-spinner fa-spin mr-3 text-bnp-emerald" id="progressSpinnerIcon"></i> Migrating JSON Files
-            </h2>
-            <div class="mb-5">
-                <div class="flex justify-between text-sm font-semibold text-gray-600 mb-2">
-                    <span id="progressStatusText">Starting...</span>
-                    <span id="progressPercent">0%</span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner">
-                    <div class="bg-bnp-emerald h-3 rounded-full transition-all duration-300" id="progressBar" style="width: 0%"></div>
-                </div>
-            </div>
-            <div class="text-xs text-gray-600 font-mono bg-gray-50 p-3 rounded-lg border border-gray-200" id="progressDetailText">
-                Files Processed: 0 / 0
-            </div>
-            <div class="mt-6 text-right hidden" id="progressCloseBtn">
-                <button onclick="window.location.href='/index.html'" class="px-6 py-2 bg-bnp-emerald text-white font-bold rounded-lg">Done</button>
-            </div>
-        </div>
-    </div>
-
     <script>
-        let currentUserRole = null;
+        let currentUserRole = '';
         let activeJobId = null;
         let activeJobType = null;
         let activeJobConfig = null;
@@ -185,11 +234,11 @@
         async function fetchJobs() {
             const res = await fetch('/api/jobs');
             const jobs = await res.json();
-            const tbody = document.getElementById('jobsBody');
+            const tbody = document.getElementById('jobsTable');
             tbody.innerHTML = '';
 
             if (jobs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No jobs found.</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-12 text-center text-gray-400 italic">No migration jobs found.</td></tr>`;
                 return;
             }
 
@@ -204,7 +253,7 @@
                 } else if (job.status === 'WAITING' && currentUserRole === 'SCHEDULER') {
                     actionBtn = `<button onclick="openReview('${job.id}')" class="text-gray-500 font-bold text-sm hover:underline">View</button>`;
                 } else if (job.status === 'APPROVED' && (currentUserRole === 'SCHEDULER' || currentUserRole === 'ADMIN')) {
-                    actionBtn = `<button onclick="openReview('${job.id}')" class="text-blue-600 font-bold text-sm hover:underline"><i class="fas fa-play mr-1"></i> Run / View</button>`;
+                    actionBtn = `<button onclick="openReview('${job.id}')" class="bg-blue-100 text-blue-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-200 transition-colors">Run Setup</button>`;
                 } else {
                     actionBtn = `<button onclick="openReview('${job.id}')" class="text-gray-500 font-bold text-sm hover:underline">View Details</button>`;
                 }
@@ -347,6 +396,10 @@
 
         async function rejectJob() {
             const comments = document.getElementById('approverComments').value;
+            if (!comments.trim()) {
+                alert("Please provide rejection comments.");
+                return;
+            }
             await fetch(`/api/jobs/${activeJobId}/reject`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -378,6 +431,24 @@
                         btn.innerHTML = 'RUN MIGRATION <i class="fas fa-play ml-2"></i>';
                         btn.disabled = false;
                     }
+                } else if (activeJobType === 'mongo') {
+                    // Update connections for SQL/Mongo
+                    await fetch('/api/connection/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: activeJobConfig.source.id, type: 'source', schema: activeJobConfig.source.schema})});
+                    await fetch('/api/connection/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: activeJobConfig.dest.id, type: 'destination', schema: activeJobConfig.dest.schema})});
+
+                    const rulesObj = activeJobConfig.rules || activeJobConfig;
+                    await fetch('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(rulesObj) });
+
+                    const res = await fetch(`/api/migration/mongo/start/${activeJobId}`, { method: 'POST' });
+                    const data = await res.json();
+                    if (data.status === 'SUCCESS' && data.executionId) {
+                        closeModal();
+                        showDbProgressModal(data.executionId, 'mongo');
+                    } else {
+                        alert('Failed to launch Mongo migration.');
+                        btn.innerHTML = 'RUN MIGRATION <i class="fas fa-play ml-2"></i>';
+                        btn.disabled = false;
+                    }
                 } else {
                     // Update connections for SQL/Mongo
                     await fetch('/api/connection/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: activeJobConfig.source.id, type: 'source', schema: activeJobConfig.source.schema})});
@@ -394,6 +465,29 @@
             }
         }
 
+        function showDbProgressModal(executionId, type) {
+            const modal = document.getElementById('dbProgressModal');
+            modal.style.display = 'block';
+
+            pollInterval = setInterval(async () => {
+                try {
+                    const res = await fetch(`/api/migration/${type}/status/${executionId}`);
+                    const progress = await res.json();
+
+                    document.getElementById('dbProgressText').innerText = `Status: ${progress.status}`;
+                    document.getElementById('dbProgressDetail').innerText = progress.message || 'Processing...';
+
+                    if (progress.status === 'COMPLETED' || progress.status === 'FAILED') {
+                        clearInterval(pollInterval);
+                        document.getElementById('dbProgressSpinnerIcon').className = progress.status === 'COMPLETED' ? 'fas fa-check-circle text-bnp-emerald mr-3' : 'fas fa-times-circle text-red-600 mr-3';
+                        document.getElementById('dbProgressCloseBtn').style.display = 'block';
+                    }
+                } catch(e) {
+                    console.error("Poll failed", e);
+                }
+            }, 1000);
+        }
+
         function showJsonProgressModal(executionId) {
             const modal = document.getElementById('progressModal');
             modal.style.display = 'block';
@@ -407,39 +501,29 @@
                     const total = progress.totalFiles || 0;
                     const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
 
-                    let statusText = 'Processing files...';
-                    if (progress.status === 'COMPLETED') statusText = 'Migration Complete!';
-                    if (progress.status === 'FAILED') statusText = 'Migration Failed!';
-
-                    document.getElementById('progressStatusText').innerText = statusText;
-                    document.getElementById('progressPercent').innerText = `${pct}%`;
+                    document.getElementById('progressPct').innerText = `${pct}%`;
                     document.getElementById('progressBar').style.width = `${pct}%`;
-                    document.getElementById('progressDetailText').innerText = `Files Processed: ${processed} / ${total}`;
-
-                    if (progress.status === 'FAILED') {
-                        document.getElementById('progressBar').classList.remove('bg-bnp-emerald');
-                        document.getElementById('progressBar').classList.add('bg-red-500');
-                        if (progress.errorMessage) {
-                            document.getElementById('progressDetailText').innerText += `\nError: ${progress.errorMessage}`;
-                        }
-                    }
+                    document.getElementById('progressText').innerText = `Processed ${processed} of ${total} files`;
+                    document.getElementById('progressDetail').innerText = progress.message || 'Processing...';
 
                     if (progress.status === 'COMPLETED' || progress.status === 'FAILED') {
                         clearInterval(pollInterval);
-                        document.getElementById('progressCloseBtn').classList.remove('hidden');
-
-                        const spinner = document.getElementById('progressSpinnerIcon');
-                        if (spinner) {
-                            spinner.classList.remove('fa-spinner', 'fa-spin', 'text-bnp-emerald');
-                            if (progress.status === 'COMPLETED') spinner.classList.add('fa-check-circle', 'text-green-500');
-                            if (progress.status === 'FAILED') spinner.classList.add('fa-times-circle', 'text-red-500');
+                        document.getElementById('progressBar').classList.remove('active');
+                        if (progress.status === 'FAILED') {
+                            document.getElementById('progressBar').style.backgroundColor = '#ef4444';
+                            document.getElementById('progressSpinnerIcon').className = 'fas fa-times-circle text-red-600 mr-3';
+                        } else {
+                            document.getElementById('progressBar').style.backgroundColor = '#10b981';
+                            document.getElementById('progressSpinnerIcon').className = 'fas fa-check-circle text-bnp-emerald mr-3';
                         }
+                        document.getElementById('progressCloseBtn').style.display = 'block';
                     }
-                } catch (e) {
-                    console.error('Error polling status', e);
+                } catch(e) {
+                    console.error("Poll failed", e);
                 }
             }, 1000);
         }
     </script>
+
 </body>
 </html>

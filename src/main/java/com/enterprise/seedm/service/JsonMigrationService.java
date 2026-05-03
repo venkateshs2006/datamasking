@@ -1,26 +1,21 @@
 package com.enterprise.seedm.service;
 
 import com.enterprise.seedm.model.JsonMigrationConfig;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
+import com.github.javafaker.Faker;
 import lombok.extern.slf4j.Slf4j;
-import net.datafaker.Faker;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Stream;
 
 @Service
 @Slf4j
@@ -29,8 +24,8 @@ public class JsonMigrationService {
     private final JsonMaskingConfigService configService;
     private final ObjectMapper objectMapper;
     private final Faker faker;
-
-    // Progress tracking map: executionId -> JsonMigrationProgress
+    
+    // In-memory store for async job progress
     private final Map<String, JsonMigrationProgress> progressMap = new ConcurrentHashMap<>();
 
     public JsonMigrationService(JsonMaskingConfigService configService) {
@@ -63,23 +58,31 @@ public class JsonMigrationService {
                 Files.createDirectories(destDir);
             }
 
-            List<Path> jsonFiles;
-            try (Stream<Path> paths = Files.walk(sourceDir)) {
-                jsonFiles = paths.filter(Files::isRegularFile)
-                        .filter(p -> p.toString().toLowerCase().endsWith(".json"))
-                        .toList();
-            }
-            progress.setTotalFiles(jsonFiles.size());
+            // Count total JSON files first
+            long[] countArr = new long[1];
+            Files.walkFileTree(sourceDir, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    if (file.toString().endsWith(".json")) countArr[0]++;
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+            progress.setTotalFiles((int) countArr[0]);
 
-            for (Path file : jsonFiles) {
-                processFile(file, sourceDir, destDir, config, executionId);
-                progress.incrementProcessedFiles();
-            }
-            progress.setStatus("COMPLETED");
-            progress.setEndTime(System.currentTimeMillis());
+            // Process each file
+            Files.walkFileTree(sourceDir, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    if (file.toString().endsWith(".json")) {
+                        processFile(file, sourceDir, destDir, config, executionId);
+                        progress.incrementProcessedFiles();
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
 
+            updateProgress(executionId, "COMPLETED", progress.getProcessedFiles(), progress.getTotalFiles(), null);
         } catch (Exception e) {
-            log.error("Failed during JSON migration process", e);
             updateProgress(executionId, "FAILED", progress.getProcessedFiles(), progress.getTotalFiles(), "JSON migration failed: " + e.getMessage());
             throw new RuntimeException("JSON migration failed", e);
         }
@@ -91,13 +94,14 @@ public class JsonMigrationService {
         try {
             JsonNode rootNode = objectMapper.readTree(sourceFile.toFile());
             maskNode(rootNode, "", config);
-
+            
             Path relativePath = sourceBaseDir.relativize(sourceFile);
             Path destFile = destBaseDir.resolve(relativePath);
+            
             Files.createDirectories(destFile.getParent());
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(destFile.toFile(), rootNode);
-            log.info("Successfully migrated to: {}", destFile);
-        } catch (Exception e) {
+            
+        } catch (IOException e) {
             log.error("Error processing file {}", sourceFile, e);
             updateProgress(executionId, "FAILED", progressMap.get(executionId).getProcessedFiles(), progressMap.get(executionId).getTotalFiles(), "Error processing file " + sourceFile.getFileName() + ": " + e.getMessage());
         }
@@ -109,74 +113,76 @@ public class JsonMigrationService {
             objectNode.fieldNames().forEachRemaining(fieldName -> {
                 JsonNode childNode = objectNode.get(fieldName);
                 String childPath = currentPath.isEmpty() ? fieldName : currentPath + "." + fieldName;
-
-                if (childNode.isValueNode()) {
-                    if (config.getMaskingColumns().contains(childPath)) {
-                        objectNode.set(fieldName, new TextNode(generateFakeData(fieldName, childNode.asText())));
-                    } else if (config.getPartialMaskingColumns().contains(childPath)) {
-                        objectNode.set(fieldName, new TextNode(applyPartialMasking(childNode.asText())));
-                    }
-                } else {
+                
+                if (childNode.isObject() || childNode.isArray()) {
                     maskNode(childNode, childPath, config);
+                } else if (childNode.isValueNode()) {
+                    String value = childNode.asText();
+                    if (value != null && !value.isEmpty()) {
+                        String newValue = applyRules(childPath, value, config);
+                        if (newValue != null && !newValue.equals(value)) {
+                            objectNode.put(fieldName, newValue);
+                        }
+                    }
                 }
             });
         } else if (node.isArray()) {
-            for (JsonNode arrayItem : node) {
-                maskNode(arrayItem, currentPath, config);
+            ArrayNode arrayNode = (ArrayNode) node;
+            for (int i = 0; i < arrayNode.size(); i++) {
+                JsonNode childNode = arrayNode.get(i);
+                if (childNode.isObject() || childNode.isArray()) {
+                    maskNode(childNode, currentPath, config); 
+                } else if (childNode.isValueNode()) {
+                    String value = childNode.asText();
+                    if (value != null && !value.isEmpty()) {
+                        String newValue = applyRules(currentPath, value, config);
+                        if (newValue != null && !newValue.equals(value)) {
+                            // Can't replace directly easily in ArrayNode without index, but we have index 'i'
+                            if (childNode.isTextual()) arrayNode.set(i, arrayNode.textNode(newValue));
+                            else if (childNode.isNumber()) arrayNode.set(i, arrayNode.numberNode(Long.parseLong(newValue))); // simplistic
+                            else arrayNode.set(i, arrayNode.textNode(newValue));
+                        }
+                    }
+                }
             }
         }
     }
 
-    private String generateFakeData(String fieldName, String originalValue) {
-        if (originalValue != null) {
-            if (originalValue.matches("^\\d{4}-\\d{2}-\\d{2}$")) {
-                return new java.sql.Date(faker.date().birthday().getTime()).toString();
-            } else if (originalValue.matches("^\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}.*")) {
-                return new java.sql.Timestamp(faker.date().birthday().getTime()).toString();
-            } else if (originalValue.matches("^\\d{2}/\\d{2}/\\d{4}$")) {
-                java.util.Calendar cal = java.util.Calendar.getInstance();
-                cal.setTime(faker.date().birthday());
-                return String.format("%02d/%02d/%04d", cal.get(java.util.Calendar.MONTH) + 1, cal.get(java.util.Calendar.DAY_OF_MONTH), cal.get(java.util.Calendar.YEAR));
-            }
+    private String applyRules(String fieldPath, String value, JsonMigrationConfig config) {
+        if (config.getMaskingFields() != null && config.getMaskingFields().contains(fieldPath)) {
+            return generateFakeData(fieldPath);
+        } else if (config.getPartialMaskingFields() != null && config.getPartialMaskingFields().contains(fieldPath)) {
+            return applyPartialMasking(value);
+        } else if (config.getConstraintFields() != null && config.getConstraintFields().contains(fieldPath)) {
+            return "ENC:" + Base64.getEncoder().encodeToString(value.getBytes());
         }
+        return value;
+    }
 
-        String lowerCol = fieldName == null ? "" : fieldName.toLowerCase();
-        
-        if (lowerCol.contains("email")) return faker.internet().emailAddress();
-        if (lowerCol.contains("first_name") || lowerCol.contains("firstname")) return faker.name().firstName();
-        if (lowerCol.contains("last_name") || lowerCol.contains("lastname")) return faker.name().lastName();
-        if (lowerCol.contains("name")) return faker.name().fullName();
-        if (lowerCol.contains("phone")) return faker.phoneNumber().cellPhone();
-        if (lowerCol.contains("city")) return faker.address().city();
-        if (lowerCol.contains("country")) return faker.address().country();
-        if (lowerCol.contains("zip") || lowerCol.contains("postal")) return faker.address().zipCode();
-        if (lowerCol.contains("address")) return faker.address().fullAddress();
-        
-        if (lowerCol.contains("date") || lowerCol.contains("time") || lowerCol.contains("dob") || lowerCol.contains("created") || lowerCol.contains("updated")) {
-             return new java.sql.Timestamp(faker.date().birthday().getTime()).toString();
+    private String generateFakeData(String fieldPath) {
+        String lower = fieldPath.toLowerCase();
+        if (lower.contains("name")) {
+            return faker.name().fullName();
+        } else if (lower.contains("email")) {
+            return faker.internet().emailAddress();
+        } else if (lower.contains("phone")) {
+            return faker.phoneNumber().phoneNumber();
+        } else if (lower.contains("city")) {
+            return faker.address().city();
+        } else if (lower.contains("address")) {
+            return faker.address().fullAddress();
         }
-
-        if (originalValue != null && originalValue.length() > 0) {
-            String fakeStr = faker.lorem().characters(10);
-            return fakeStr.substring(0, Math.min(fakeStr.length(), originalValue.length()));
-        }
-        
-        return faker.lorem().characters(8);
+        return faker.lorem().word();
     }
 
     private String applyPartialMasking(String value) {
-        if (value == null || value.length() <= 4) return value;
-        int visibleCount = 4;
-        int maskCount = value.length() - visibleCount;
-        
+        if (value.length() <= 4) {
+            return value.replaceAll(".", "*");
+        }
+        int maskCount = value.length() - 4;
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < maskCount; i++) {
-            char c = value.charAt(i);
-            if (Character.isDigit(c) || Character.isLetter(c)) {
-                sb.append('X');
-            } else {
-                sb.append(c);
-            }
+            sb.append("*");
         }
         sb.append(value.substring(maskCount));
         return sb.toString();
@@ -188,6 +194,18 @@ public class JsonMigrationService {
             return Map.of("status", "NOT_FOUND");
         }
         return progress.toMap();
+    }
+
+    public List<Map<String, Object>> getAllExecutions() {
+        List<Map<String, Object>> executions = new ArrayList<>();
+        for (Map.Entry<String, JsonMigrationProgress> entry : progressMap.entrySet()) {
+            Map<String, Object> execMap = new HashMap<>();
+            execMap.put("id", entry.getKey());
+            execMap.put("status", entry.getValue().getStatus());
+            execMap.put("startTime", entry.getValue().getStartTime());
+            executions.add(execMap);
+        }
+        return executions;
     }
 
     private void updateProgress(String executionId, String status, int processed, int total, String errorMessage) {

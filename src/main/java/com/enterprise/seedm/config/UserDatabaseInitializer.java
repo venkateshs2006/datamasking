@@ -121,12 +121,19 @@ public class UserDatabaseInitializer {
             if (dbConnectionRepository.count() == 0) {
                 dbConnectionRepository.save(new DbConnection(null, "Finance Prod DB", "Finance", "postgres", "source", "jdbc:postgresql://localhost:5432/finance_prod", "fin_user", "fin_pass"));
                 dbConnectionRepository.save(new DbConnection(null, "Finance QA DB", "Finance", "postgres", "destination", "jdbc:postgresql://localhost:5432/finance_qa", "qa_user", "qa_pass"));
+                dbConnectionRepository.save(new DbConnection(null, "Finance Prod Mongo", "Finance", "mongo", "source", "mongodb://localhost:27017/fin_prod", "fin_user", "fin_pass"));
+                dbConnectionRepository.save(new DbConnection(null, "Finance Test Mongo", "Finance", "mongo", "destination", "mongodb://localhost:27017/fin_test", "fin_test", "fin_test"));
+
                 dbConnectionRepository.save(new DbConnection(null, "HR Prod Mongo", "HR", "mongo", "source", "mongodb://localhost:27017/hr_prod", "hr_user", "hr_pass"));
                 dbConnectionRepository.save(new DbConnection(null, "HR Test Mongo", "HR", "mongo", "destination", "mongodb://localhost:27017/hr_test", "hr_test", "hr_test"));
+                
                 dbConnectionRepository.save(new DbConnection(null, "IT Logs Dir", "IT", "json", "source", "/var/logs/it/prod", "", ""));
                 dbConnectionRepository.save(new DbConnection(null, "IT Masked Logs Dir", "IT", "json", "destination", "/var/logs/it/masked", "", ""));
+                
                 dbConnectionRepository.save(new DbConnection(null, "Admin Master DB", "Admin", "postgres", "source", "jdbc:postgresql://localhost:5432/admin_master", "admin_db", "admin_db"));
                 dbConnectionRepository.save(new DbConnection(null, "Admin Masked DB", "Admin", "postgres", "destination", "jdbc:postgresql://localhost:5432/admin_masked", "admin_db", "admin_db"));
+                dbConnectionRepository.save(new DbConnection(null, "Admin Prod Mongo", "Admin", "mongo", "source", "mongodb://localhost:27017/admin_prod", "admin_db", "admin_db"));
+                dbConnectionRepository.save(new DbConnection(null, "Admin Test Mongo", "Admin", "mongo", "destination", "mongodb://localhost:27017/admin_test", "admin_test", "admin_test"));
                 
                 log.info("Successfully populated sample database connections.");
             }

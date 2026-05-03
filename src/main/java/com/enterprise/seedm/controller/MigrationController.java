@@ -4,30 +4,38 @@ import com.enterprise.seedm.config.SwappableDataSource;
 import com.enterprise.seedm.service.DestinationTableDiscoveryService;
 import com.enterprise.seedm.service.JsonMigrationService;
 import com.enterprise.seedm.service.MigrationJobFactory;
+import com.enterprise.seedm.service.MongoMigrationService;
 import com.enterprise.seedm.service.TableDiscoveryService;
-import com.zaxxer.hikari.HikariDataSource;
-import jakarta.servlet.http.HttpServletResponse;
+import com.enterprise.seedm.model.JobRequest;
+import com.enterprise.seedm.service.JobApprovalService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.batch.core.*;
+import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobInstance;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.JobParametersBuilder;
+import org.springframework.batch.core.JobParametersInvalidException;
+import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
 import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import javax.sql.DataSource;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryMXBean;
-import java.lang.management.MemoryUsage;
-import java.lang.management.OperatingSystemMXBean;
 import java.security.SecureRandom;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -35,12 +43,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
-/**
- * Migration Controller
- * REST API to trigger and monitor migrations
- */
 @RestController
 @RequestMapping("/api/migration")
 @RequiredArgsConstructor
@@ -58,6 +61,8 @@ public class MigrationController {
     private DestinationTableDiscoveryService destinationTableDiscoveryService;
     @Autowired
     private JobExplorer jobExplorer;
+    @Autowired
+    private JobOperator jobOperator;
     @Qualifier("applicationTaskExecutor")
     @Autowired
     private TaskExecutor taskExecutor;
@@ -66,6 +71,12 @@ public class MigrationController {
 
     @Autowired
     private JsonMigrationService jsonMigrationService;
+
+    @Autowired
+    private MongoMigrationService mongoMigrationService;
+
+    @Autowired
+    private JobApprovalService jobApprovalService;
 
     @Qualifier("sourceDataSource")
     @Autowired
@@ -78,55 +89,70 @@ public class MigrationController {
     /**
      * Get connection details from the active datasources
      */
-    @GetMapping("/connection-details")
-    public Map<String, String> getConnectionDetails() {
-        Map<String, String> details = new HashMap<>();
+    @GetMapping("/connections")
+    public Map<String, String> getConnections() {
+        Map<String, String> response = new HashMap<>();
         
-        details.put("sourceUrl", getUrlFromDataSource(sourceDataSource));
-        details.put("destinationUrl", getUrlFromDataSource(destinationDataSource));
-        
-        return details;
-    }
-
-    private String getUrlFromDataSource(SwappableDataSource swappableDataSource) {
-        DataSource target = swappableDataSource.getTargetDataSource();
-        if (target instanceof HikariDataSource) {
-            return ((HikariDataSource) target).getJdbcUrl();
+        try {
+            if (sourceDataSource.getTargetDataSource() != null) {
+                response.put("sourceUrl", sourceDataSource.getConnection().getMetaData().getURL());
+            } else {
+                response.put("sourceUrl", "Not Connected");
+            }
+            
+            if (destinationDataSource.getTargetDataSource() != null) {
+                response.put("destinationUrl", destinationDataSource.getConnection().getMetaData().getURL());
+            } else {
+                response.put("destinationUrl", "Not Connected");
+            }
+        } catch (SQLException e) {
+            log.error("Failed to get connection URLs", e);
+            response.put("sourceUrl", "Error getting connection");
+            response.put("destinationUrl", "Error getting connection");
         }
-        return "Unknown DataSource Type";
+        
+        return response;
     }
 
     /**
-     * Get list of tables to be migrated
+     * Preview the migration details (tables and row counts)
      */
-    @GetMapping("/tables")
-    public Map<String, Object> getTables() throws SQLException {
-        List<String> tables = tableDiscoveryService.discoverTables();
-
+    @GetMapping("/preview")
+    public Map<String, Object> getMigrationPreview() {
         Map<String, Object> response = new HashMap<>();
-        response.put("tableCount", tables.size());
-        response.put("tables", tables);
+        List<Map<String, Object>> tablesInfo = new ArrayList<>();
+        long totalRows = 0;
+        int totalTables = 0;
 
+        try {
+            List<String> tables = tableDiscoveryService.discoverTables();
+            totalTables = tables.size();
+
+            for (String tableName : tables) {
+                long rowCount = tableDiscoveryService.getTableRowCount(tableName);
+                totalRows += rowCount;
+                
+                Map<String, Object> tableInfo = new HashMap<>();
+                tableInfo.put("tableName", tableName);
+                tableInfo.put("rowCount", rowCount);
+                tablesInfo.add(tableInfo);
+            }
+        } catch (SQLException e) {
+            log.error("Failed to get migration preview", e);
+            response.put("error", e.getMessage());
+        }
+
+        response.put("tables", tablesInfo);
+        response.put("totalTables", totalTables);
+        response.put("totalRows", totalRows);
         return response;
     }
-    @GetMapping("/destination/tables")
-    public Map<String, Object> getDestinationTables() throws SQLException {
-        List<String> tables = destinationTableDiscoveryService.discoverDestinationTables();
 
+    @GetMapping("/preview/destination/{tableName}")
+    public Map<String, Object> getDestinationTablePreview(@PathVariable String tableName) {
         Map<String, Object> response = new HashMap<>();
-        response.put("tableCount", tables.size());
-        response.put("tables", tables);
-
-        return response;
-    }
-    /**
-     * Get row count for a specific table
-     */
-    @GetMapping("/tables/{tableName}/count")
-    public Map<String, Object> getTableCount(@PathVariable String tableName) {
-        long count = tableDiscoveryService.getTableRowCount(tableName);
-
-        Map<String, Object> response = new HashMap<>();
+        long count = destinationTableDiscoveryService.getTableRowCount(tableName);
+        
         response.put("tableName", tableName);
         response.put("rowCount", count);
 
@@ -159,14 +185,14 @@ public class MigrationController {
                     throw new RuntimeException(e);
                 } catch (JobExecutionAlreadyRunningException e) {
                     throw new RuntimeException(e);
-                } catch (JobParametersInvalidException e) {
-                    throw new RuntimeException(e);
                 } catch (JobRestartException e) {
+                    throw new RuntimeException(e);
+                } catch (JobParametersInvalidException e) {
                     throw new RuntimeException(e);
                 }
             });
-            // We need to get the execution ID *before* we return, but the job runs async.
-            // Since we configured the JobLauncher to be async in BatchConfig, jobLauncher.run() returns immediately
+            // Try to find the most recent job if jobExecution is still null
+            // This happens because jobLauncher.run is async and we need to redirect immediately
             // with the JobExecution that has been persisted to the DB (status STARTING/STARTED).
             if(jobExecution==null){
                 // Wait briefly for the async thread to start the job
@@ -180,11 +206,8 @@ public class MigrationController {
             }
             
             if (jobExecution != null) {
-                log.info("Job launched with Execution ID: {}", jobExecution.getId());
-                // Redirect to the dashboard page with the execution ID immediately
                 response.sendRedirect("/index.html?executionId=" + jobExecution.getId());
             } else {
-                // If we still can't find it, maybe it finished very quickly or failed to start.
                 // Try to find the most recent execution regardless of status
                 JobInstance lastInstance = jobExplorer.getLastJobInstance(jobName);
                 if (lastInstance != null) {
@@ -200,7 +223,7 @@ public class MigrationController {
 
         } catch (Exception e) {
             log.error("Failed to start migration", e);
-            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to start migration: " + e.getMessage());
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Migration failed to start: " + e.getMessage());
         }
     }
 
@@ -233,6 +256,39 @@ public class MigrationController {
         return ResponseEntity.ok(jsonMigrationService.getProgress(executionId));
     }
 
+    @PostMapping("/mongo/start/{id}")
+    public ResponseEntity<?> startMongoMigration(@PathVariable Long id) {
+        try {
+            log.info("Starting Mongo migration job manually...");
+            JobRequest jobRequest = jobApprovalService.getJob(id);
+            if (jobRequest == null) {
+                return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "message", "Job not found"));
+            }
+
+            // Execute the Mongo migration process asynchronously
+            String executionId = "mongo-" + System.currentTimeMillis();
+            taskExecutor.execute(() -> {
+                try {
+                    mongoMigrationService.migrate(jobRequest, executionId);
+                } catch (Exception e) {
+                    log.error("Mongo Migration failed in background task", e);
+                }
+            });
+
+            log.info("Mongo Migration task launched with id: {}", executionId);
+            return ResponseEntity.ok(Map.of("status", "SUCCESS", "executionId", executionId, "message", "Mongo Migration started"));
+
+        } catch (Exception e) {
+            log.error("Failed to start Mongo migration", e);
+            return ResponseEntity.internalServerError().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/mongo/status/{executionId}")
+    public ResponseEntity<?> getMongoStatus(@PathVariable String executionId) {
+        return ResponseEntity.ok(mongoMigrationService.getProgress(executionId));
+    }
+
     /**
      * Get a list of all recent job executions for the dropdown
      */
@@ -242,22 +298,32 @@ public class MigrationController {
         List<Map<String, Object>> result = new ArrayList<>();
         
         try {
-            // Get last few instances
+            // Get last few instances from Spring Batch
             List<JobInstance> instances = jobExplorer.getJobInstances(jobName, 0, 20);
             
             for (JobInstance instance : instances) {
                 List<JobExecution> executions = jobExplorer.getJobExecutions(instance);
                 for (JobExecution execution : executions) {
                     Map<String, Object> execMap = new HashMap<>();
-                    execMap.put("id", execution.getId());
+                    execMap.put("id", execution.getId().toString()); // Convert to String to match other types
                     execMap.put("status", execution.getStatus().toString());
-                    execMap.put("startTime", execution.getStartTime());
+                    execMap.put("startTime", execution.getStartTime() != null ? execution.getStartTime().getTime() : 0);
                     result.add(execMap);
                 }
             }
             
-            // Sort descending by ID
-            result.sort((m1, m2) -> ((Long) m2.get("id")).compareTo((Long) m1.get("id")));
+            // Add JSON executions
+            result.addAll(jsonMigrationService.getAllExecutions());
+            
+            // Add Mongo executions
+            result.addAll(mongoMigrationService.getAllExecutions());
+            
+            // Sort descending by ID (using string comparison for mixed types)
+            result.sort((m1, m2) -> {
+                String id1 = m1.get("id").toString();
+                String id2 = m2.get("id").toString();
+                return id2.compareTo(id1);
+            });
             
         } catch (Exception e) {
             log.error("Failed to fetch executions", e);
@@ -266,20 +332,36 @@ public class MigrationController {
         return result;
     }
 
+    /**
+     * Get real-time status of a specific migration job
+     */
     @GetMapping("/status/{executionId}")
-    public Map<String, Object> getJobStatus(@PathVariable Long executionId) {
-        JobExecution execution = jobExplorer.getJobExecution(executionId);
-        if (execution == null) {
+    public Map<String, Object> getJobStatus(@PathVariable String executionId) {
+        if (executionId.startsWith("mongo-")) {
+            return mongoMigrationService.getProgress(executionId);
+        } else if (executionId.startsWith("json-")) {
+            return jsonMigrationService.getProgress(executionId);
+        }
+
+        try {
+            Long id = Long.parseLong(executionId);
+            JobExecution execution = jobExplorer.getJobExecution(id);
+            if (execution == null) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("status", "NOT_FOUND");
+                return response;
+            }
+            return getJobStatusResponse(execution);
+        } catch (NumberFormatException e) {
             Map<String, Object> response = new HashMap<>();
-            response.put("status", "NOT_FOUND");
+            response.put("status", "INVALID_ID");
             return response;
         }
-        return getJobStatusResponse(execution);
     }
 
     private Map<String, Object> getJobStatusResponse(JobExecution execution) {
         Map<String, Object> response = new HashMap<>();
-        response.put("executionId", execution.getId());
+        response.put("executionId", execution.getId().toString());
         response.put("status", execution.getStatus().toString());
         response.put("startTime", execution.getStartTime());
         response.put("endTime", execution.getEndTime());
@@ -295,39 +377,42 @@ public class MigrationController {
                 errors.add(exitDescription);
             }
             
-            // 2. Get Failure Exceptions
-            List<String> exceptionErrors = execution.getAllFailureExceptions().stream()
-                    .map(this::formatExceptionMessage)
-                    .collect(Collectors.toList());
-            errors.addAll(exceptionErrors);
+            // 2. Get step-level exceptions
+            for (StepExecution stepExecution : execution.getStepExecutions()) {
+                if (!stepExecution.getFailureExceptions().isEmpty()) {
+                    stepExecution.getFailureExceptions().forEach(e -> {
+                        errors.add("Step '" + stepExecution.getStepName() + "': " + e.getMessage());
+                    });
+                }
+            }
+            
+            // 3. Get job-level exceptions (if any)
+            if (!execution.getFailureExceptions().isEmpty()) {
+                 execution.getFailureExceptions().forEach(e -> {
+                     errors.add("Job Error: " + e.getMessage());
+                 });
+            }
             
             response.put("errors", errors);
         }
 
-        // System Metrics
-        Map<String, Object> systemMetrics = new HashMap<>();
-        MemoryMXBean memoryBean = ManagementFactory.getMemoryMXBean();
-        MemoryUsage heapUsage = memoryBean.getHeapMemoryUsage();
-        OperatingSystemMXBean osBean = ManagementFactory.getPlatformMXBean(OperatingSystemMXBean.class);
-
-        systemMetrics.put("heapUsedMB", heapUsage.getUsed() / (1024 * 1024));
-        systemMetrics.put("heapMaxMB", heapUsage.getMax() / (1024 * 1024));
-        systemMetrics.put("systemLoadAverage", osBean.getSystemLoadAverage());
-        systemMetrics.put("availableProcessors", osBean.getAvailableProcessors());
-
-        response.put("systemMetrics", systemMetrics);
-
-        // Table Progress
+        // Calculate progress based on steps
+        int totalSteps = 0;
+        int completedSteps = 0;
         List<Map<String, Object>> tableProgress = new ArrayList<>();
         List<String> completedTables = new ArrayList<>();
-
+        
         for (StepExecution stepExecution : execution.getStepExecutions()) {
-            Map<String, Object> stepInfo = new HashMap<>();
-            String stepName = stepExecution.getStepName();
+            totalSteps++;
+            if (stepExecution.getStatus() == BatchStatus.COMPLETED) {
+                completedSteps++;
+            }
 
-            // Only include table migration steps in the progress list
-            if (stepName.startsWith("migrate_")) {
-                String tableName = stepName.substring("migrate_".length());
+            // Extract table-specific progress
+            String stepName = stepExecution.getStepName();
+            if (stepName.endsWith("-migration")) {
+                String tableName = stepName.replace("-migration", "");
+                Map<String, Object> stepInfo = new HashMap<>();
                 stepInfo.put("tableName", tableName);
                 stepInfo.put("readCount", stepExecution.getReadCount());
                 stepInfo.put("writeCount", stepExecution.getWriteCount());
@@ -342,44 +427,66 @@ public class MigrationController {
                  List<String> stepErrors = new ArrayList<>();
                  
                  // Add exit description for the step
-                 String stepExitDesc = stepExecution.getExitStatus().getExitDescription();
-                 if (stepExitDesc != null && !stepExitDesc.isEmpty()) {
-                     stepErrors.add(stepExitDesc);
+                 String exitDesc = stepExecution.getExitStatus().getExitDescription();
+                 if (exitDesc != null && !exitDesc.isEmpty()) {
+                     stepErrors.add(exitDesc);
                  }
-
-                 // Add exceptions
-                 stepErrors.addAll(stepExecution.getFailureExceptions().stream()
-                         .map(this::formatExceptionMessage)
-                         .collect(Collectors.toList()));
-                         
-                 response.put("constraintErrors", stepErrors);
+                 
+                 // Add explicit failure exceptions
+                 stepExecution.getFailureExceptions().forEach(e -> stepErrors.add(e.getMessage()));
+                 
+                 response.put("stepErrors", Map.of(stepName, stepErrors));
             }
         }
-
+        
         response.put("completedTables", completedTables);
+
+        int progress = totalSteps == 0 ? 0 : (int) ((completedSteps / (double) totalSteps) * 100);
+        response.put("progress", progress);
         response.put("tableProgress", tableProgress);
 
         return response;
     }
-    
-    private String formatExceptionMessage(Throwable t) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(t.getMessage());
+
+    /**
+     * Stop a running migration job
+     */
+    @PostMapping("/stop/{executionId}")
+    public Map<String, String> stopMigration(@PathVariable String executionId) {
+        Map<String, String> response = new HashMap<>();
         
-        // Traverse the cause chain to get all nested causes
-        Throwable cause = t.getCause();
-        while (cause != null) {
-            sb.append(" | Caused by: ").append(cause.getMessage());
-            cause = cause.getCause();
+        if (executionId.startsWith("mongo-") || executionId.startsWith("json-")) {
+            // Stopping async JSON/Mongo jobs dynamically might require extra tracking inside those services
+            // Assuming no stop functionality defined for async in memory for now
+            response.put("status", "ERROR");
+            response.put("message", "Stopping is only supported for SQL Batch Jobs currently");
+            return response;
         }
-        return sb.toString();
+
+        try {
+            Long id = Long.parseLong(executionId);
+            JobExecution execution = jobExplorer.getJobExecution(id);
+            if (execution != null && execution.isRunning()) {
+                jobOperator.stop(id);
+                response.put("status", "SUCCESS");
+                response.put("message", "Job stop requested");
+            } else {
+                response.put("status", "ERROR");
+                response.put("message", "Job is not running");
+            }
+        } catch (Exception e) {
+            log.error("Failed to stop job", e);
+            response.put("status", "ERROR");
+            response.put("message", e.getMessage());
+        }
+        return response;
     }
 
     /**
-     * Health check endpoint
+     * Simple ping endpoint for health checks
      */
-    @GetMapping("/health")
-    public Map<String, String> health() {
+    @GetMapping("/ping")
+    public Map<String, String> ping() {
         Map<String, String> response = new HashMap<>();
         response.put("status", "UP");
         response.put("service", "PostgreSQL Migrator");
