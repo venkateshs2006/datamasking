@@ -22,10 +22,11 @@ public class CosConnectionService {
         return cosConnectionRepository.findAll();
     }
 
-    public List<CosConnection> getConnectionsByFilters(List<String> departments, String envType) {
+    public List<CosConnection> getConnectionsByFilters(List<String> departments, String envType, String storageType) {
         return cosConnectionRepository.findAll().stream()
                 .filter(c -> departments != null && (departments.contains("ALL") || departments.contains(c.getDepartment())))
                 .filter(c -> envType == null || envType.isEmpty() || c.getEnvType().equalsIgnoreCase(envType))
+                .filter(c -> storageType == null || storageType.isEmpty() || (c.getStorageType() != null && c.getStorageType().equalsIgnoreCase(storageType)))
                 .collect(Collectors.toList());
     }
 

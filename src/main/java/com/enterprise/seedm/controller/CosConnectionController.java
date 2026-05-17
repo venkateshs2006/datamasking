@@ -26,6 +26,7 @@ public class CosConnectionController {
     public ResponseEntity<?> getConnections(
             @RequestParam(required = false) String department,
             @RequestParam(required = false) String envType,
+            @RequestParam(required = false) String storageType,
             HttpServletRequest request) {
         
         try {
@@ -57,7 +58,7 @@ public class CosConnectionController {
                 }
             }
 
-            List<CosConnection> connections = connectionService.getConnectionsByFilters(allowedDepartments, envType);
+            List<CosConnection> connections = connectionService.getConnectionsByFilters(allowedDepartments, envType, storageType);
             
             // Scrub sensitive credentials before sending to frontend
             connections.forEach(c -> {

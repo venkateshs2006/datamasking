@@ -139,8 +139,8 @@ public class UserDatabaseInitializer {
             }
 
             if (cosConnectionRepository.count() == 0) {
-                cosConnectionRepository.save(new CosConnection(null, "Finance Prod Bucket", "us-south", "dummy-api-key", "crn:v1:bluemix:public:cloud-object-storage:global:a/12345:12345::", "dummy-access", "dummy-secret", "https://s3.us-south.cloud-object-storage.appdomain.cloud", "bucket-123", "fin-prod-data", "IAM", "Finance", "source", "admin", System.currentTimeMillis()));
-                cosConnectionRepository.save(new CosConnection(null, "Finance QA Bucket", "us-south", "dummy-api-key", "crn:v1:bluemix:public:cloud-object-storage:global:a/12345:67890::", "dummy-access", "dummy-secret", "https://s3.us-south.cloud-object-storage.appdomain.cloud", "bucket-456", "fin-qa-data", "IAM", "Finance", "destination", "admin", System.currentTimeMillis()));
+                cosConnectionRepository.save(new CosConnection(null, "Finance Prod Bucket", "COS", null, "us-south", "dummy-api-key", "crn:v1:bluemix:public:cloud-object-storage:global:a/12345:12345::", "dummy-access", "dummy-secret", "https://s3.us-south.cloud-object-storage.appdomain.cloud", "bucket-123", "fin-prod-data", "IAM", "Finance", "source", "admin", System.currentTimeMillis()));
+                cosConnectionRepository.save(new CosConnection(null, "Finance QA Bucket", "COS", null, "us-south", "dummy-api-key", "crn:v1:bluemix:public:cloud-object-storage:global:a/12345:67890::", "dummy-access", "dummy-secret", "https://s3.us-south.cloud-object-storage.appdomain.cloud", "bucket-456", "fin-qa-data", "IAM", "Finance", "destination", "admin", System.currentTimeMillis()));
                 log.info("Successfully populated sample COS connections.");
             }
 

@@ -90,7 +90,7 @@
         .modal-content { background-color: #fff; margin: 10% auto; padding: 32px; width: 90%; max-width: 500px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
     </style>
 </head>
-<body class="h-screen flex flex-col">
+<body class="flex flex-col min-h-screen">
 
 <!-- Top Navigation -->
 <header>
@@ -111,8 +111,8 @@
     </nav>
 </header>
 
-<main class="flex-1 flex flex-col overflow-hidden bg-transparent">
-    <div class="w-full max-w-6xl mx-auto px-6 py-8 flex flex-col h-full">
+<main class="flex-1 flex flex-col bg-transparent">
+    <div class="w-full max-w-6xl mx-auto px-6 py-8 flex flex-col flex-1 min-h-[650px]">
 
         <div class="mb-8 shrink-0 text-center">
             <h2 class="text-3xl font-bold text-gray-900">Configure JSON Migration</h2>
@@ -159,7 +159,7 @@
                             <div id="srcLocalContainer">
                                 <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Directory Location</label>
                                 <select name="id" id="sourceId" class="input-field cursor-pointer bg-white" onchange="validateStep1()">
-                                    <option value="">Loading connections...</option>
+                                    <option value="">Loading local directories...</option>
                                 </select>
                             </div>
 
@@ -171,7 +171,7 @@
                             </div>
 
                             <div class="mt-auto pt-6 border-t border-gray-50">
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center">
                                     Files to Process
                                     <button type="button" id="btnFetchSrc" onclick="fetchFiles()" class="text-xs text-bnp-emerald hover:text-[#007a4c] normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Scan Source</button>
                                 </label>
@@ -186,7 +186,7 @@
                     <div class="hidden md:block absolute left-1/2 top-4 bottom-4 w-px bg-gray-200 transform -translate-x-1/2"></div>
 
                     <!-- Destination Form -->
-                    <div class="flex-1 flex flex-col pl-2">
+                    <div class="flex-1 flex flex-col pl-0 md:pl-2 mt-8 md:mt-0">
                         <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
                             <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 mr-4 border border-emerald-100"><i class="fas fa-folder-plus text-lg"></i></div>
                             <div>
@@ -212,7 +212,7 @@
                             <div id="destLocalContainer">
                                 <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Directory Location</label>
                                 <select name="id" id="destId" class="input-field cursor-pointer bg-white" onchange="validateStep1()">
-                                    <option value="">Loading connections...</option>
+                                    <option value="">Loading local directories...</option>
                                 </select>
                             </div>
 
@@ -406,40 +406,48 @@
     }
 
     async function fetchConnections() {
-        const resSrc = await fetch('/api/connections?dbType=json&envType=source');
+        // Fetch strictly Local storage connections using the updated COS endpoint
+        const resSrc = await fetch('/api/cos-connections?envType=source&storageType=Local');
         if (resSrc.ok) {
             const srcConns = await resSrc.json();
             const srcSelect = document.getElementById('sourceId');
             srcSelect.innerHTML = '<option value="">Select a source directory...</option>';
-            srcConns.forEach(c => srcSelect.add(new Option(c.name + ' (' + c.url + ')', c.id)));
+            srcConns.forEach(c => srcSelect.add(new Option(c.cosName + ' (' + (c.storageLocation || 'N/A') + ')', c.id)));
         }
 
-        const resDest = await fetch('/api/connections?dbType=json&envType=destination');
+        const resDest = await fetch('/api/cos-connections?envType=destination&storageType=Local');
         if (resDest.ok) {
             const destConns = await resDest.json();
             const destSelect = document.getElementById('destId');
             destSelect.innerHTML = '<option value="">Select a destination directory...</option>';
-            destConns.forEach(c => destSelect.add(new Option(c.name + ' (' + c.url + ')', c.id)));
+            destConns.forEach(c => destSelect.add(new Option(c.cosName + ' (' + (c.storageLocation || 'N/A') + ')', c.id)));
         }
 
         validateStep1();
     }
 
     async function fetchCosConnections() {
-        const resSrc = await fetch('/api/cos-connections?envType=source');
+        // Fetch strictly COS storage connections
+        const resSrc = await fetch('/api/cos-connections?envType=source&storageType=COS');
         if (resSrc.ok) {
             const srcConns = await resSrc.json();
             const srcSelect = document.getElementById('sourceCosId');
             srcSelect.innerHTML = '<option value="">Select a source COS bucket...</option>';
-            srcConns.forEach(c => srcSelect.add(new Option(c.cosName + ' (' + c.bucketName + ')', c.id)));
+            srcConns.forEach(c => {
+                const label = c.bucketName ? `${c.cosName} (${c.bucketName})` : c.cosName;
+                srcSelect.add(new Option(label, c.id));
+            });
         }
 
-        const resDest = await fetch('/api/cos-connections?envType=destination');
+        const resDest = await fetch('/api/cos-connections?envType=destination&storageType=COS');
         if (resDest.ok) {
             const destConns = await resDest.json();
             const destSelect = document.getElementById('destCosId');
             destSelect.innerHTML = '<option value="">Select a destination COS bucket...</option>';
-            destConns.forEach(c => destSelect.add(new Option(c.cosName + ' (' + c.bucketName + ')', c.id)));
+            destConns.forEach(c => {
+                const label = c.bucketName ? `${c.cosName} (${c.bucketName})` : c.cosName;
+                destSelect.add(new Option(label, c.id));
+            });
         }
     }
 
@@ -521,11 +529,15 @@
         display.className = 'input-field bg-bnp-emerald/10 text-bnp-emerald flex items-center justify-center border-bnp-emerald/30';
 
         try {
-            // Include source type and ID
+            // Because we migrated Local Directories to the COS endpoint schema (admin-cos.html),
+            // both 'local' and 'cos' types are stored in the cos_connections table.
+            // Therefore, we pass them both as cosId to the backend scanner.
+            const payload = srcType === 'local' ? { cosId: srcId, type: 'local' } : { cosId: srcId, type: 'cos' };
+
             const response = await fetch('/api/fs/scan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: srcId, type: srcType })
+                body: JSON.stringify(payload)
             });
 
             const data = await response.json();
@@ -667,7 +679,7 @@
             placeholder.style.display = 'none';
             rules.forEach(full => {
                 const s = document.createElement('span');
-                s.className = `inline-flex items-center text-xs font-mono font-bold px-2.5 py-1.5 rounded-md ${colorClass} shadow-sm z-10 animate-[fadeIn_0.2s_ease-out]`;
+                s.className = `inline-flex border items-center text-xs font-mono font-bold px-2.5 py-1.5 rounded-md ${colorClass} shadow-sm z-10 animate-[fadeIn_0.2s_ease-out]`;
                 s.innerHTML = `${full} <button class="ml-2 hover:text-black focus:outline-none" onclick="removeRule('${full}','${type}')"><i class="fas fa-times"></i></button>`;
                 c.appendChild(s);
             });

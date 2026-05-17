@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS job_requests (
 CREATE TABLE IF NOT EXISTS cos_connections (
     id BIGSERIAL PRIMARY KEY,
     cos_name VARCHAR(255) NOT NULL,
+    storage_type VARCHAR(50),
+    storage_location VARCHAR(500),
     location VARCHAR(255),
     apikey VARCHAR(255),
     service_instance_id VARCHAR(255),
@@ -58,7 +60,7 @@ CREATE TABLE IF NOT EXISTS cos_connections (
     secretkey VARCHAR(255),
     bucketurl VARCHAR(500),
     bucket_id VARCHAR(255),
-    bucket_name VARCHAR(255) NOT NULL,
+    bucket_name VARCHAR(255),
     authendication_type VARCHAR(50),
     department_id VARCHAR(50) NOT NULL,
     env_type VARCHAR(50) NOT NULL,
@@ -139,10 +141,15 @@ INSERT INTO job_requests (id, migration_name, job_type, status, comments, submit
 ON CONFLICT (id) DO NOTHING;
 
 -- 7. Insert Sample COS Connections
-INSERT INTO cos_connections (id, cos_name, location, apikey, service_instance_id, accesskey, secretkey, bucketurl, bucket_id, bucket_name, authendication_type, department_id, env_type, created_by, created_at) VALUES
-(1, 'Finance Prod Bucket', 'us-south', 'dummy-api-key', 'crn:v1:bluemix:public:cloud-object-storage:global:a/12345:12345::', 'dummy-access', 'dummy-secret', 'https://s3.us-south.cloud-object-storage.appdomain.cloud', 'bucket-123', 'fin-prod-data', 'IAM', 'Finance', 'source', 'admin', 1700000000000),
-(2, 'Finance QA Bucket', 'us-south', 'dummy-api-key', 'crn:v1:bluemix:public:cloud-object-storage:global:a/12345:67890::', 'dummy-access', 'dummy-secret', 'https://s3.us-south.cloud-object-storage.appdomain.cloud', 'bucket-456', 'fin-qa-data', 'IAM', 'Finance', 'destination', 'admin', 1700000000000)
+INSERT INTO cos_connections (id, cos_name, storage_type, storage_location, location, apikey, service_instance_id, accesskey, secretkey, bucketurl, bucket_id, bucket_name, authendication_type, department_id, env_type, created_by, created_at) VALUES
+(1, 'Finance Prod Bucket', 'COS', NULL, 'us-south', 'dummy-api-key', 'crn:v1:bluemix:public:cloud-object-storage:global:a/12345:12345::', 'dummy-access', 'dummy-secret', 'https://s3.us-south.cloud-object-storage.appdomain.cloud', 'bucket-123', 'fin-prod-data', 'IAM', 'Finance', 'source', 'admin', 1700000000000),
+(2, 'Finance QA Bucket', 'COS', NULL, 'us-south', 'dummy-api-key', 'crn:v1:bluemix:public:cloud-object-storage:global:a/12345:67890::', 'dummy-access', 'dummy-secret', 'https://s3.us-south.cloud-object-storage.appdomain.cloud', 'bucket-456', 'fin-qa-data', 'IAM', 'Finance', 'destination', 'admin', 1700000000000)
 ON CONFLICT (id) DO NOTHING;
+
+-- ==========================================
+-- DDL: TABLE ALTERATION SCRIPTS
+-- ==========================================
+ALTER TABLE cos_connections ALTER COLUMN bucket_name DROP NOT NULL;
 
 -- Update sequence to prevent ID collisions on future inserts
 -- SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));

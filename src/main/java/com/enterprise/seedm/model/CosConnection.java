@@ -21,8 +21,14 @@ public class CosConnection {
     @Column(name = "cos_name", nullable = false)
     private String cosName;
 
+    @Column(name = "storage_type")
+    private String storageType; // "Local" or "COS"
+
+    @Column(name = "storage_location")
+    private String storageLocation; // For Local storage
+
     @Column(name = "location")
-    private String location;
+    private String location; // For COS storage
 
     @Column(name = "apikey")
     private String apiKey;
@@ -42,7 +48,7 @@ public class CosConnection {
     @Column(name = "bucket_id")
     private String bucketId;
 
-    @Column(name = "bucket_name", nullable = false)
+    @Column(name = "bucket_name", nullable = true) // Changed to true because Local doesn't have bucket name
     private String bucketName;
 
     @Column(name = "authendication_type")
