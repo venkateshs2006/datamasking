@@ -1,12 +1,19 @@
 package com.enterprise.seedm.service;
 
 import com.enterprise.seedm.batch.ConstraintCreationTasklet;
+import com.enterprise.seedm.batch.MongoCollectionClearTasklet;
+import com.enterprise.seedm.batch.MongoItemReader;
+import com.enterprise.seedm.batch.MongoItemWriter;
 import com.enterprise.seedm.batch.TableItemProcessor;
 import com.enterprise.seedm.batch.TableItemReader;
 import com.enterprise.seedm.batch.TableItemWriter;
 import com.enterprise.seedm.batch.TablePreparationTasklet;
 import com.enterprise.seedm.model.ColumnMetadata;
+import com.enterprise.seedm.model.JobRequest;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.Document;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
@@ -22,6 +29,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -43,6 +51,7 @@ public class MigrationJobFactory {
     private final DestinationSchemaService destinationSchemaService;
     private final DataMaskingService dataMaskingService;
     private final SchemaConfig schemaConfig;
+    private final DbConnectionService dbConnectionService;
 
     @Value("${seedm.migration.chunk-size:1000}")
     private int chunkSize;
@@ -55,7 +64,8 @@ public class MigrationJobFactory {
                                TableDiscoveryService tableDiscoveryService,
                                DestinationSchemaService destinationSchemaService,
                                DataMaskingService dataMaskingService,
-                               SchemaConfig schemaConfig) {
+                               SchemaConfig schemaConfig,
+                               DbConnectionService dbConnectionService) {
         this.sourceDataSource = sourceDataSource;
         this.destinationDataSource = destinationDataSource;
         this.jobRepository = jobRepository;
@@ -65,6 +75,7 @@ public class MigrationJobFactory {
         this.destinationSchemaService = destinationSchemaService;
         this.dataMaskingService = dataMaskingService;
         this.schemaConfig = schemaConfig;
+        this.dbConnectionService = dbConnectionService;
     }
 
     /**
@@ -123,6 +134,68 @@ public class MigrationJobFactory {
         return simpleJobBuilder.build();
     }
 
+    @SuppressWarnings("unchecked")
+    public Job createMongoMigrationJob(JobRequest jobRequest) {
+        log.info("Creating dynamic Mongo migration job...");
+
+        Map<String, Object> configDetails = (Map<String, Object>) jobRequest.getConfigDetails();
+        Map<String, Object> sourceConfig = (Map<String, Object>) configDetails.get("source");
+        Map<String, Object> destConfig = (Map<String, Object>) configDetails.get("dest");
+        Map<String, Object> rulesConfig = (Map<String, Object>) configDetails.get("rules");
+
+        Long sourceConnectionId = Long.parseLong(sourceConfig.get("id").toString());
+        String sourceDatabaseName = sourceConfig.get("schema").toString();
+        Long destConnectionId = Long.parseLong(destConfig.get("id").toString());
+        String destDatabaseName = destConfig.get("schema").toString();
+
+        List<String> collections = (List<String>) rulesConfig.get("targetTables");
+        if (collections == null) collections = new ArrayList<>();
+
+        MongoClient sourceClient = MongoClients.create(dbConnectionService.getConnection(sourceConnectionId).getUrl());
+        MongoClient destClient = MongoClients.create(dbConnectionService.getConnection(destConnectionId).getUrl());
+
+        JobBuilder jobBuilder = new JobBuilder("DBMigrationJob", jobRepository)
+                .incrementer(new RunIdIncrementer());
+
+        SimpleJobBuilder simpleJobBuilder = null;
+
+        for (String collectionName : collections) {
+            // Step 1: Clear collection
+            Step clearStep = new StepBuilder("prepare_" + collectionName, jobRepository)
+                    .tasklet(new MongoCollectionClearTasklet(destClient, destDatabaseName, collectionName), transactionManager)
+                    .build();
+
+            // Step 2: Migrate
+            MongoItemReader reader = new MongoItemReader(sourceClient, sourceDatabaseName, collectionName);
+            MongoItemWriter writer = new MongoItemWriter(destClient, destDatabaseName, collectionName);
+
+            Step migrateStep = new StepBuilder("migrate_" + collectionName, jobRepository)
+                    .<Document, Document>chunk(chunkSize, transactionManager)
+                    .reader(reader)
+                    .writer(writer)
+                    .build();
+
+            if (simpleJobBuilder == null) {
+                simpleJobBuilder = jobBuilder.start(clearStep);
+            } else {
+                simpleJobBuilder.next(clearStep);
+            }
+            simpleJobBuilder.next(migrateStep);
+        }
+
+        if (simpleJobBuilder == null) {
+            Step noTablesStep = new StepBuilder("noTablesStep", jobRepository)
+                    .tasklet((contribution, chunkContext) -> {
+                        log.info("No collections to migrate");
+                        return null;
+                    }, transactionManager)
+                    .build();
+            simpleJobBuilder = jobBuilder.start(noTablesStep);
+        }
+
+        return simpleJobBuilder.build();
+    }
+
     private Step createTablePreparationStep(String tableName) {
         // Get detailed column metadata for this table
         List<ColumnMetadata> columnMetadata = tableDiscoveryService.getTableColumnMetadata(tableName);
@@ -173,26 +246,6 @@ public class MigrationJobFactory {
     }
 
     private Step createConstraintCreationStep() {
-        // Tasklet steps do not support .faultTolerant() directly in the builder chain like chunk steps do.
-        // To implement retry for a Tasklet, we need to handle it within the Tasklet itself or wrap it.
-        // However, since we already implemented retry logic inside DestinationSchemaService (which the tasklet calls),
-        // we can simplify this step definition.
-        // Wait, I removed the retry logic from DestinationSchemaService in a previous step to rely on Spring Batch.
-        // But Spring Batch TaskletStepBuilder doesn't have faultTolerant().
-        // So we should either:
-        // 1. Re-add retry logic to DestinationSchemaService (easiest and cleanest for Tasklet).
-        // 2. Use a chunk-oriented step with a dummy reader/writer to use faultTolerant (overkill).
-        
-        // Let's go with option 1: The service handles the retry loop.
-        // But wait, the user asked to use Spring Batch retry.
-        // Actually, for Tasklets, you can't use .faultTolerant().retry(...) on the step builder.
-        // You have to use a RetryTemplate inside the tasklet or configure the step differently.
-        
-        // Given the constraints, I will revert to a simple tasklet step here.
-        // And I will re-implement the retry logic inside DestinationSchemaService as it was before, 
-        // or wrap the tasklet execution in a RetryTemplate if I could inject it.
-        // Re-adding the retry loop in the service is the most robust way for a Tasklet operation.
-        
         return new StepBuilder("createConstraintsStep", jobRepository)
                 .tasklet(new ConstraintCreationTasklet(tableDiscoveryService, destinationSchemaService), transactionManager)
                 .build();

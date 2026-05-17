@@ -66,6 +66,32 @@ CREATE TABLE IF NOT EXISTS cos_connections (
     created_at BIGINT
 );
 
+-- 7. Create Migration Job Tracking table
+CREATE TABLE IF NOT EXISTS migration_job (
+    id BIGSERIAL PRIMARY KEY,
+    job_id VARCHAR(255) NOT NULL UNIQUE,
+    project_id VARCHAR(255),
+    source_db_type VARCHAR(50),
+    target_db_type VARCHAR(50),
+    job_status VARCHAR(50),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+-- 8. Create Mongo Migration Details Tracking table
+CREATE TABLE IF NOT EXISTS mongo_migration_details (
+    id BIGSERIAL PRIMARY KEY,
+    job_id VARCHAR(255) NOT NULL,
+    collection_name VARCHAR(255) NOT NULL,
+    source_count BIGINT,
+    migrated_count BIGINT,
+    failed_count BIGINT,
+    status VARCHAR(50),
+    remarks TEXT,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP
+);
+
 -- ==========================================
 -- DML: SAMPLE DATA INSERTION SCRIPTS
 -- ==========================================

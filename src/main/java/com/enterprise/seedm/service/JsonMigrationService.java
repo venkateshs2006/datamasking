@@ -30,7 +30,9 @@ public class JsonMigrationService {
 
     public JsonMigrationService(JsonMaskingConfigService configService) {
         this.configService = configService;
-        this.objectMapper = new ObjectMapper();
+        this.objectMapper = new ObjectMapper()
+            .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+            .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         this.faker = new Faker();
     }
 

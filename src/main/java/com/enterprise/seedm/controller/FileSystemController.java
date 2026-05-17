@@ -32,7 +32,9 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor
 public class FileSystemController {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+            .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     private final DbConnectionService dbConnectionService;
     private final CosConnectionService cosConnectionService;
 

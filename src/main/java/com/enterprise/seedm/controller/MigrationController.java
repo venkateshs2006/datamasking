@@ -38,11 +38,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.security.SecureRandom;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 @RestController
 @RequestMapping("/api/migration")
@@ -85,6 +84,9 @@ public class MigrationController {
     @Qualifier("destinationDataSource")
     @Autowired
     private SwappableDataSource destinationDataSource;
+
+    private static final AtomicLong jsonSequence = new AtomicLong(1);
+    private static final AtomicLong mongoSequence = new AtomicLong(1);
 
     /**
      * Get connection details from the active datasources
@@ -233,7 +235,7 @@ public class MigrationController {
             log.info("Starting JSON migration job manually...");
             
             // Execute the JSON migration process asynchronously
-            String executionId = "json-" + System.currentTimeMillis();
+            String executionId = "json-" + jsonSequence.getAndIncrement();
             taskExecutor.execute(() -> {
                 try {
                     jsonMigrationService.processMigrationAsync(executionId);
@@ -265,16 +267,33 @@ public class MigrationController {
                 return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "message", "Job not found"));
             }
 
-            // Execute the Mongo migration process asynchronously
-            String executionId = "mongo-" + System.currentTimeMillis();
+            Job mongoJob = migrationJobFactory.createMongoMigrationJob(jobRequest);
+
+            JobParameters jobParameters = new JobParametersBuilder()
+                    .addString("jobName", "DBMigrationJob")
+                    .addString("name", "DBMigrationJob")
+                    .addLong("startTime", System.currentTimeMillis())
+                    .addString("jobType", "MONGO")
+                    .toJobParameters();
+
             taskExecutor.execute(() -> {
                 try {
-                    mongoMigrationService.migrate(jobRequest, executionId);
+                    jobExecution = jobLauncher.run(mongoJob, jobParameters);
                 } catch (Exception e) {
                     log.error("Mongo Migration failed in background task", e);
                 }
             });
 
+            if(jobExecution==null){
+                Thread.sleep(500);
+                if (jobExecution == null) {
+                     jobExecution = jobExplorer.findRunningJobExecutions("DBMigrationJob").stream()
+                             .max(Comparator.comparing(JobExecution::getId))
+                             .orElse(null);
+                }
+            }
+
+            String executionId = jobExecution != null ? jobExecution.getId().toString() : "error";
             log.info("Mongo Migration task launched with id: {}", executionId);
             return ResponseEntity.ok(Map.of("status", "SUCCESS", "executionId", executionId, "message", "Mongo Migration started"));
 
@@ -286,7 +305,7 @@ public class MigrationController {
 
     @GetMapping("/mongo/status/{executionId}")
     public ResponseEntity<?> getMongoStatus(@PathVariable String executionId) {
-        return ResponseEntity.ok(mongoMigrationService.getProgress(executionId));
+        return ResponseEntity.ok(getJobStatus(executionId)); // Route to standard status since it's a Batch job now!
     }
 
     /**
@@ -296,7 +315,7 @@ public class MigrationController {
     public List<Map<String, Object>> getRecentExecutions() {
         String jobName = "DBMigrationJob";
         List<Map<String, Object>> result = new ArrayList<>();
-        
+
         try {
             // Get last few instances from Spring Batch
             List<JobInstance> instances = jobExplorer.getJobInstances(jobName, 0, 20);
@@ -307,7 +326,7 @@ public class MigrationController {
                     Map<String, Object> execMap = new HashMap<>();
                     execMap.put("id", execution.getId().toString()); // Convert to String to match other types
                     execMap.put("status", execution.getStatus().toString());
-                    execMap.put("startTime", execution.getStartTime() != null ? execution.getStartTime().getTime() : 0);
+                    execMap.put("startTime", execution.getStartTime() != null ? execution.getStartTime() : 0);
                     result.add(execMap);
                 }
             }
@@ -315,14 +334,20 @@ public class MigrationController {
             // Add JSON executions
             result.addAll(jsonMigrationService.getAllExecutions());
             
-            // Add Mongo executions
-            result.addAll(mongoMigrationService.getAllExecutions());
-            
             // Sort descending by ID (using string comparison for mixed types)
             result.sort((m1, m2) -> {
                 String id1 = m1.get("id").toString();
                 String id2 = m2.get("id").toString();
-                return id2.compareTo(id1);
+                
+                // Try numeric sort if both are numbers (batch IDs)
+                try {
+                    long l1 = Long.parseLong(id1);
+                    long l2 = Long.parseLong(id2);
+                    return Long.compare(l2, l1);
+                } catch (NumberFormatException e) {
+                    // Fallback to string sort
+                    return id2.compareTo(id1);
+                }
             });
             
         } catch (Exception e) {
@@ -337,9 +362,7 @@ public class MigrationController {
      */
     @GetMapping("/status/{executionId}")
     public Map<String, Object> getJobStatus(@PathVariable String executionId) {
-        if (executionId.startsWith("mongo-")) {
-            return mongoMigrationService.getProgress(executionId);
-        } else if (executionId.startsWith("json-")) {
+        if (executionId.startsWith("json-")) {
             return jsonMigrationService.getProgress(executionId);
         }
 
@@ -410,8 +433,8 @@ public class MigrationController {
 
             // Extract table-specific progress
             String stepName = stepExecution.getStepName();
-            if (stepName.endsWith("-migration")) {
-                String tableName = stepName.replace("-migration", "");
+            if (stepName.startsWith("migrate_")) {
+                String tableName = stepName.replace("migrate_", "");
                 Map<String, Object> stepInfo = new HashMap<>();
                 stepInfo.put("tableName", tableName);
                 stepInfo.put("readCount", stepExecution.getReadCount());
@@ -455,7 +478,7 @@ public class MigrationController {
     public Map<String, String> stopMigration(@PathVariable String executionId) {
         Map<String, String> response = new HashMap<>();
         
-        if (executionId.startsWith("mongo-") || executionId.startsWith("json-")) {
+        if (executionId.startsWith("json-")) {
             // Stopping async JSON/Mongo jobs dynamically might require extra tracking inside those services
             // Assuming no stop functionality defined for async in memory for now
             response.put("status", "ERROR");

@@ -45,7 +45,9 @@ public class JobRequest {
     private void parseJson() {
         if (this.configDetailsJson != null) {
             try {
-                ObjectMapper mapper = new ObjectMapper();
+                ObjectMapper mapper = new ObjectMapper()
+                    .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+                    .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
                 this.configDetails = mapper.readValue(this.configDetailsJson, Object.class);
             } catch (JsonProcessingException e) {
                 this.configDetails = null;
@@ -58,7 +60,9 @@ public class JobRequest {
     private void generateJson() {
         if (this.configDetails != null) {
             try {
-                ObjectMapper mapper = new ObjectMapper();
+                ObjectMapper mapper = new ObjectMapper()
+                    .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+                    .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
                 this.configDetailsJson = mapper.writeValueAsString(this.configDetails);
             } catch (JsonProcessingException e) {
                 this.configDetailsJson = null;

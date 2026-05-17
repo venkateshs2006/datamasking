@@ -3,6 +3,9 @@ spring:
     allow-bean-definition-overriding: true
   application:
     name: seedm db migration
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
 
   datasource:
     # Batch Metadata Database Configuration (Primary)
@@ -47,7 +50,7 @@ spring:
   # JPA Configuration (for Spring Batch metadata)
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: update
     show-sql: false
 
 # Migration Configuration

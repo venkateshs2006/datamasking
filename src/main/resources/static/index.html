@@ -3,670 +3,721 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BNP Paribas - SeEDM Real-Time Dashboard</title>
+    <title>BNP Paribas - SeEDM Migration Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        bnp: {
-                            emerald: '#00965e',
-                            dark: '#333333',
-                            light: '#f4f4f4'
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['"Open Sans"', 'sans-serif'],
-                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', "Liberation Mono", "Courier New", 'monospace'],
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4' }
                     }
                 }
             }
         }
     </script>
     <style>
-        :root { --bnp-emerald: #00965e; --bnp-dark: #333333; }
-        body { font-family: 'Open Sans', sans-serif; background-color: #f8fafc; color: var(--bnp-dark); display: flex; flex-direction: column; min-height: 100vh; }
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); display: flex; flex-direction: column; min-height: 100vh; color: var(--text-main); }
 
         header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
         .bnp-logo { height: 48px; display: block; }
         nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
         nav ul li { margin-left: 25px; }
-        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
+        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
         nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
 
-        footer { background: var(--bnp-dark); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; }
+        main { flex: 1; padding: 30px 8%; display: flex; flex-direction: column; }
+
+        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; }
         .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
+        .tagline { font-weight: 300; letter-spacing: 1px; }
 
-        /* Modern Card Styling */
-        .dash-card {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-            border: 1px solid #f1f5f9;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9; transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); }
+        .status-badge { padding: 4px 12px; border-radius: 9999px; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .status-completed { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+        .status-running { background-color: rgba(0,150,94,0.1); color: var(--bnp-emerald); border: 1px solid rgba(0,150,94,0.2); }
+        .status-failed { background-color: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+        .progress-bar { transition: width 0.5s ease-in-out; }
 
-        .card-header {
-            background: #ffffff;
-            padding: 1rem 1.5rem;
-            border-bottom: 1px solid #f1f5f9;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+        /* Modal Styles */
+        .modal { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(51, 51, 51, 0.6); backdrop-filter: blur(4px); }
+        .modal-content { background-color: #fff; margin: 10% auto; padding: 24px; width: 90%; max-width: 700px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+        .close { color: #94a3b8; float: right; font-size: 24px; font-weight: bold; cursor: pointer; transition: color 0.2s; }
+        .close:hover, .close:focus { color: #0f172a; text-decoration: none; }
+        .error-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 500px; display: inline-block; vertical-align: middle; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+        .error-full { display: none; white-space: pre-wrap; word-break: break-word; margin-top: 12px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; color: #475569; }
 
-        .card-title {
-            font-size: 0.75rem;
-            font-weight: 700;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            display: flex;
-            align-items: center;
-        }
-
-        .metric-value {
-            font-size: 2.5rem;
-            font-weight: 800;
-            color: var(--bnp-dark);
-            line-height: 1;
-            margin-top: 1rem;
-        }
-
-        /* Progress Bar */
-        .progress-track {
-            background-color: #f1f5f9;
-            border-radius: 9999px;
-            height: 8px;
-            overflow: hidden;
-            width: 100%;
-        }
-        .progress-fill {
-            background-color: var(--bnp-emerald);
-            height: 100%;
-            border-radius: 9999px;
-            transition: width 0.5s ease-out;
-        }
-
-        /* Custom Select */
-        select.execution-selector {
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-            background-position: right 0.5rem center;
-            background-repeat: no-repeat;
-            background-size: 1.5em 1.5em;
-            padding-right: 2.5rem;
-        }
-
-        /* Stop button spinner */
-        .btn-loading .fa-stop { display: none; }
-        .btn-loading::before {
-            content: "\f110"; /* fa-spinner */
-            font-family: "Font Awesome 6 Free";
-            font-weight: 900;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-
-        /* Approver UI hidden */
+        /* Hide some nav links for approvers */
         body.role-approver .nav-scheduler-only { display: none !important; }
 
-        /* Status Badge Animations */
-        @keyframes pulse-emerald {
-            0% { box-shadow: 0 0 0 0 rgba(0, 150, 94, 0.4); }
-            70% { box-shadow: 0 0 0 6px rgba(0, 150, 94, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(0, 150, 94, 0); }
+        .processing-pulse {
+            animation: pulse-op 1.5s infinite ease-in-out;
         }
-        .status-running {
-            animation: pulse-emerald 2s infinite;
+        @keyframes pulse-op {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
         }
     </style>
 </head>
 <body>
 
-    <header>
-        <div class="flex items-center">
-            <a href="/index.html" class="logo-link mr-6 nav-scheduler-only">
-                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
-            </a>
-            <a href="/jobs.html" class="logo-link mr-6" style="display: none;" id="approverLogoLink">
-                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
-            </a>
-            <div class="hidden md:block border-l border-gray-300 pl-6">
-                <h1 class="text-xl font-bold text-bnp-dark tracking-tight leading-none">SeEDM</h1>
-                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Real-time Dashboard</p>
-            </div>
+<header>
+    <div class="flex items-center">
+        <a href="/index.html" class="logo-link mr-6 nav-scheduler-only">
+            <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+        </a>
+        <a href="/jobs.html" class="logo-link mr-6" style="display: none;" id="approverLogoLink">
+            <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+        </a>
+        <div class="hidden md:block border-l border-gray-300 pl-6">
+            <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
+            <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Job Monitor</p>
         </div>
-        <nav>
-            <ul>
-                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> Admin DB</a></li>
-                <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> Admin COS</a></li>
-                <li class="nav-scheduler-only"><a href="/select-db.html" class="bg-bnp-emerald text-white px-4 py-2 rounded shadow-sm hover:text-white hover:bg-[#007a4c] transition"><i class="fas fa-plus mr-1.5"></i>New Migration</a></li>
-                <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
-                <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
-            </ul>
-        </nav>
-    </header>
+    </div>
+    <nav>
+        <ul>
+            <li class="nav-scheduler-only"><a href="/select-db.html"><i class="fas fa-plus mr-1.5"></i> New Migration</a></li>
+            <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+            <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
+            <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
+            <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
+        </ul>
+    </nav>
+</header>
 
-    <main class="flex-1 p-6 md:p-8 w-full max-w-[1400px] mx-auto">
+<main>
+    <div class="max-w-7xl mx-auto w-full">
 
-        <!-- Dashboard Header -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
             <div>
-                <h2 class="text-2xl font-bold text-gray-900">Execution Monitor</h2>
-                <p class="text-sm text-gray-500 mt-1">Track throughput, completion status, and resource usage in real-time.</p>
+                <h2 class="text-3xl font-bold text-bnp-dark-grey tracking-tight">Active Job Status</h2>
+                <p class="text-sm text-gray-500 mt-2 flex items-center">
+                    <span id="executionIdDisplay" class="font-mono bg-white px-2 py-1 rounded border border-gray-200 mr-2 shadow-sm">ID: -</span>
+                    Real-time monitoring of data movement
+                </p>
             </div>
-
-            <div class="flex items-center gap-3 bg-white p-2 rounded-lg shadow-sm border border-gray-200">
-                <label for="executionIdSelector" class="text-xs font-bold text-gray-500 uppercase tracking-wide ml-2">Job ID:</label>
-                <select id="executionIdSelector" class="execution-selector bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-md focus:ring-bnp-emerald focus:border-bnp-emerald block w-64 p-2 font-mono">
-                    <option value="">Loading...</option>
-                </select>
-                <button id="btnStopJob" onclick="stopJob()" class="bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 p-2 rounded border border-rose-100 transition hidden" title="Stop Execution">
-                    <i class="fas fa-stop text-sm"></i>
-                </button>
+            <!-- ID Selector Dropdown -->
+            <div class="w-full md:w-64">
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">View Job Execution ID</label>
+                <div class="flex gap-2">
+                    <select id="executionIdSelector" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-bnp-emerald focus:border-bnp-emerald text-sm bg-white shadow-sm cursor-pointer" onchange="changeExecutionId()">
+                        <option value="">Loading IDs...</option>
+                    </select>
+                    <button onclick="fetchExecutions()" class="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 shadow-sm" title="Refresh List">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
             </div>
         </div>
 
-        <!-- Top Metrics Row -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            <!-- Status Card -->
-            <div class="dash-card">
-                <div class="card-header">
-                    <span class="card-title"><i class="fas fa-info-circle mr-2 text-blue-500"></i> Overall Status</span>
-                    <span id="executionIdDisplay" class="text-[10px] font-mono bg-gray-100 px-2 py-1 rounded text-gray-500 border border-gray-200">ID: --</span>
-                </div>
-                <div class="p-6 flex flex-col items-center justify-center flex-1 bg-gradient-to-b from-white to-gray-50/50">
-                    <div id="jobStatusIcon" class="hidden text-4xl mb-2 text-bnp-emerald"><i class="fas fa-check-circle"></i></div>
-                    <div id="jobStatus" class="text-2xl font-black text-gray-400 mt-1 uppercase tracking-wider">WAITING</div>
-                    <div class="text-xs font-semibold text-gray-500 mt-3" id="durationContainer"><i class="far fa-clock mr-1"></i> Duration: <span id="duration" class="font-mono">00:00</span></div>
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="card p-5 border-l-4 border-bnp-emerald relative overflow-hidden">
+                <div class="absolute right-0 top-0 opacity-5 text-6xl -mt-2 -mr-2 text-bnp-emerald"><i class="fas fa-tasks"></i></div>
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Job Status</p>
+                <h3 class="text-2xl font-black text-bnp-dark-grey mt-2" id="jobStatus">Wait...</h3>
+            </div>
+
+            <div class="card p-5 border-l-4 border-[#059669] relative overflow-hidden">
+                <div class="absolute right-0 top-0 opacity-5 text-6xl -mt-2 -mr-2"><i class="fas fa-check-circle"></i></div>
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Items Completed</p>
+                <div class="flex items-baseline mt-2">
+                    <h3 class="text-2xl font-black text-bnp-dark-grey" id="completedCount">0</h3>
+                    <span class="text-sm font-medium text-gray-400 ml-1">/ <span id="totalTableCount">0</span></span>
                 </div>
             </div>
 
-            <!-- Progress Card -->
-            <div class="dash-card">
-                <div class="card-header">
-                    <span class="card-title"><i class="fas fa-tasks mr-2 text-purple-500"></i> Completion</span>
-                </div>
-                <div class="p-6 flex flex-col justify-center flex-1">
-                    <div class="flex justify-between items-end mb-2">
-                        <div class="metric-value" style="margin-top: 0;"><span id="progressPct">0</span><span class="text-xl text-gray-400 ml-1">%</span></div>
-                        <div class="text-sm font-semibold text-gray-500 mb-1"><span id="completedCount" class="text-gray-800">0</span> / <span id="totalTableCount">0</span> tables</div>
-                    </div>
-                    <div class="progress-track mt-2">
-                        <div id="overallProgressBar" class="progress-fill" style="width: 0%"></div>
-                    </div>
+            <div class="card p-5 border-l-4 border-purple-500 relative overflow-hidden">
+                <div class="absolute right-0 top-0 opacity-5 text-6xl -mt-2 -mr-2"><i class="fas fa-database"></i></div>
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Records Migrated</p>
+                <h3 class="text-2xl font-black text-bnp-dark-grey mt-2 font-mono" id="totalRecords">0</h3>
+            </div>
+
+            <div class="card p-5 border-l-4 border-yellow-500 relative overflow-hidden">
+                <div class="absolute right-0 top-0 opacity-5 text-6xl -mt-2 -mr-2"><i class="fas fa-stopwatch"></i></div>
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Elapsed Time</p>
+                <h3 class="text-2xl font-black text-bnp-dark-grey mt-2 font-mono" id="duration">00:00</h3>
+            </div>
+        </div>
+
+        <!-- Charts & Metrics -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Progress Chart -->
+            <div class="card p-6 lg:col-span-2 flex flex-col">
+                <h3 class="text-sm font-bold text-bnp-dark-grey uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">Migration Throughput</h3>
+                <div class="relative flex-1 min-h-[250px]">
+                    <canvas id="throughputChart"></canvas>
                 </div>
             </div>
 
-            <!-- Throughput Card -->
-            <div class="dash-card">
-                <div class="card-header">
-                    <span class="card-title"><i class="fas fa-bolt mr-2 text-amber-500"></i> Data Processed</span>
-                </div>
-                <div class="p-6 flex flex-col justify-center flex-1 text-center">
-                    <div class="metric-value text-bnp-emerald" id="totalRecords" style="margin-top:0;">0</div>
-                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-2">Total Rows Written</div>
-                </div>
-            </div>
+            <!-- System Metrics -->
+            <div class="card p-6 lg:col-span-1 bg-bnp-dark-grey text-white border-none shadow-xl">
+                <h3 class="text-sm font-bold text-gray-300 uppercase tracking-wider mb-6 flex items-center">
+                    <i class="fas fa-server mr-2 text-bnp-emerald"></i> System Health
+                </h3>
 
-            <!-- System Card -->
-            <div class="dash-card">
-                <div class="card-header">
-                    <span class="card-title"><i class="fas fa-microchip mr-2 text-teal-500"></i> System Resources</span>
-                </div>
-                <div class="p-6 flex flex-col justify-center flex-1">
-                    <div class="mb-4">
-                        <div class="flex justify-between text-xs font-bold text-gray-600 mb-1">
-                            <span>JVM Heap Usage</span>
-                            <span id="heapText" class="font-mono">0 / 0 MB</span>
-                        </div>
-                        <div class="progress-track h-1.5">
-                            <div id="heapBar" class="progress-fill bg-teal-500" style="width: 0%"></div>
-                        </div>
-                    </div>
+                <div class="space-y-6">
                     <div>
-                        <div class="flex justify-between text-xs font-bold text-gray-600 mb-1">
-                            <span>CPU Load</span>
-                            <span id="cpuText" class="font-mono">0%</span>
+                        <div class="flex justify-between mb-2">
+                            <span class="text-xs font-medium text-gray-400">JVM Heap Memory</span>
+                            <span class="text-xs font-mono text-gray-200" id="heapText">0 / 0 MB</span>
                         </div>
-                        <div class="progress-track h-1.5">
-                            <div id="cpuBar" class="progress-fill bg-blue-500" style="width: 0%"></div>
+                        <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                            <div class="bg-bnp-emerald h-2 rounded-full progress-bar shadow-[0_0_10px_rgba(0,150,94,0.5)]" id="heapBar" style="width: 0%"></div>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Details Row -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-[400px]">
-            <!-- Chart -->
-            <div class="dash-card lg:col-span-2">
-                <div class="card-header border-b border-gray-100">
-                    <span class="card-title"><i class="fas fa-chart-bar mr-2 text-indigo-500"></i> Entity Throughput Breakdown</span>
-                </div>
-                <div class="p-4 flex-1 w-full relative">
-                    <div class="absolute inset-0 p-4">
-                        <canvas id="throughputChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Table List -->
-            <div class="dash-card flex flex-col">
-                <div class="card-header border-b border-gray-100">
-                    <span class="card-title"><i class="fas fa-list-ul mr-2 text-rose-500"></i> Task Detail</span>
-                </div>
-                <div class="flex-1 overflow-y-auto bg-gray-50/30">
-                    <table class="w-full text-left border-collapse">
-                        <thead class="bg-white sticky top-0 shadow-sm z-10">
-                            <tr class="text-[10px] text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                                <th class="px-4 py-3 font-bold w-1/2">Task / Entity Name</th>
-                                <th class="px-4 py-3 font-bold text-right">Written</th>
-                                <th class="px-4 py-3 font-bold text-center">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100" id="tableBody">
-                            <tr>
-                                <td colspan="3" class="px-6 py-12 text-center text-gray-400">
-                                    <i class="fas fa-inbox text-3xl mb-3 text-gray-300"></i>
-                                    <p class="text-sm">No job execution context found.</p>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <!-- Error Modal -->
-    <div id="errorModal" class="modal">
-        <div class="modal-content border-t-4 border-rose-500" style="max-width: 600px;">
-            <div class="p-6">
-                <div class="flex items-start mb-4">
-                    <div class="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 shrink-0 mr-4">
-                        <i class="fas fa-exclamation-triangle text-xl"></i>
-                    </div>
                     <div>
-                        <h3 class="text-lg font-bold text-gray-900 leading-tight">Migration Failed</h3>
-                        <p class="text-sm text-gray-500 mt-1">The job execution encountered errors and could not complete.</p>
+                        <div class="flex justify-between mb-2">
+                            <span class="text-xs font-medium text-gray-400">CPU Load Average</span>
+                            <span class="text-xs font-mono text-gray-200" id="cpuText">0.00</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                            <div class="bg-[#059669] h-2 rounded-full progress-bar shadow-[0_0_10px_rgba(5,150,105,0.5)]" id="cpuBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 mt-4 border-t border-gray-700">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-medium text-gray-400">Available Cores</span>
+                            <span class="text-lg font-bold text-gray-200" id="processors">0</span>
+                        </div>
                     </div>
                 </div>
-                <div class="bg-gray-50 rounded-lg border border-gray-200 p-4 max-h-[300px] overflow-y-auto mt-4">
-                    <ul id="errorList" class="text-xs font-mono text-rose-600 space-y-2 list-disc pl-4"></ul>
+            </div>
+        </div>
+
+        <!-- Table Details -->
+        <div class="card overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 bg-white flex justify-between items-center">
+                <h3 class="text-sm font-bold text-bnp-dark-grey uppercase tracking-wider" id="tableHeaderTitle">Table Execution Log</h3>
+                <div class="flex space-x-2" id="tableFilters">
                 </div>
-                <div class="mt-6 flex justify-end">
-                    <button onclick="document.getElementById('errorModal').style.display='none'" class="px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded shadow-sm hover:bg-gray-200 transition text-sm">Dismiss</button>
-                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                    <tr class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider border-b border-gray-200">
+                        <th class="px-6 py-3 font-semibold w-1/3" id="thEntityName">Entity Name</th>
+                        <th class="px-6 py-3 font-semibold text-right" id="thRead">Read</th>
+                        <th class="px-6 py-3 font-semibold text-right" id="thWritten">Written</th>
+                        <th class="px-6 py-3 font-semibold text-center w-32">Status</th>
+                        <th class="px-6 py-3 font-semibold w-1/4">Progress</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100" id="tableBody">
+                    <tr>
+                        <td colspan="5" class="px-6 py-12 text-center text-gray-400">
+                            <i class="fas fa-inbox text-4xl mb-3 text-gray-200"></i>
+                            <p>No job execution context found.</p>
+                            <a href="/select-db.html" class="inline-block mt-4 text-bnp-emerald hover:underline font-bold">Start a new migration</a>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
+</main>
 
-    <footer>
-        <div class="footer-content">
-            <p>© BNP Paribas - 2026</p>
-            <p class="tagline">The bank for a changing world</p>
+<footer>
+    <div class="footer-content">
+        <p>© BNP Paribas - 2026</p>
+        <p class="tagline">The bank for a changing world</p>
+    </div>
+</footer>
+
+<!-- Error Modal -->
+<div id="errorModal" class="modal">
+    <div class="modal-content">
+        <div class="flex justify-between items-center mb-5 border-b border-gray-100 pb-3">
+            <h2 class="text-xl font-bold text-red-600 flex items-center">
+                <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center mr-3">
+                    <i class="fas fa-exclamation-triangle text-sm"></i>
+                </div>
+                Job Execution Failed
+            </h2>
+            <span class="close" onclick="closeModal()">&times;</span>
         </div>
-    </footer>
 
-    <script>
-        let pollingInterval;
-        let errorShown = false;
+        <div id="errorDetails" class="text-gray-800 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+            <!-- Error messages will be injected here -->
+        </div>
 
-        fetch('/api/auth/check').then(r => r.json()).then(data => {
-            if(!data.authenticated) {
-                window.location.href = '/login.html';
-            } else if (data.role === 'APPROVER') {
-                document.body.classList.add('role-approver');
-                document.getElementById('approverLogoLink').style.display = 'block';
-            } else if (data.role === 'ADMIN') {
-                document.getElementById('adminDbLink').style.display = 'block';
-                document.getElementById('adminCosLink').style.display = 'block';
-            }
-        });
+        <div class="mt-6 pt-4 border-t border-gray-100 text-right">
+            <button onclick="closeModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2 px-6 rounded-lg transition">Close</button>
+        </div>
+    </div>
+</div>
 
-        async function logout() {
-            await fetch('/api/auth/logout', {method: 'POST'});
+<script>
+    // Authentication Check
+    fetch('/api/auth/check').then(r => r.json()).then(data => {
+        if(!data.authenticated) {
             window.location.href = '/login.html';
+        } else if (data.role === 'APPROVER') {
+            document.body.classList.add('role-approver');
+            document.getElementById('approverLogoLink').style.display = 'block';
+        } else if (data.role === 'ADMIN') {
+            document.getElementById('adminDbLink').style.display = 'block';
+            document.getElementById('adminCosLink').style.display = 'block';
         }
+    });
 
-        // Chart Initialization
-        Chart.defaults.font.family = "'Open Sans', sans-serif";
-        const ctx = document.getElementById('throughputChart').getContext('2d');
-        const throughputChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: [],
-                datasets: [
-                    {
-                        label: 'Rows Read',
-                        data: [],
-                        backgroundColor: 'rgba(51, 51, 51, 0.8)',
-                        borderRadius: 4,
-                        barPercentage: 0.6
-                    },
-                    {
-                        label: 'Rows Written',
-                        data: [],
-                        backgroundColor: 'rgba(0, 150, 94, 0.8)',
-                        borderRadius: 4,
-                        barPercentage: 0.6
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8, font: {size: 11, weight: 'bold'} } },
-                    tooltip: { backgroundColor: 'rgba(0,0,0,0.8)', titleFont: {size: 11}, bodyFont: {size: 11}, padding: 10, cornerRadius: 8 }
+    async function logout() {
+        await fetch('/api/auth/logout', {method: 'POST'});
+        window.location.href = '/login.html';
+    }
+
+    // Chart Initialization
+    Chart.defaults.font.family = "'Open Sans', sans-serif";
+    const ctx = document.getElementById('throughputChart').getContext('2d');
+    const throughputChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Items Read',
+                    data: [],
+                    backgroundColor: 'rgba(51, 51, 51, 0.8)',
+                    borderRadius: 4,
+                    barPercentage: 0.6
                 },
-                scales: {
-                    y: { beginAtZero: true, grid: { borderDash: [2, 4], color: '#e2e8f0' }, ticks: { font: {size: 10} } },
-                    x: { grid: { display: false }, ticks: { font: {size: 10}, maxRotation: 45, minRotation: 45 } }
+                {
+                    label: 'Items Written',
+                    data: [],
+                    backgroundColor: 'rgba(0, 150, 94, 0.8)',
+                    borderRadius: 4,
+                    barPercentage: 0.6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', align: 'end', labels: { boxWidth: 12, usePointStyle: true } },
+                tooltip: { mode: 'index', intersect: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: '#f1f5f9', drawBorder: false },
+                    ticks: { font: { size: 10 }, color: '#94a3b8' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 10 }, color: '#64748b' }
+                }
+            },
+            interaction: { mode: 'nearest', axis: 'x', intersect: false }
+        }
+    });
+
+    // Fetch execution IDs for dropdown
+    async function fetchExecutions() {
+        try {
+            const response = await fetch('/api/migration/executions');
+            if (!response.ok) throw new Error('Failed to fetch executions');
+            const executions = await response.json();
+
+            const selector = document.getElementById('executionIdSelector');
+            selector.innerHTML = '';
+
+            if (executions.length === 0) {
+                selector.innerHTML = '<option value="">No executions found</option>';
+                return;
+            }
+
+            executions.forEach(ex => {
+                const date = new Date(ex.startTime).toLocaleString();
+                const option = new Option(`ID: ${ex.id} - ${ex.status} (${date})`, ex.id);
+                selector.add(option);
+            });
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const currentId = urlParams.get('executionId');
+
+            if (currentId && executions.some(e => e.id == currentId)) {
+                selector.value = currentId;
+            } else if (executions.length > 0) {
+                selector.value = executions[0].id;
+                const url = new URL(window.location);
+                url.searchParams.set('executionId', executions[0].id);
+                window.history.pushState({}, '', url);
+            }
+
+            if (selector.value) {
+                startPolling(selector.value);
+            }
+
+        } catch (error) {
+            console.error('Error fetching executions:', error);
+            document.getElementById('executionIdSelector').innerHTML = '<option value="">Error loading IDs</option>';
+        }
+    }
+
+    function changeExecutionId() {
+        const selector = document.getElementById('executionIdSelector');
+        const newId = selector.value;
+        if (newId) {
+            const url = new URL(window.location);
+            url.searchParams.set('executionId', newId);
+            window.history.pushState({}, '', url);
+            startPolling(newId);
+        }
+    }
+
+    let pollingInterval;
+    let errorShown = false;
+    let currentExecutionId = null;
+
+    function startPolling(executionId) {
+        if (pollingInterval) clearInterval(pollingInterval);
+        errorShown = false;
+        currentExecutionId = executionId;
+        pollStatus(executionId);
+        pollingInterval = setInterval(() => {
+            if (currentExecutionId === executionId) {
+                pollStatus(executionId);
+            }
+        }, 1500); // Poll faster to see live updates better
+    }
+
+    async function pollStatus(id) {
+        try {
+            const response = await fetch(`/api/migration/status/${id}`);
+            const data = await response.json();
+
+            if(data.status === 'NOT_FOUND') return;
+
+            updateDashboard(data);
+
+            if (data.status === 'COMPLETED' || data.status === 'FAILED') {
+                clearInterval(pollingInterval);
+
+                if (data.status === 'FAILED' && !errorShown) {
+                    showErrorModal(data);
+                    errorShown = true;
                 }
             }
-        });
+        } catch (error) {
+            console.error('Polling error:', error);
+        }
+    }
 
-        async function init() {
-            try {
-                const response = await fetch('/api/migration/executions');
-                if (!response.ok) throw new Error('Failed to fetch executions');
-                const executions = await response.json();
+    function formatTime(seconds) {
+        if (isNaN(seconds) || seconds < 0) return "00:00";
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
 
-                const selector = document.getElementById('executionIdSelector');
-                selector.innerHTML = '';
+    function updateDashboard(data) {
+        const statusEl = document.getElementById('jobStatus');
+        statusEl.textContent = data.status;
 
-                if (executions.length === 0) {
-                    selector.innerHTML = '<option value="">No executions found</option>';
-                    return;
-                }
+        statusEl.className = 'text-2xl font-black mt-2 ';
+        if(data.status === 'COMPLETED') statusEl.classList.add('text-bnp-emerald');
+        else if(data.status === 'FAILED') statusEl.classList.add('text-rose-600');
+        else statusEl.classList.add('text-bnp-emerald', 'animate-pulse');
 
-                executions.forEach(ex => {
-                    const date = new Date(ex.startTime).toLocaleString();
-                    const option = new Option(`ID: ${ex.id} - ${ex.status} (${date})`, ex.id);
-                    selector.add(option);
-                });
+        const activeId = data.executionId || currentExecutionId;
+        document.getElementById('executionIdDisplay').textContent = `ID: ${activeId}`;
 
-                const urlParams = new URLSearchParams(window.location.search);
-                const currentId = urlParams.get('executionId');
+        const isMongo = activeId && activeId.startsWith('mongo-');
+        const isJson = activeId && activeId.startsWith('json-');
 
-                if (currentId && executions.some(e => e.id == currentId)) {
-                    selector.value = currentId;
-                } else if (executions.length > 0) {
-                    selector.value = executions[0].id;
-                    const url = new URL(window.location);
-                    url.searchParams.set('executionId', executions[0].id);
-                    window.history.pushState({}, '', url);
-                }
+        let totalEntities = 0;
+        let completedEntities = 0;
+        let totalWrites = 0;
 
-                if (selector.value) {
-                    startPolling(selector.value);
-                }
-
-                selector.addEventListener('change', (e) => {
-                    const id = e.target.value;
-                    const url = new URL(window.location);
-                    url.searchParams.set('executionId', id);
-                    window.history.pushState({}, '', url);
-                    startPolling(id);
-                });
-
-            } catch (error) {
-                console.error('Failed to initialize dashboard:', error);
-                document.getElementById('executionIdSelector').innerHTML = '<option value="">Error loading executions</option>';
-            }
+        if (isMongo) {
+            totalEntities = data.totalCollections || 0;
+            completedEntities = data.processedCollections || 0;
+            document.getElementById('tableHeaderTitle').innerText = 'MongoDB Collections Log';
+            document.getElementById('thEntityName').innerText = 'Collection Name';
+        } else if (isJson) {
+            totalEntities = data.totalFiles || 0;
+            completedEntities = data.processedFiles || 0;
+            totalWrites = data.processedFiles || 0;
+            document.getElementById('tableHeaderTitle').innerText = 'JSON Files Log';
+            document.getElementById('thEntityName').innerText = 'Entity / File';
+        } else {
+            totalEntities = data.tableProgress ? data.tableProgress.length : 0;
+            completedEntities = data.completedTables ? data.completedTables.length : 0;
+            document.getElementById('tableHeaderTitle').innerText = 'Table Execution Log';
+            document.getElementById('thEntityName').innerText = 'Table Name';
         }
 
-        function startPolling(id) {
-            if (pollingInterval) clearInterval(pollingInterval);
-            errorShown = false;
-            fetchJobStatus(id); // Initial fetch
-            pollingInterval = setInterval(() => fetchJobStatus(id), 2000);
+        if (data.tableProgress) {
+            totalWrites = data.tableProgress.reduce((acc, curr) => acc + curr.writeCount, 0);
         }
 
-        async function fetchJobStatus(id) {
-            try {
-                const response = await fetch(`/api/migration/status/${id}`);
-                const data = await response.json();
+        document.getElementById('completedCount').textContent = completedEntities;
+        document.getElementById('totalTableCount').textContent = totalEntities;
+        document.getElementById('totalRecords').textContent = totalWrites.toLocaleString();
 
-                if(data.status === 'NOT_FOUND') return;
-
-                updateDashboard(data);
-
-                if (data.status === 'COMPLETED' || data.status === 'FAILED') {
-                    clearInterval(pollingInterval);
-
-                    if (data.status === 'FAILED' && !errorShown) {
-                        showErrorModal(data);
-                        errorShown = true;
-                    }
-                }
-            } catch (error) {
-                console.error('Polling error:', error);
-            }
+        if (data.startTime) {
+            const start = new Date(data.startTime);
+            const end = data.endTime ? new Date(data.endTime) : new Date();
+            const diffSecs = Math.floor((end - start) / 1000);
+            document.getElementById('duration').textContent = formatTime(diffSecs);
+        } else {
+            document.getElementById('duration').textContent = "00:00";
         }
 
-        function formatTime(seconds) {
-            if (isNaN(seconds) || seconds < 0) return "00:00";
-            const m = Math.floor(seconds / 60);
-            const s = seconds % 60;
-            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        if (data.systemMetrics) {
+            const heapUsed = data.systemMetrics.heapUsedMB;
+            const heapMax = data.systemMetrics.heapMaxMB;
+            const heapPercent = Math.round((heapUsed / heapMax) * 100);
+
+            document.getElementById('heapText').textContent = `${heapUsed} / ${heapMax} MB`;
+            document.getElementById('heapBar').style.width = `${heapPercent}%`;
+
+            let load = data.systemMetrics.systemLoadAverage;
+            if (load < 0) load = 0;
+            const cores = data.systemMetrics.availableProcessors || 1;
+            const cpuPercent = Math.min(Math.round((load / cores) * 100), 100);
+
+            document.getElementById('cpuText').textContent = load.toFixed(2);
+            document.getElementById('cpuBar').style.width = `${cpuPercent}%`;
+
+            document.getElementById('processors').textContent = cores;
         }
 
-        function updateDashboard(data) {
-            const statusEl = document.getElementById('jobStatus');
-            statusEl.textContent = data.status;
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
 
-            statusEl.className = 'text-2xl font-black mt-2 ';
-            if(data.status === 'COMPLETED') statusEl.classList.add('text-bnp-emerald');
-            else if(data.status === 'FAILED') statusEl.classList.add('text-rose-600');
-            else statusEl.classList.add('text-bnp-emerald', 'animate-pulse');
+        const labels = [];
+        const readData = [];
+        const writeData = [];
 
-            document.getElementById('executionIdDisplay').textContent = `ID: ${data.executionId}`;
+        // For JSON jobs, we don't have detailed tableProgress yet. Use summary.
+        if (isJson && (!data.tableProgress || data.tableProgress.length === 0)) {
+            const entityName = "JSON Files";
+            labels.push(entityName);
+            readData.push(completedEntities);
+            writeData.push(completedEntities);
 
-            // Map variables based on job type structure
-            const isJson = data.executionId && data.executionId.startsWith('json-');
-            const isMongo = data.executionId && data.executionId.startsWith('mongo-');
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-50 transition-colors group';
 
-            let totalEntities = 0;
-            let completedEntities = 0;
-            let totalWrites = 0;
+            let progress = 0;
+            if (data.status === 'COMPLETED') progress = 100;
+            else if (data.status === 'FAILED') progress = 100;
+            else if (completedEntities > 0 && totalEntities > 0) progress = Math.round((completedEntities / totalEntities) * 100);
 
-            if (isJson) {
-                totalEntities = data.totalFiles || 0;
-                completedEntities = data.processedFiles || 0;
-                totalWrites = data.processedFiles || 0;
-            } else if (isMongo) {
-                totalEntities = data.totalCollections || 0;
-                completedEntities = data.processedCollections || 0;
-                totalWrites = data.processedCollections || 0; // Simple mapping, not exact row count
-            } else {
-                totalEntities = data.tableProgress ? data.tableProgress.length : 0;
-                completedEntities = data.completedTables ? data.completedTables.length : 0;
-                if (data.tableProgress) {
-                    totalWrites = data.tableProgress.reduce((acc, curr) => acc + (curr.writeCount || 0), 0);
-                }
-            }
+            let pColor = 'bg-bnp-emerald';
+            if(data.status === 'COMPLETED') pColor = 'bg-bnp-emerald';
+            if(data.status === 'FAILED') pColor = 'bg-rose-500';
 
-            document.getElementById('completedCount').textContent = completedEntities;
-            document.getElementById('totalTableCount').textContent = totalEntities;
-            document.getElementById('totalRecords').textContent = totalWrites.toLocaleString();
+            tr.innerHTML = `
+                <td class="px-6 py-4 font-medium text-slate-800">${entityName}</td>
+                <td class="px-6 py-4 text-slate-600 font-mono text-right">${completedEntities.toLocaleString()}</td>
+                <td class="px-6 py-4 text-slate-600 font-mono text-right">${completedEntities.toLocaleString()}</td>
+                <td class="px-6 py-4 text-center">
+                    <span class="status-badge ${getStatusBadgeClass(data.status)}">
+                        ${data.status}
+                    </span>
+                </td>
+                <td class="px-6 py-4">
+                    <div class="flex items-center">
+                        <div class="w-full bg-slate-200 rounded-full h-1.5 mr-2 overflow-hidden">
+                            <div class="${pColor} h-1.5 rounded-full transition-all duration-500" style="width: ${progress}%"></div>
+                        </div>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
 
-            if (data.startTime) {
-                const start = new Date(data.startTime);
-                const end = data.endTime ? new Date(data.endTime) : new Date();
-                const diffSecs = Math.floor((end - start) / 1000);
-                document.getElementById('duration').textContent = formatTime(diffSecs);
-            } else {
-                document.getElementById('duration').textContent = "00:00";
-            }
+        } else if (data.tableProgress && data.tableProgress.length > 0) {
+            data.tableProgress.forEach(row => {
+                labels.push(row.tableName);
+                readData.push(row.readCount || 0);
+                writeData.push(row.writeCount || 0);
 
-            if (data.systemMetrics) {
-                const heapUsed = data.systemMetrics.heapUsedMB;
-                const heapMax = data.systemMetrics.heapMaxMB;
-                const heapPercent = Math.round((heapUsed / heapMax) * 100);
-
-                document.getElementById('heapText').textContent = `${heapUsed} / ${heapMax} MB`;
-                document.getElementById('heapBar').style.width = `${heapPercent}%`;
-
-                const cpuPercent = Math.round(data.systemMetrics.processCpuLoad * 100);
-                document.getElementById('cpuText').textContent = `${cpuPercent}%`;
-                document.getElementById('cpuBar').style.width = `${cpuPercent}%`;
-            }
-
-            // Stop button visibility
-            const btnStop = document.getElementById('btnStopJob');
-            if(data.status === 'STARTING' || data.status === 'STARTED' || data.status === 'RUNNING') {
-                btnStop.classList.remove('hidden');
-            } else {
-                btnStop.classList.add('hidden');
-            }
-
-            // Progress calculation
-            let progressPct = 0;
-            if (data.progress !== undefined) {
-                progressPct = data.progress; // Spring Batch gives a direct percentage
-            } else if (totalEntities > 0) {
-                progressPct = Math.round((completedEntities / totalEntities) * 100);
-            }
-
-            document.getElementById('progressPct').textContent = progressPct;
-            document.getElementById('overallProgressBar').style.width = `${progressPct}%`;
-
-            updateTableListAndChart(data, isJson, isMongo);
-        }
-
-        function updateTableListAndChart(data, isJson, isMongo) {
-            const tbody = document.getElementById('tableBody');
-            const labels = [];
-            const readData = [];
-            const writeData = [];
-
-            if (isJson || isMongo) {
-                // For non-SQL jobs, show a summary row since we don't track itemized details yet
-                tbody.innerHTML = '';
                 const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50 transition-colors';
+                let trClass = 'hover:bg-slate-50 transition-colors group';
 
-                let name = isJson ? "JSON Files" : "MongoDB Collections";
-                let processed = isJson ? data.processedFiles : data.processedCollections;
-                let total = isJson ? data.totalFiles : data.totalCollections;
+                // Highlight the currently running table row
+                if (row.status === 'STARTED' || row.status === 'RUNNING') {
+                    trClass += ' bg-blue-50 border-l-4 border-blue-500';
+                }
+                tr.className = trClass;
 
-                const statusColor = data.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                                   data.status === 'FAILED' ? 'bg-red-100 text-red-700' :
-                                   'bg-blue-100 text-blue-700';
+                let progress = 0;
+                if (row.status === 'COMPLETED') progress = 100;
+                else if (row.status === 'FAILED') progress = 100;
+                else if (row.status === 'STARTED' || row.status === 'RUNNING') progress = 50;
+
+                let pColor = 'bg-bnp-emerald';
+                let pClass = '';
+                if(row.status === 'COMPLETED') pColor = 'bg-bnp-emerald';
+                if(row.status === 'FAILED') pColor = 'bg-rose-500';
+                if(row.status === 'STARTED' || row.status === 'RUNNING') {
+                    pColor = 'bg-blue-500';
+                    pClass = 'processing-pulse'; // Apply custom pulse animation
+                }
+
+                // Show processing indicator next to the table name
+                const processingIndicator = (row.status === 'STARTED' || row.status === 'RUNNING') ? '<i class="fas fa-spinner fa-spin text-blue-500 ml-2"></i>' : '';
 
                 tr.innerHTML = `
-                    <td class="px-4 py-3 font-semibold text-gray-800 text-sm">${name}</td>
-                    <td class="px-4 py-3 font-mono text-gray-600 text-sm text-right">${processed} / ${total}</td>
-                    <td class="px-4 py-3 text-center"><span class="px-2.5 py-0.5 rounded text-[10px] font-bold ${statusColor}">${data.status}</span></td>
+                    <td class="px-6 py-4 font-medium text-slate-800">${row.tableName} ${processingIndicator}</td>
+                    <td class="px-6 py-4 text-slate-600 font-mono text-right">${(row.readCount || 0).toLocaleString()}</td>
+                    <td class="px-6 py-4 text-slate-600 font-mono text-right">${(row.writeCount || 0).toLocaleString()}</td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="status-badge ${getStatusBadgeClass(row.status)}">
+                            ${row.status}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="flex items-center">
+                            <div class="w-full bg-slate-200 rounded-full h-1.5 mr-2 overflow-hidden">
+                                <div class="${pColor} ${pClass} h-1.5 rounded-full transition-all duration-300" style="width: ${progress}%"></div>
+                            </div>
+                        </div>
+                    </td>
                 `;
                 tbody.appendChild(tr);
-
-                // Add to chart
-                labels.push(name);
-                readData.push(processed);
-                writeData.push(processed);
-
-            } else if (data.tableProgress && data.tableProgress.length > 0) {
-                tbody.innerHTML = '';
-
-                data.tableProgress.forEach(tp => {
-                    labels.push(tp.tableName);
-                    readData.push(tp.readCount);
-                    writeData.push(tp.writeCount);
-
-                    const statusColor = tp.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                                      tp.status === 'FAILED' ? 'bg-red-100 text-red-700' :
-                                      'bg-blue-100 text-blue-700';
-
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50 transition-colors';
-                    tr.innerHTML = `
-                        <td class="px-4 py-3 font-semibold text-gray-800 text-sm truncate max-w-[200px]" title="${tp.tableName}">${tp.tableName}</td>
-                        <td class="px-4 py-3 font-mono text-gray-600 text-sm text-right">${tp.writeCount.toLocaleString()}</td>
-                        <td class="px-4 py-3 text-center"><span class="px-2.5 py-0.5 rounded text-[10px] font-bold ${statusColor}">${tp.status}</span></td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            } else {
-                 tbody.innerHTML = `<tr><td colspan="3" class="px-6 py-8 text-center text-gray-400 text-sm">No items processed yet.</td></tr>`;
-            }
-
-            throughputChart.data.labels = labels;
-            throughputChart.data.datasets[0].data = readData;
-            throughputChart.data.datasets[1].data = writeData;
-            throughputChart.update();
+            });
+        } else if (data.status !== 'STARTING') {
+            tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">No items processed yet.</td></tr>`;
         }
 
-        async function stopJob() {
-            if(!confirm('Are you sure you want to attempt stopping this execution?')) return;
-            const btn = document.getElementById('btnStopJob');
-            const selector = document.getElementById('executionIdSelector');
-            const id = selector.value;
+        throughputChart.data.labels = labels;
+        throughputChart.data.datasets[0].data = readData;
+        throughputChart.data.datasets[1].data = writeData;
+        throughputChart.update();
+    }
 
-            btn.classList.add('btn-loading');
-            btn.disabled = true;
+    function getStatusBadgeClass(status) {
+        switch(status) {
+            case 'COMPLETED': return 'status-completed';
+            case 'STARTED':
+            case 'STARTING':
+            case 'RUNNING': return 'status-running';
+            case 'FAILED': return 'status-failed';
+            default: return 'bg-slate-100 text-slate-600 border border-slate-200';
+        }
+    }
 
-            try {
-                const res = await fetch(`/api/migration/stop/${id}`, { method: 'POST' });
-                const data = await res.json();
-                if(data.status !== 'SUCCESS') {
-                    alert('Could not stop job: ' + data.message);
+    function showErrorModal(data) {
+        const modal = document.getElementById('errorModal');
+        const details = document.getElementById('errorDetails');
+        details.innerHTML = '';
+
+        const createErrorElement = (title, errText, index) => {
+            const container = document.createElement('div');
+            container.className = 'bg-white border border-red-200 rounded-lg overflow-hidden shadow-sm';
+
+            const summary = document.createElement('div');
+            summary.className = 'flex justify-between items-center bg-red-50 p-3';
+
+            const titleSpan = document.createElement('span');
+            titleSpan.className = 'font-semibold text-red-800 text-sm';
+            titleSpan.innerHTML = `<i class="fas fa-bug mr-2 opacity-50"></i>${title}`;
+
+            const btn = document.createElement('button');
+            btn.className = 'text-xs bg-white border border-red-200 hover:bg-red-100 text-red-700 px-3 py-1 rounded transition-colors font-medium shadow-sm';
+            btn.textContent = 'View Details';
+            btn.onclick = () => {
+                const full = document.getElementById(`error-full-${index}`);
+                if (full.style.display === 'none' || full.style.display === '') {
+                    full.style.display = 'block';
+                    btn.textContent = 'Hide Details';
                 } else {
-                    // Update will happen via polling
+                    full.style.display = 'none';
+                    btn.textContent = 'View Details';
                 }
-            } catch(e) {
-                alert('Error requesting stop');
-            } finally {
-                btn.classList.remove('btn-loading');
-                btn.disabled = false;
-            }
-        }
+            };
 
-        function showErrorModal(data) {
-            const modal = document.getElementById('errorModal');
-            const list = document.getElementById('errorList');
-            list.innerHTML = '';
+            summary.appendChild(titleSpan);
+            summary.appendChild(btn);
+            container.appendChild(summary);
 
-            if (data.errorMessage) {
-                const li = document.createElement('li');
-                li.textContent = data.errorMessage;
-                list.appendChild(li);
-            } else if (data.errors && data.errors.length > 0) {
-                data.errors.forEach(err => {
-                    const li = document.createElement('li');
-                    li.textContent = err;
-                    list.appendChild(li);
-                });
-            } else if (data.stepErrors) {
-                Object.entries(data.stepErrors).forEach(([step, errors]) => {
-                    errors.forEach(err => {
-                        const li = document.createElement('li');
-                        li.textContent = `[${step}] ${err}`;
-                        list.appendChild(li);
-                    });
-                });
-            } else {
-                const li = document.createElement('li');
-                li.textContent = "Unknown execution error occurred.";
-                list.appendChild(li);
+            let cleanSummary = errText.split('\n')[0];
+            if(cleanSummary.includes('Exception:')) {
+                cleanSummary = cleanSummary.substring(cleanSummary.indexOf('Exception:') + 10).trim();
             }
 
-            modal.style.display = 'block';
+            const shortText = document.createElement('div');
+            shortText.className = 'p-3 text-sm text-gray-700 border-t border-red-100 error-summary';
+            shortText.textContent = cleanSummary || errText.substring(0, 100) + '...';
+            container.appendChild(shortText);
+
+            const fullText = document.createElement('div');
+            fullText.id = `error-full-${index}`;
+            fullText.className = 'error-full m-3';
+            fullText.textContent = errText;
+            container.appendChild(fullText);
+
+            return container;
+        };
+
+        let errIdx = 0;
+
+        if (data.errorMessage) {
+            details.appendChild(createErrorElement('Execution Error', data.errorMessage, errIdx++));
         }
 
-        // Run
-        init();
-    </script>
+        if (data.errors && data.errors.length > 0) {
+            const h = document.createElement('h4');
+            h.className = 'font-bold text-gray-800 text-sm uppercase tracking-wider mt-2 mb-3';
+            h.textContent = 'Core Job Errors';
+            details.appendChild(h);
+
+            data.errors.forEach(err => {
+                details.appendChild(createErrorElement('Job Execution Error', err, errIdx++));
+            });
+        }
+
+        if (data.constraintErrors && data.constraintErrors.length > 0) {
+             const h = document.createElement('h4');
+             h.className = 'font-bold text-gray-800 text-sm uppercase tracking-wider mt-6 mb-3 flex items-center';
+             h.innerHTML = 'Constraint Creation Errors <span class="ml-2 text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Phase 2</span>';
+             details.appendChild(h);
+
+             data.constraintErrors.forEach(err => {
+                let tblHint = 'Constraint Application';
+                if(err.includes('table')) {
+                    const match = err.match(/table "([^"]+)"/);
+                    if(match) tblHint += ` on ${match[1]}`;
+                }
+                details.appendChild(createErrorElement(tblHint, err, errIdx++));
+            });
+        }
+
+        if (details.innerHTML === '') {
+            details.innerHTML = '<div class="p-4 bg-gray-50 rounded text-gray-600 text-center">Unknown error occurred. Check server logs.</div>';
+        }
+
+        modal.style.display = "block";
+    }
+
+    function closeModal() {
+        document.getElementById('errorModal').style.display = "none";
+    }
+
+    window.onclick = function(event) {
+        const modal = document.getElementById('errorModal');
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchExecutions();
+    });
+</script>
 </body>
 </html>

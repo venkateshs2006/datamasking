@@ -1,11 +1,13 @@
 package com.enterprise.seedm.controller;
 
-import com.enterprise.seedm.model.JsonMigrationConfig;
-import com.enterprise.seedm.model.MaskingConfig;
+import com.enterprise.seedm.model.*;
+import com.enterprise.seedm.repository.MigrationJobRepository;
+import com.enterprise.seedm.repository.MongoMigrationDetailsRepository;
 import com.enterprise.seedm.service.JsonMaskingConfigService;
 import com.enterprise.seedm.service.MaskingConfigService;
 import com.enterprise.seedm.service.TableDiscoveryService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.sql.SQLException;
@@ -21,7 +23,8 @@ public class MaskingConfigController {
     private final MaskingConfigService maskingConfigService;
     private final JsonMaskingConfigService jsonMaskingConfigService;
     private final TableDiscoveryService tableDiscoveryService;
-
+    private final MigrationJobRepository migrationJobRepository;
+    private final MongoMigrationDetailsRepository mongoDetailsRepository;
     @GetMapping
     public MaskingConfig getConfig() {
         return maskingConfigService.getConfig();
@@ -68,5 +71,25 @@ public class MaskingConfigController {
     @PostMapping("/json")
     public void updateJsonConfig(@RequestBody JsonMigrationConfig config) {
         jsonMaskingConfigService.updateConfig(config);
+    }
+
+
+    @GetMapping("/mongo/{jobId}")
+    public ResponseEntity<MongoDashboardResponse> getMongoDashboard(@PathVariable String jobId) {
+        MigrationJob job = migrationJobRepository.findByJobId(jobId)
+                .orElseThrow(() -> new RuntimeException("Job not found"));
+
+        List<MongoMigrationDetails> details = mongoDetailsRepository.findByJobId(jobId);
+
+        MongoDashboardResponse response = new MongoDashboardResponse();
+        response.setJobId(job.getJobId());
+        response.setProjectId(job.getProjectId());
+        response.setJobStatus(job.getJobStatus());
+        response.setSourceDbType(job.getSourceDbType());
+        response.setTargetDbType(job.getTargetDbType());
+        response.setCreatedAt(job.getCreatedAt());
+        response.setDetails(details);
+
+        return ResponseEntity.ok(response);
     }
 }

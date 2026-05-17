@@ -9,6 +9,7 @@ import java.util.List;
 public class JsonMigrationConfig {
     private String sourceDir;
     private String destDir;
-    private List<String> maskingColumns = new ArrayList<>();
-    private List<String> partialMaskingColumns = new ArrayList<>();
+    private List<String> maskingFields = new ArrayList<>();
+    private List<String> partialMaskingFields = new ArrayList<>();
+    private List<String> constraintFields = new ArrayList<>();
 }

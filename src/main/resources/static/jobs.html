@@ -443,7 +443,7 @@
                     const data = await res.json();
                     if (data.status === 'SUCCESS' && data.executionId) {
                         closeModal();
-                        showDbProgressModal(data.executionId, 'mongo');
+                        window.location.href = '/index.html?executionId=' + data.executionId;
                     } else {
                         alert('Failed to launch Mongo migration.');
                         btn.innerHTML = 'RUN MIGRATION <i class="fas fa-play ml-2"></i>';
