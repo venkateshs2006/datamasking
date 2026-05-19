@@ -58,7 +58,7 @@ public class MongoDiscoveryService {
             MongoDatabase database = client.getDatabase(databaseName);
             MongoCollection<Document> collection = database.getCollection(collectionName);
             Set<String> fields = new HashSet<>();
-            for (Document doc : collection.find().limit(10)) {
+            for (Document doc : collection.find().limit(10)) { // Limit to 10 documents for sampling
                 extractFields("", doc, fields);
             }
             return new ArrayList<>(fields);
@@ -68,16 +68,37 @@ public class MongoDiscoveryService {
         }
     }
 
-    private void extractFields(String prefix, Document doc, Set<String> fields) {
-        for (String key : doc.keySet()) {
-            String fullKey = prefix.isEmpty() ? key : prefix + "." + key;
-            Object value = doc.get(key);
-            if (value instanceof Document) {
-                fields.add(fullKey); // also add the parent
-                extractFields(fullKey, (Document) value, fields);
-            } else {
-                fields.add(fullKey);
+    @SuppressWarnings("unchecked")
+    private void extractFields(String prefix, Object value, Set<String> fields) {
+        if (value instanceof Document) {
+            Document doc = (Document) value;
+            for (String key : doc.keySet()) {
+                String fullKey = prefix.isEmpty() ? key : prefix + "." + key;
+                Object fieldValue = doc.get(key);
+                
+                fields.add(fullKey); // Add the field itself
+                
+                if (fieldValue instanceof Document) {
+                    extractFields(fullKey, fieldValue, fields); // Recurse for nested documents
+                } else if (fieldValue instanceof List) {
+                    // Add the array field itself
+                    // fields.add(fullKey + "[]"); // Optional: to denote it's an array
+                    
+                    List<Object> list = (List<Object>) fieldValue;
+                    if (!list.isEmpty()) {
+                        // Sample the first element of the array
+                        Object firstElement = list.get(0);
+                        if (firstElement instanceof Document) {
+                            // If array contains documents, recurse into the document with array notation
+                            extractFields(fullKey + "[]", firstElement, fields);
+                        } else {
+                            // If array contains primitives, just add the array field itself
+                            // fields.add(fullKey); // Already added above
+                        }
+                    }
+                }
             }
         }
+        // No need for an else branch for primitive values, they are added by fields.add(fullKey)
     }
 }

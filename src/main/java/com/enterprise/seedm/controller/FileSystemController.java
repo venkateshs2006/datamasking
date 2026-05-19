@@ -40,7 +40,7 @@ public class FileSystemController {
 
     @PostMapping("/scan")
     public ResponseEntity<?> scanDirectory(@RequestBody Map<String, Object> request) {
-        String dirPath = (String) request.get("path");
+        String dirPath = null;
         Object idObj = request.get("id");
         Object cosIdObj = request.get("cosId");
         
@@ -62,22 +62,31 @@ public class FileSystemController {
             }
         }
 
-        // Mock COS logic since actual IBM COS SDK is out of scope
+        // Unified logic for both Local and COS storage from cos_connections
         if (cosId != null) {
             CosConnection conn = cosConnectionService.getConnection(cosId);
-            if (conn == null) return ResponseEntity.badRequest().body(Map.of("error", "COS Connection not found"));
+            if (conn == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Storage Connection not found with ID: " + cosId));
+            }
             
-            // Mocking sample keys that would be found in a COS bucket JSON file
-            Set<String> mockedKeys = Set.of("customer.id", "customer.name", "customer.email", "customer.phone", "customer.address.city", "transaction.amount", "transaction.date");
-            
-            return ResponseEntity.ok(Map.of(
-                    "status", "SUCCESS",
-                    "path", "cos://" + conn.getBucketName(),
-                    "fileCount", 5, // Mock 5 files found in bucket
-                    "sampleKeys", new ArrayList<>(mockedKeys)
-            ));
+            if ("Local".equalsIgnoreCase(conn.getStorageType())) {
+                dirPath = conn.getStorageLocation();
+            } else if ("COS".equalsIgnoreCase(conn.getStorageType())) {
+                // Mock COS logic since actual IBM COS SDK is out of scope
+                Set<String> mockedKeys = Set.of("customer.id", "customer.name", "customer.email", "customer.phone", "customer.address.city", "transaction.amount", "transaction.date");
+
+                return ResponseEntity.ok(Map.of(
+                        "status", "SUCCESS",
+                        "path", "cos://" + (conn.getBucketName() != null ? conn.getBucketName() : "default"),
+                        "fileCount", 5, // Mock 5 files found in bucket
+                        "sampleKeys", new ArrayList<>(mockedKeys)
+                ));
+            } else {
+                 return ResponseEntity.badRequest().body(Map.of("error", "Unknown storage type: " + conn.getStorageType()));
+            }
         }
 
+        // Legacy support for local JSON directories stored in db_connections
         if (id != null) {
             DbConnection conn = dbConnectionService.getConnection(id);
             if (conn != null) {
@@ -96,10 +105,10 @@ public class FileSystemController {
         try {
             Path path = Paths.get(dirPath);
             if (!Files.exists(path)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Directory does not exist"));
+                return ResponseEntity.badRequest().body(Map.of("error", "Directory does not exist: " + dirPath));
             }
             if (!Files.isDirectory(path)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Path is not a directory"));
+                return ResponseEntity.badRequest().body(Map.of("error", "Path is not a directory: " + dirPath));
             }
 
             long jsonFileCount;

@@ -2,6 +2,7 @@ package com.enterprise.seedm.service;
 
 import com.enterprise.seedm.batch.ConstraintCreationTasklet;
 import com.enterprise.seedm.batch.MongoCollectionClearTasklet;
+import com.enterprise.seedm.batch.MongoItemProcessor;
 import com.enterprise.seedm.batch.MongoItemReader;
 import com.enterprise.seedm.batch.MongoItemWriter;
 import com.enterprise.seedm.batch.TableItemProcessor;
@@ -167,11 +168,13 @@ public class MigrationJobFactory {
 
             // Step 2: Migrate
             MongoItemReader reader = new MongoItemReader(sourceClient, sourceDatabaseName, collectionName);
+            MongoItemProcessor processor = new MongoItemProcessor(collectionName, dataMaskingService); // ADDED
             MongoItemWriter writer = new MongoItemWriter(destClient, destDatabaseName, collectionName);
 
             Step migrateStep = new StepBuilder("migrate_" + collectionName, jobRepository)
                     .<Document, Document>chunk(chunkSize, transactionManager)
                     .reader(reader)
+                    .processor(processor) // ADDED
                     .writer(writer)
                     .build();
 

@@ -42,10 +42,10 @@ public class DataMaskingService {
         Map<String, Set<String>> ruleMap = new HashMap<>();
         if (rules != null) {
             for (String rule : rules) {
-                String[] parts = rule.split("\\.");
-                if (parts.length == 2) {
-                    String tableName = parts[0].toLowerCase();
-                    String columnName = parts[1].toLowerCase();
+                int firstDotIndex = rule.indexOf('.');
+                if (firstDotIndex > 0 && firstDotIndex < rule.length() - 1) {
+                    String tableName = rule.substring(0, firstDotIndex).toLowerCase();
+                    String columnName = rule.substring(firstDotIndex + 1); // keep case/dots for nested mongo paths
                     ruleMap.computeIfAbsent(tableName, k -> new HashSet<>()).add(columnName);
                 } else {
                     log.warn("Invalid rule format: {}", rule);
@@ -56,7 +56,7 @@ public class DataMaskingService {
     }
 
     /**
-     * Mask a row of data if applicable
+     * Mask a row of data if applicable. Supports flat and nested (dot-notation) structures.
      */
     public Map<String, Object> maskData(String tableName, Map<String, Object> row) {
         String lowerTableName = tableName.toLowerCase();
@@ -78,71 +78,112 @@ public class DataMaskingService {
 
         Map<String, Object> maskedRow = new HashMap<>(row);
         
-        // We might need column metadata for data type if we are encrypting
+        // We might need column metadata for data type if we are encrypting (usually Postgres only)
         List<ColumnMetadata> metadata = null;
-        if (hasConstraints || hasMasking) {
-             metadata = getCachedMetadata(tableName);
-        }
+        // For MongoDB, metadata is not available from TableDiscoveryService, so we pass null
+        // and rely on runtime type checking in generateMaskedValue and getColumnType
+        // if (hasConstraints || hasMasking) {
+        //      metadata = getCachedMetadata(tableName);
+        // }
 
-        // 1. Apply Constraint Masking (Deterministic Encryption)
-        if (hasConstraints) {
-            Set<String> constraintColumns = constraintRules.get(lowerTableName);
-            for (String column : constraintColumns) {
-                String matchingKey = findMatchingKey(maskedRow.keySet(), column);
-                if (matchingKey != null) {
-                    Object originalValue = maskedRow.get(matchingKey);
-                    if (originalValue != null) {
-                        String dataType = getColumnType(metadata, matchingKey);
-                        try {
-                            maskedRow.put(matchingKey, fpeService.encrypt(originalValue, dataType));
-                        } catch (Exception e) {
-                            log.error("Encryption failed for {}.{}", tableName, column, e);
-                        }
-                    }
-                }
-            }
-        }
-
-        // 2. Apply Partial Masking (Redaction)
-        if (hasPartialMasking) {
-            Set<String> partialColumns = partialMaskingRules.get(lowerTableName);
-            for (String column : partialColumns) {
-                String matchingKey = findMatchingKey(maskedRow.keySet(), column);
-                if (matchingKey != null) {
-                    Object originalValue = maskedRow.get(matchingKey);
-                    if (originalValue != null) {
-                        maskedRow.put(matchingKey, applyPartialMasking(originalValue.toString()));
-                    }
-                }
-            }
-        }
-
-        // 3. Apply Standard Masking (Faker)
-        if (hasMasking) {
-            Set<String> columnsToMask = maskingRules.get(lowerTableName);
-            for (String column : columnsToMask) {
-                String matchingKey = findMatchingKey(maskedRow.keySet(), column);
-                if (matchingKey != null) {
-                    Object originalValue = maskedRow.get(matchingKey);
-                    if (originalValue != null) {
-                        Integer maxLength = getColumnMaxLength(metadata, matchingKey);
-                        maskedRow.put(matchingKey, generateMaskedValue(column, originalValue, maxLength));
-                    }
-                }
-            }
-        }
+        // Apply rules traversing potentially nested maps
+        applyRulesRecursive(maskedRow, "", lowerTableName, maskingRules, constraintRules, partialMaskingRules, metadata);
 
         return maskedRow;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void applyRulesRecursive(Map<String, Object> currentMap, String currentPath, String lowerTableName,
+                                     Map<String, Set<String>> maskingRules, Map<String, Set<String>> constraintRules, 
+                                     Map<String, Set<String>> partialMaskingRules, List<ColumnMetadata> metadata) {
+        
+        for (Map.Entry<String, Object> entry : currentMap.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            String fullPath = currentPath.isEmpty() ? key : currentPath + "." + key;
+            
+            if (value instanceof Map) {
+                // It's a nested document (e.g. MongoDB embedded object)
+                applyRulesRecursive((Map<String, Object>) value, fullPath, lowerTableName, maskingRules, constraintRules, partialMaskingRules, metadata);
+            } else if (value instanceof List) {
+                List<Object> list = (List<Object>) value;
+                for (int i = 0; i < list.size(); i++) {
+                    Object item = list.get(i);
+                    // For array elements, append "[]" to the path for rule matching
+                    String arrayElementPath = fullPath + "[]"; 
+                    if (item instanceof Map) {
+                        applyRulesRecursive((Map<String, Object>) item, arrayElementPath, lowerTableName, maskingRules, constraintRules, partialMaskingRules, metadata);
+                    } else if (item != null) {
+                        // Apply masking to primitive list items
+                        list.set(i, applyMaskingLogic(arrayElementPath, lowerTableName, item, maskingRules, constraintRules, partialMaskingRules, metadata));
+                    }
+                }
+            } else {
+                // Primitive value, check against rules
+                if (value != null) {
+                    currentMap.put(key, applyMaskingLogic(fullPath, lowerTableName, value, maskingRules, constraintRules, partialMaskingRules, metadata));
+                }
+            }
+        }
+    }
+    
+    private Object applyMaskingLogic(String fullPath, String lowerTableName, Object originalValue,
+                                     Map<String, Set<String>> maskingRules, Map<String, Set<String>> constraintRules, 
+                                     Map<String, Set<String>> partialMaskingRules, List<ColumnMetadata> metadata) {
+                                         
+        Object maskedValue = originalValue;
+
+        // 1. Constraint Masking (Format Preserving)
+        if (constraintRules.containsKey(lowerTableName) && isPathMatching(constraintRules.get(lowerTableName), fullPath)) {
+            String dataType = getColumnType(metadata, fullPath); // metadata will be null for Mongo
+            try {
+                maskedValue = fpeService.encrypt(maskedValue, dataType);
+            } catch (Exception e) {
+                log.error("Encryption failed for {}.{}", lowerTableName, fullPath, e);
+            }
+        }
+        
+        // 2. Partial Masking
+        if (partialMaskingRules.containsKey(lowerTableName) && isPathMatching(partialMaskingRules.get(lowerTableName), fullPath)) {
+            maskedValue = applyPartialMasking(maskedValue.toString());
+        }
+
+        // 3. Standard Masking (Faker)
+        if (maskingRules.containsKey(lowerTableName) && isPathMatching(maskingRules.get(lowerTableName), fullPath)) {
+            Integer maxLength = getColumnMaxLength(metadata, fullPath); // metadata will be null for Mongo
+            maskedValue = generateMaskedValue(fullPath, maskedValue, maxLength);
+        }
+        
+        return maskedValue;
+    }
+
+    private boolean isPathMatching(Set<String> rulePaths, String actualPath) {
+        if (rulePaths == null) return false;
+        for (String rulePath : rulePaths) {
+            // Rule paths from UI might be "arrayField[]" or "arrayField[].nestedField"
+            // Actual path from traversal will be "arrayField[]" or "arrayField[].nestedField"
+            if (rulePath.equalsIgnoreCase(actualPath)) {
+                return true;
+            }
+        }
+        return false;
     }
     
     // Simple cache for metadata to avoid DB hits per row
     private final Map<String, List<ColumnMetadata>> metadataCache = new HashMap<>();
     
     private List<ColumnMetadata> getCachedMetadata(String tableName) {
-        return metadataCache.computeIfAbsent(tableName, k -> tableDiscoveryService.getTableColumnMetadata(k));
+        return metadataCache.computeIfAbsent(tableName, k -> {
+            try {
+                return tableDiscoveryService.getTableColumnMetadata(k);
+            } catch (Exception e) {
+                return List.of();
+            }
+        });
     }
     
     private String getColumnType(List<ColumnMetadata> metadata, String columnName) {
+        // For MongoDB, metadata is null, so we try to infer type from the value itself
         if (metadata == null) return "string"; // Default fallback
         for (ColumnMetadata col : metadata) {
             if (col.getColumnName().equalsIgnoreCase(columnName)) {
@@ -153,19 +194,11 @@ public class DataMaskingService {
     }
 
     private Integer getColumnMaxLength(List<ColumnMetadata> metadata, String columnName) {
+        // For MongoDB, metadata is null
         if (metadata == null) return null;
         for (ColumnMetadata col : metadata) {
             if (col.getColumnName().equalsIgnoreCase(columnName)) {
                 return col.getCharacterMaximumLength();
-            }
-        }
-        return null;
-    }
-
-    private String findMatchingKey(Set<String> keys, String target) {
-        for (String key : keys) {
-            if (key.equalsIgnoreCase(target)) {
-                return key;
             }
         }
         return null;
