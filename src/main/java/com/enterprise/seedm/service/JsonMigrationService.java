@@ -22,14 +22,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class JsonMigrationService {
 
     private final JsonMaskingConfigService configService;
+    private final FormatPreservingEncryptionService fpeService;
     private final ObjectMapper objectMapper;
     private final Faker faker;
     
     // In-memory store for async job progress
     private final Map<String, JsonMigrationProgress> progressMap = new ConcurrentHashMap<>();
 
-    public JsonMigrationService(JsonMaskingConfigService configService) {
+    public JsonMigrationService(JsonMaskingConfigService configService, FormatPreservingEncryptionService fpeService) {
         this.configService = configService;
+        this.fpeService = fpeService;
         this.objectMapper = new ObjectMapper()
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
             .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -114,6 +116,7 @@ public class JsonMigrationService {
             ObjectNode objectNode = (ObjectNode) node;
             objectNode.fieldNames().forEachRemaining(fieldName -> {
                 JsonNode childNode = objectNode.get(fieldName);
+                // Handle array paths with [] for consistency with the UI
                 String childPath = currentPath.isEmpty() ? fieldName : currentPath + "." + fieldName;
                 
                 if (childNode.isObject() || childNode.isArray()) {
@@ -133,15 +136,16 @@ public class JsonMigrationService {
             for (int i = 0; i < arrayNode.size(); i++) {
                 JsonNode childNode = arrayNode.get(i);
                 if (childNode.isObject() || childNode.isArray()) {
-                    maskNode(childNode, currentPath, config); 
+                    // For nested objects/arrays inside an array, append [] to the path
+                    maskNode(childNode, currentPath + "[]", config); 
                 } else if (childNode.isValueNode()) {
                     String value = childNode.asText();
                     if (value != null && !value.isEmpty()) {
-                        String newValue = applyRules(currentPath, value, config);
+                        // Apply rules to primitive array items
+                        String newValue = applyRules(currentPath + "[]", value, config);
                         if (newValue != null && !newValue.equals(value)) {
-                            // Can't replace directly easily in ArrayNode without index, but we have index 'i'
                             if (childNode.isTextual()) arrayNode.set(i, arrayNode.textNode(newValue));
-                            else if (childNode.isNumber()) arrayNode.set(i, arrayNode.numberNode(Long.parseLong(newValue))); // simplistic
+                            else if (childNode.isNumber()) arrayNode.set(i, arrayNode.numberNode(Long.parseLong(newValue)));
                             else arrayNode.set(i, arrayNode.textNode(newValue));
                         }
                     }
@@ -151,14 +155,29 @@ public class JsonMigrationService {
     }
 
     private String applyRules(String fieldPath, String value, JsonMigrationConfig config) {
-        if (config.getMaskingFields() != null && config.getMaskingFields().contains(fieldPath)) {
+        if (config.getMaskingFields() != null && containsIgnoreCase(config.getMaskingFields(), fieldPath)) {
             return generateFakeData(fieldPath);
-        } else if (config.getPartialMaskingFields() != null && config.getPartialMaskingFields().contains(fieldPath)) {
+        } else if (config.getPartialMaskingFields() != null && containsIgnoreCase(config.getPartialMaskingFields(), fieldPath)) {
             return applyPartialMasking(value);
-        } else if (config.getConstraintFields() != null && config.getConstraintFields().contains(fieldPath)) {
-            return "ENC:" + Base64.getEncoder().encodeToString(value.getBytes());
+        } else if (config.getConstraintFields() != null && containsIgnoreCase(config.getConstraintFields(), fieldPath)) {
+            try {
+                return (String) fpeService.encrypt(value, "string");
+            } catch (Exception e) {
+                log.error("Failed to encrypt JSON field {}", fieldPath, e);
+                return value;
+            }
         }
         return value;
+    }
+    
+    private boolean containsIgnoreCase(List<String> list, String target) {
+        if (list == null) return false;
+        for (String item : list) {
+            if (item.equalsIgnoreCase(target)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String generateFakeData(String fieldPath) {
