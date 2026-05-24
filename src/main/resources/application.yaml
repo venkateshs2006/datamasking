@@ -12,7 +12,7 @@ spring:
     batchdb:
       url: jdbc:postgresql://localhost:5432/batch_db
       username: postgres
-      password: Mannit@12345
+      password: postgres
       driver-class-name: org.postgresql.Driver
       hikari:
         maximum-pool-size: 10
@@ -22,7 +22,7 @@ spring:
     source:
       url: jdbc:postgresql://localhost:5432/source_db
       username: postgres
-      password: Mannit@12345
+      password: postgres
       driver-class-name: org.postgresql.Driver
       hikari:
         maximum-pool-size: 10
@@ -32,7 +32,7 @@ spring:
     destination:
       url: jdbc:postgresql://localhost:5432/destination_db
       username:  postgres
-      password: Mannit@12345
+      password: postgres
       driver-class-name: org.postgresql.Driver
       hikari:
         maximum-pool-size: 10

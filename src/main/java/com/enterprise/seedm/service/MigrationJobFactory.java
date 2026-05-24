@@ -11,10 +11,13 @@ import com.enterprise.seedm.batch.TableItemWriter;
 import com.enterprise.seedm.batch.TablePreparationTasklet;
 import com.enterprise.seedm.model.ColumnMetadata;
 import com.enterprise.seedm.model.JobRequest;
+import com.mongodb.ConnectionString;
+import com.mongodb.MongoClientSettings;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
+import org.bson.UuidRepresentation;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
@@ -152,8 +155,17 @@ public class MigrationJobFactory {
         List<String> collections = (List<String>) rulesConfig.get("targetTables");
         if (collections == null) collections = new ArrayList<>();
 
-        MongoClient sourceClient = MongoClients.create(dbConnectionService.getConnection(sourceConnectionId).getUrl());
-        MongoClient destClient = MongoClients.create(dbConnectionService.getConnection(destConnectionId).getUrl());
+        MongoClientSettings sourceSettings = MongoClientSettings.builder()
+                .applyConnectionString(new ConnectionString(dbConnectionService.getConnection(sourceConnectionId).getUrl()))
+                .uuidRepresentation(UuidRepresentation.STANDARD)
+                .build();
+        MongoClient sourceClient = MongoClients.create(sourceSettings);
+
+        MongoClientSettings destSettings = MongoClientSettings.builder()
+                .applyConnectionString(new ConnectionString(dbConnectionService.getConnection(destConnectionId).getUrl()))
+                .uuidRepresentation(UuidRepresentation.STANDARD)
+                .build();
+        MongoClient destClient = MongoClients.create(destSettings);
 
         JobBuilder jobBuilder = new JobBuilder("DBMigrationJob", jobRepository)
                 .incrementer(new RunIdIncrementer());

@@ -334,7 +334,7 @@
 
             const sfdHtml = renderRules('SFD (Standard Faker Data)', rulesObj.maskingColumns, 'bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20');
             const pmdHtml = renderRules('PMD (Partial Masking Data)', rulesObj.partialMaskingColumns, 'bg-orange-100 text-orange-700 border border-orange-200');
-            const fphHtml = renderRules('FPH (Format Preserving Hashing)', rulesObj.constraintColumns, 'bg-purple-100 text-purple-700 border border-purple-200');
+            const fphHtml = renderRules('FPH (Format Preserving Hashing)', rulesObj.constraintFields, 'bg-purple-100 text-purple-700 border border-purple-200');
 
             if (!sfdHtml && !pmdHtml && !fphHtml) {
                 html += `<p class="text-sm text-gray-400 italic">No masking rules applied.</p>`;
@@ -425,7 +425,7 @@
 
                     if (data.status === 'SUCCESS' && data.executionId) {
                         closeModal();
-                        showJsonProgressModal(data.executionId);
+                        window.location.href = '/index.html?executionId=' + data.executionId;
                     } else {
                         alert('Failed to launch JSON migration.');
                         btn.innerHTML = 'RUN MIGRATION <i class="fas fa-play ml-2"></i>';

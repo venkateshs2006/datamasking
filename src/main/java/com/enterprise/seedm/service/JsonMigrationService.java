@@ -44,6 +44,8 @@ public class JsonMigrationService {
             updateProgress(executionId, "FAILED", 0, 0, "JSON Migration configuration is missing or incomplete.");
             throw new IllegalStateException("JSON Migration configuration is missing or incomplete.");
         }
+        System.out.println("Source Directory :"+config.getSourceDir());
+        System.out.println("Destination Directory :"+config.getDestDir());
 
         Path sourceDir = Paths.get(config.getSourceDir());
         Path destDir = Paths.get(config.getDestDir());
@@ -116,7 +118,6 @@ public class JsonMigrationService {
             ObjectNode objectNode = (ObjectNode) node;
             objectNode.fieldNames().forEachRemaining(fieldName -> {
                 JsonNode childNode = objectNode.get(fieldName);
-                // Handle array paths with [] for consistency with the UI
                 String childPath = currentPath.isEmpty() ? fieldName : currentPath + "." + fieldName;
                 
                 if (childNode.isObject() || childNode.isArray()) {
@@ -136,13 +137,11 @@ public class JsonMigrationService {
             for (int i = 0; i < arrayNode.size(); i++) {
                 JsonNode childNode = arrayNode.get(i);
                 if (childNode.isObject() || childNode.isArray()) {
-                    // For nested objects/arrays inside an array, append [] to the path
-                    maskNode(childNode, currentPath + "[]", config); 
+                    maskNode(childNode, currentPath, config); 
                 } else if (childNode.isValueNode()) {
                     String value = childNode.asText();
                     if (value != null && !value.isEmpty()) {
-                        // Apply rules to primitive array items
-                        String newValue = applyRules(currentPath + "[]", value, config);
+                        String newValue = applyRules(currentPath, value, config);
                         if (newValue != null && !newValue.equals(value)) {
                             if (childNode.isTextual()) arrayNode.set(i, arrayNode.textNode(newValue));
                             else if (childNode.isNumber()) arrayNode.set(i, arrayNode.numberNode(Long.parseLong(newValue)));

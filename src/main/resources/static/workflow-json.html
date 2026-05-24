@@ -21,7 +21,7 @@
     <style>
         :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--text-main); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
         header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
         .bnp-logo { height: 48px; display: block; }
@@ -30,7 +30,7 @@
         nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
         nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
 
-        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; z-index: 20; }
+        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 10px 8%; font-size: 0.75rem; z-index: 20; }
         .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
         .tagline { font-weight: 300; letter-spacing: 1px; }
 
@@ -91,12 +91,13 @@
 
         /* Custom scrollbar for horizontal scrolling area */
         .overflow-x-auto::-webkit-scrollbar { height: 6px; }
-        .overflow-x-auto::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
-        .overflow-x-auto::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        .overflow-x-auto::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .overflow-y-auto::-webkit-scrollbar { width: 6px; }
+        .overflow-x-auto::-webkit-scrollbar-track, .overflow-y-auto::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .overflow-x-auto::-webkit-scrollbar-thumb, .overflow-y-auto::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .overflow-x-auto::-webkit-scrollbar-thumb:hover, .overflow-y-auto::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
-<body class="flex flex-col min-h-screen">
+<body>
 
 <!-- Top Navigation -->
 <header>
@@ -117,23 +118,23 @@
     </nav>
 </header>
 
-<main class="flex-1 flex flex-col bg-transparent">
-    <div class="w-full max-w-6xl mx-auto px-6 py-8 flex flex-col flex-1 min-h-[650px]">
+<main class="flex-1 flex flex-col overflow-hidden bg-transparent pt-4 pb-2">
+    <div class="w-full max-w-6xl mx-auto px-6 flex flex-col h-full min-h-0">
 
-        <div class="mb-8 shrink-0 text-center">
+        <div class="mb-6 shrink-0 text-center">
             <h2 class="text-3xl font-bold text-gray-900">Configure JSON Migration</h2>
-            <p class="text-sm text-gray-500 mt-2">Select directories, map fields, and apply masking rules.</p>
+            <p class="text-sm text-gray-500 mt-1">Select directories, map fields, and apply masking rules.</p>
         </div>
 
         <!-- Stepper -->
-        <div class="flex items-start mb-8 px-4 w-[60%] mx-auto shrink-0">
+        <div class="flex items-start mb-6 px-4 w-[60%] mx-auto shrink-0">
             <div class="stepper-item active" id="step1-indicator"><div class="stepper-circle"><i class="fas fa-folder-open text-sm"></i></div><div class="stepper-label">Directories</div></div>
             <div class="stepper-item" id="step2-indicator"><div class="stepper-circle"><i class="fas fa-mask text-sm"></i></div><div class="stepper-label">Rules</div></div>
             <div class="stepper-item" id="step3-indicator"><div class="stepper-circle"><i class="fas fa-flag-checkered text-sm"></i></div><div class="stepper-label">Review</div></div>
         </div>
 
         <!-- Main Card -->
-        <div class="card flex-1 flex flex-col overflow-hidden relative shadow-md bg-white rounded-xl">
+        <div class="card flex-1 flex flex-col overflow-hidden relative shadow-md bg-white rounded-xl min-h-0">
 
             <!-- STEP 1: DIRECTORIES -->
             <div id="step1" class="step-container active p-8">
@@ -234,8 +235,8 @@
             </div>
 
             <!-- STEP 2: RULES -->
-            <div id="step2" class="step-container p-8 flex flex-col overflow-hidden">
-                <div class="flex justify-between items-start mb-6 shrink-0">
+            <div id="step2" class="step-container p-6 flex flex-col overflow-hidden">
+                <div class="flex justify-between items-start mb-4 shrink-0">
                     <div>
                         <h3 class="text-xl font-bold text-gray-800">Assign Masking Rules</h3>
                         <p class="text-sm text-gray-500 mt-1">Drag and drop fields from your JSON files into the corresponding masking rules.</p>
@@ -244,8 +245,8 @@
 
                 <div class="flex flex-1 gap-6 min-h-0">
 
-                    <!-- Available Fields (Draggable with Search) -->
-                    <div class="list-container w-1/3 bg-white shadow-sm border-gray-200 flex flex-col overflow-hidden">
+                    <!-- Available Fields (Draggable with Search and Horizontal Scroll) -->
+                    <div class="list-container w-2/5 bg-white shadow-sm border-gray-200 flex flex-col overflow-hidden">
                         <div class="list-header bg-gray-50 py-3 px-4 shrink-0 border-b border-gray-200">
                             <span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Available JSON Fields</span>
                         </div>
@@ -255,35 +256,35 @@
                                 <input type="text" id="fieldSearch" class="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:border-bnp-emerald focus:ring-1 focus:ring-bnp-emerald transition-all" placeholder="Search fields..." onkeyup="filterFields()">
                             </div>
                         </div>
-                        <div class="p-3 flex flex-col flex-1 h-0 overflow-y-auto overflow-x-auto bg-gray-50/30" id="availableFieldsList">
-                            <div class="text-xs text-gray-400 p-2 italic text-center w-full">Scan directory to load fields</div>
+                        <div class="flex-1 h-0 overflow-y-auto overflow-x-auto" id="availableFieldsList">
+                            <div class="text-xs text-gray-400 p-4 italic text-center w-full">Scan directory to load fields</div>
                         </div>
                     </div>
 
                     <!-- Applied Rules Overview (Dropzones) -->
-                    <div class="list-container flex-1 bg-white border-gray-200 shadow-sm flex flex-col overflow-hidden">
-                        <div class="list-header bg-gray-50 py-3 px-4 border-b border-gray-200 shrink-0">
+                    <div class="list-container flex-1 bg-gray-50 border-gray-200 shadow-inner flex flex-col overflow-hidden">
+                        <div class="list-header bg-gray-100 py-3 px-4 border-b border-gray-200 shrink-0">
                             <span class="text-xs font-bold text-gray-700 uppercase tracking-wider">Drag Fields Here</span>
                         </div>
-                        <div class="p-6 space-y-6 flex-1 overflow-y-auto overflow-x-auto relative bg-gray-50/10">
+                        <div class="p-5 space-y-5 flex-1 overflow-y-auto overflow-x-auto relative">
                             <!-- Standard Dropzone -->
                             <div>
                                 <h5 class="text-[10px] font-bold text-bnp-emerald uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-bnp-emerald/10 flex items-center justify-center mr-1.5"><i class="fas fa-mask"></i></div> SFD (STANDARD FAKER DATA)</h5>
-                                <div id="dropzone-masking" class="dropzone flex flex-wrap gap-2 min-h-[80px] p-4 bg-gray-50 rounded-lg border-2 border-dashed border-bnp-emerald/40 shadow-inner transition-colors duration-200" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropField(event, 'maskingColumns')">
+                                <div id="dropzone-masking" class="dropzone flex flex-wrap gap-2 min-h-[80px] p-4 bg-white rounded-lg border-2 border-dashed border-bnp-emerald/40 shadow-inner transition-colors duration-200" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropField(event, 'maskingColumns')">
                                     <div class="w-full h-full flex items-center justify-center text-xs text-gray-400 italic pointer-events-none" id="placeholder-masking">Drop fields here</div>
                                 </div>
                             </div>
                             <!-- Partial Dropzone -->
                             <div>
                                 <h5 class="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-orange-100 flex items-center justify-center mr-1.5"><i class="fas fa-eye-slash"></i></div> PMD (Partial masking DATA)</h5>
-                                <div id="dropzone-partial" class="dropzone flex flex-wrap gap-2 min-h-[80px] p-4 bg-gray-50 rounded-lg border-2 border-dashed border-orange-300 shadow-inner transition-colors duration-200" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropField(event, 'partialMaskingColumns')">
+                                <div id="dropzone-partial" class="dropzone flex flex-wrap gap-2 min-h-[80px] p-4 bg-white rounded-lg border-2 border-dashed border-orange-200 shadow-inner transition-colors duration-200" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropField(event, 'partialMaskingColumns')">
                                     <div class="w-full h-full flex items-center justify-center text-xs text-gray-400 italic pointer-events-none" id="placeholder-partial">Drop fields here</div>
                                 </div>
                             </div>
-                            <!-- FPH Dropzone -->
+                            <!-- Encrypt -->
                             <div>
-                                <h5 class="text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-purple-100 flex items-center justify-center mr-1.5"><i class="fas fa-fingerprint"></i></div> FPH (FORMAT PRESERVING HASHING)</h5>
-                                <div id="dropzone-constraint" class="dropzone flex flex-wrap gap-2 min-h-[80px] p-4 bg-gray-50 rounded-lg border-2 border-dashed border-purple-300 shadow-inner transition-colors duration-200" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropField(event, 'constraintFields')">
+                                <h5 class="text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-purple-100 flex items-center justify-center mr-1.5"><i class="fas fa-key"></i></div> FPH (FORMAT PRESERVING HASHING)</h5>
+                                <div id="dropzone-constraint" class="dropzone flex flex-wrap gap-2 min-h-[80px] p-4 bg-white rounded-lg border-2 border-dashed border-purple-200 shadow-inner transition-colors duration-200" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropField(event, 'constraintFields')">
                                     <div class="w-full h-full flex items-center justify-center text-xs text-gray-400 italic pointer-events-none" id="placeholder-constraint">Drop fields here</div>
                                 </div>
                             </div>
@@ -353,7 +354,7 @@
             </div>
 
             <!-- Card Footer -->
-            <div class="mt-auto border-t border-gray-200 px-8 py-4 bg-gray-50 flex justify-between items-center shrink-0 rounded-b-xl z-10 relative">
+            <div class="mt-auto border-t border-gray-200 px-6 py-3 bg-gray-50 flex justify-between items-center shrink-0 rounded-b-xl z-10 relative">
                 <button id="btnPrev" onclick="prevStep()" class="btn btn-secondary text-sm font-bold tracking-wide"><i class="fas fa-chevron-left mr-2 text-xs"></i> BACK</button>
                 <div class="flex-1"></div>
                 <button id="btnNext" onclick="nextStep()" class="btn btn-primary px-8 text-sm font-bold tracking-wide shadow-md hover:shadow-lg">CONTINUE <i class="fas fa-chevron-right ml-2 text-xs"></i></button>
@@ -466,7 +467,19 @@
     let scanSuccess = false;
     let availableKeys = [];
     let state = {
-        rules: { maskingColumns: [], partialMaskingColumns: [], constraintFields: [], sourceDir: '', destDir: '', sourceType: 'local', destType: 'local', sourceCosId: null, destCosId: null, maskingKey: '' }
+        rules: {
+            maskingColumns: [],
+            partialMaskingColumns: [],
+            constraintFields: [],
+            sourceDir: '',
+            destDir: '',
+            sourceType: 'local',
+            destType: 'local',
+            sourceCosId: null,
+            destCosId: null,
+            maskingKey: '',
+            scannedSourceId: null
+        }
     };
 
     function toggleStorageType(env) {
@@ -496,7 +509,11 @@
             const srcConns = await resSrc.json();
             const srcSelect = document.getElementById('sourceId');
             srcSelect.innerHTML = '<option value="">Select a source directory...</option>';
-            srcConns.forEach(c => srcSelect.add(new Option(c.cosName + ' (' + (c.storageLocation || 'N/A') + ')', c.id)));
+            srcConns.forEach(c => {
+                const option = new Option(c.cosName + ' (' + (c.storageLocation || 'N/A') + ')', c.id);
+                option.dataset.path = c.storageLocation;
+                srcSelect.add(option);
+            });
         }
 
         const resDest = await fetch('/api/cos-connections?envType=destination&storageType=Local');
@@ -504,7 +521,11 @@
             const destConns = await resDest.json();
             const destSelect = document.getElementById('destId');
             destSelect.innerHTML = '<option value="">Select a destination directory...</option>';
-            destConns.forEach(c => destSelect.add(new Option(c.cosName + ' (' + (c.storageLocation || 'N/A') + ')', c.id)));
+            destConns.forEach(c => {
+                const option = new Option(c.cosName + ' (' + (c.storageLocation || 'N/A') + ')', c.id);
+                option.dataset.path = c.storageLocation;
+                destSelect.add(option);
+            });
         }
 
         validateStep1();
@@ -519,7 +540,9 @@
             srcSelect.innerHTML = '<option value="">Select a source COS bucket...</option>';
             srcConns.forEach(c => {
                 const label = c.bucketName ? `${c.cosName} (${c.bucketName})` : c.cosName;
-                srcSelect.add(new Option(label, c.id));
+                const option = new Option(label, c.id);
+                option.dataset.path = `cos://${c.bucketName}`;
+                srcSelect.add(option);
             });
         }
 
@@ -530,7 +553,9 @@
             destSelect.innerHTML = '<option value="">Select a destination COS bucket...</option>';
             destConns.forEach(c => {
                 const label = c.bucketName ? `${c.cosName} (${c.bucketName})` : c.cosName;
-                destSelect.add(new Option(label, c.id));
+                const option = new Option(label, c.id);
+                option.dataset.path = `cos://${c.bucketName}`;
+                destSelect.add(option);
             });
         }
     }
@@ -539,29 +564,28 @@
         const srcType = state.rules.sourceType;
         const destType = state.rules.destType;
 
-        const srcVal = srcType === 'local' ? document.getElementById('sourceId').value : document.getElementById('sourceCosId').value;
-        const destVal = destType === 'local' ? document.getElementById('destId').value : document.getElementById('destCosId').value;
+        const srcSelect = srcType === 'local' ? document.getElementById('sourceId') : document.getElementById('sourceCosId');
+        const destSelect = destType === 'local' ? document.getElementById('destId') : document.getElementById('destCosId');
+
+        const srcVal = srcSelect.value;
+        const destVal = destSelect.value;
 
         const btnFetch = document.getElementById('btnFetchSrc');
         const btnNext = document.getElementById('btnNext');
 
         btnFetch.disabled = !srcVal;
 
-        // Require both paths AND a successful scan to proceed
-        btnNext.disabled = !(srcVal && destVal && scanSuccess);
-
         // Invalidate scan if connection changes
-        const currentSrcText = srcType === 'local' ?
-            document.getElementById('sourceId').options[document.getElementById('sourceId').selectedIndex]?.text :
-            document.getElementById('sourceCosId').options[document.getElementById('sourceCosId').selectedIndex]?.text;
-
-        if (currentSrcText && currentSrcText !== state.rules.sourceDir && scanSuccess) {
+        if (scanSuccess && state.rules.scannedSourceId && srcVal !== state.rules.scannedSourceId) {
             scanSuccess = false;
+            state.rules.scannedSourceId = null;
             const display = document.getElementById('fileCountDisplay');
             display.innerHTML = '<i class="fas fa-info-circle mr-2 opacity-50"></i> Location changed. Please scan again.';
             display.className = 'input-field bg-gray-50 text-gray-500 flex items-center justify-center border-dashed border-gray-300';
-            btnNext.disabled = true;
         }
+
+        // Require both paths AND a successful scan to proceed
+        btnNext.disabled = !(srcVal && destVal && scanSuccess);
     }
 
     function updateUI() {
@@ -601,7 +625,8 @@
         const srcType = state.rules.sourceType;
         const srcSelect = srcType === 'local' ? document.getElementById('sourceId') : document.getElementById('sourceCosId');
         const srcId = srcSelect.value;
-        const srcText = srcSelect.options[srcSelect.selectedIndex]?.text;
+        const srcPath = srcSelect.options[srcSelect.selectedIndex]?.dataset.path;
+        state.rules.sourceDir = srcPath;
 
         const btn = document.getElementById('btnFetchSrc');
         const display = document.getElementById('fileCountDisplay');
@@ -636,7 +661,7 @@
                     display.innerHTML = `<span class="text-green-600 font-bold"><i class="fas fa-check-circle mr-1"></i> Found ${data.fileCount} JSON files</span>`;
                     display.className = 'input-field bg-green-50 flex items-center justify-center border-green-200';
                     scanSuccess = true;
-                    state.rules.sourceDir = srcText;
+                    state.rules.scannedSourceId = srcId; // Set the ID of the successfully scanned source
                     if(srcType === 'cos') state.rules.sourceCosId = srcId;
                     availableKeys = data.sampleKeys || [];
                     renderAvailableKeys();
@@ -664,7 +689,7 @@
         if (currentStep === 1) {
             const destType = state.rules.destType;
             const destSelect = destType === 'local' ? document.getElementById('destId') : document.getElementById('destCosId');
-            state.rules.destDir = destSelect.options[destSelect.selectedIndex]?.text;
+            state.rules.destDir = destSelect.options[destSelect.selectedIndex]?.dataset.path;
             if(destType === 'cos') state.rules.destCosId = destSelect.value;
             renderTags();
         }
@@ -674,7 +699,7 @@
 
     function prevStep() { if (currentStep > 1) { currentStep--; updateUI(); } }
 
-    // --- STEP 2 DRAG & DROP LOGIC ---
+    // --- STEP 2 LOGIC ---
 
     function renderAvailableKeys() {
         const container = document.getElementById('availableFieldsList');
@@ -687,25 +712,20 @@
 
         let displayedCount = 0;
         availableKeys.forEach(key => {
-            const isMasked = state.rules.maskingColumns.includes(key);
-            const isPartial = state.rules.partialMaskingColumns.includes(key);
-            const isConstraint = state.rules.constraintFields.includes(key);
-            if (isMasked || isPartial || isConstraint) return; // Hide assigned fields
-
             displayedCount++;
             const el = document.createElement('div');
-            // Re-introduced the draggable format, but added whitespace-nowrap and w-max min-w-full logic
-            el.className = "p-2.5 mb-2 bg-white border border-gray-200 rounded cursor-move hover:bg-bnp-emerald/5 hover:border-bnp-emerald/50 text-xs font-mono text-gray-700 shadow-sm transition flex items-center w-max min-w-full";
-            el.draggable = true;
-            el.innerHTML = `<i class="fas fa-grip-vertical text-gray-300 mr-3 shrink-0"></i> <span class="whitespace-nowrap">${key}</span>`;
-            el.ondragstart = (e) => {
-                e.dataTransfer.setData('text/plain', key);
-                e.dataTransfer.effectAllowed = 'move';
-                setTimeout(() => el.classList.add('opacity-50'), 0);
-            };
-            el.ondragend = (e) => {
-                el.classList.remove('opacity-50');
-            };
+            el.className = "p-2.5 bg-white border-b border-gray-100 text-xs font-mono text-gray-700 flex items-center justify-between";
+
+            const ruleType = getRuleType(key);
+
+            el.innerHTML = `
+                <span class="truncate" title="${key}">${key}</span>
+                <div class="flex-shrink-0 ml-4 space-x-1">
+                    <button onclick="addJsonRule('${key}', 'maskingColumns')" class="rule-btn ${ruleType === 'maskingColumns' ? 'bg-bnp-emerald text-white' : 'rule-btn-std'}">SFD</button>
+                    <button onclick="addJsonRule('${key}', 'partialMaskingColumns')" class="rule-btn ${ruleType === 'partialMaskingColumns' ? 'bg-orange-500 text-white' : 'rule-btn-prt'}">PMD</button>
+                    <button onclick="addJsonRule('${key}', 'constraintFields')" class="rule-btn ${ruleType === 'constraintFields' ? 'bg-purple-600 text-white' : 'rule-btn-enc'}">FPH</button>
+                </div>
+            `;
             container.appendChild(el);
         });
 
@@ -714,36 +734,27 @@
         }
     }
 
+    function getRuleType(key) {
+        if (state.rules.maskingColumns.includes(key)) return 'maskingColumns';
+        if (state.rules.partialMaskingColumns.includes(key)) return 'partialMaskingColumns';
+        if (state.rules.constraintFields.includes(key)) return 'constraintFields';
+        return null;
+    }
+
     function filterFields() {
         const filter = document.getElementById('fieldSearch').value.toLowerCase();
         const container = document.getElementById('availableFieldsList');
-        const items = container.querySelectorAll('div.cursor-move');
+        const items = container.querySelectorAll('div.flex.items-center.justify-between');
         for (let i = 0; i < items.length; i++) {
-            const txtValue = items[i].textContent || items[i].innerText;
-            if (txtValue.toLowerCase().indexOf(filter) > -1) {
-                items[i].style.display = "";
-            } else {
-                items[i].style.display = "none";
+            const span = items[i].querySelector('span.truncate');
+            if (span) {
+                const txtValue = span.textContent || span.innerText;
+                if (txtValue.toLowerCase().indexOf(filter) > -1) {
+                    items[i].style.display = "flex";
+                } else {
+                    items[i].style.display = "none";
+                }
             }
-        }
-    }
-
-    function allowDrop(ev) {
-        ev.preventDefault();
-        ev.dataTransfer.dropEffect = 'move';
-        ev.currentTarget.classList.add('dragover');
-    }
-
-    function dragLeave(ev) {
-        ev.currentTarget.classList.remove('dragover');
-    }
-
-    function dropField(ev, type) {
-        ev.preventDefault();
-        ev.currentTarget.classList.remove('dragover');
-        const key = ev.dataTransfer.getData("text/plain");
-        if (key) {
-            addJsonRule(key, type);
         }
     }
 
@@ -756,14 +767,14 @@
         }
 
         renderTags();
-        renderAvailableKeys(); // To remove it from the left list
+        renderAvailableKeys();
         validateStep2();
     }
 
     function removeRule(path, type) {
         state.rules[type] = state.rules[type].filter(c => c !== path);
         renderTags();
-        renderAvailableKeys(); // To re-add it to the left list
+        renderAvailableKeys();
         validateStep2();
     }
 
@@ -862,13 +873,13 @@
                 configDetails: {
                     source: {
                         id: srcSelect.value,
-                        url: state.rules.sourceDir,
+                        url: srcSelect.options[srcSelect.selectedIndex]?.dataset.path,
                         storageType: state.rules.sourceType,
                         schema: ''
                     },
                     dest: {
                         id: destSelect.value,
-                        url: state.rules.destDir,
+                        url: destSelect.options[destSelect.selectedIndex]?.dataset.path,
                         storageType: state.rules.destType,
                         schema: ''
                     },

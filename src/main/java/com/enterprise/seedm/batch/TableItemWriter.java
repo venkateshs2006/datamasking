@@ -23,6 +23,7 @@ public class TableItemWriter extends JdbcBatchItemWriter<Map<String, Object>> {
     private final String schemaName;
     private final String tableName;
     private long totalWritten = 0;
+    private boolean sqlInitialized = false;
 
     public TableItemWriter(@Qualifier("destinationDataSource") DataSource destinationDataSource,  String schemaName, String tableName) {
         this.destinationDataSource = destinationDataSource;
@@ -68,12 +69,15 @@ public class TableItemWriter extends JdbcBatchItemWriter<Map<String, Object>> {
             return;
         }
 
-        // Generate INSERT SQL from first item's columns
-        Map<String, Object> firstItem = items.get(0);
-        String insertSql = generateInsertSql(firstItem.keySet());
-        
-        // Overwrite the dummy SQL with the real one
-        setSql(insertSql);
+        // Generate INSERT SQL from first item's columns, but only once
+        if (!sqlInitialized) {
+            Map<String, Object> firstItem = items.get(0);
+            String insertSql = generateInsertSql(firstItem.keySet());
+            
+            // Overwrite the dummy SQL with the real one
+            setSql(insertSql);
+            sqlInitialized = true;
+        }
 
         // Write the batch
         super.write(chunk);
