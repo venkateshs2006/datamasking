@@ -17,6 +17,6 @@ public class MongoItemProcessor implements ItemProcessor<Document, Document> {
     public Document process(Document item) throws Exception {
         // DataMaskingService expects a Map<String, Object>
         // Document extends LinkedHashMap<String, Object>, so it can be passed directly
-        return new Document(dataMaskingService.maskData(collectionName, item));
+        return new Document(dataMaskingService.maskNoSqlData(collectionName, item));
     }
 }

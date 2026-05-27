@@ -56,9 +56,20 @@ public class DataMaskingService {
     }
 
     /**
-     * Mask a row of data if applicable
+     * Mask a row of SQL relational data (fetches table metadata)
      */
     public Map<String, Object> maskData(String tableName, Map<String, Object> row) {
+        return maskDataInternal(tableName, row, true);
+    }
+    
+    /**
+     * Mask a row of NoSQL data (skips table metadata fetching)
+     */
+    public Map<String, Object> maskNoSqlData(String collectionName, Map<String, Object> row) {
+        return maskDataInternal(collectionName, row, false);
+    }
+
+    private Map<String, Object> maskDataInternal(String tableName, Map<String, Object> row, boolean fetchMetadata) {
         String lowerTableName = tableName.toLowerCase();
 
         // Fetch current config dynamically
@@ -80,7 +91,7 @@ public class DataMaskingService {
 
         // We might need column metadata for data type if we are encrypting
         List<ColumnMetadata> metadata = null;
-        if (hasConstraints || hasMasking) {
+        if (fetchMetadata && (hasConstraints || hasMasking)) {
             metadata = getCachedMetadata(tableName);
         }
 
@@ -150,7 +161,12 @@ public class DataMaskingService {
     private final Map<String, List<ColumnMetadata>> metadataCache = new HashMap<>();
 
     private List<ColumnMetadata> getCachedMetadata(String tableName) {
-        return metadataCache.computeIfAbsent(tableName, k -> tableDiscoveryService.getTableColumnMetadata(k));
+        try {
+            return metadataCache.computeIfAbsent(tableName, k -> tableDiscoveryService.getTableColumnMetadata(k));
+        } catch (Exception e) {
+            log.warn("Failed to fetch column metadata for {}: {}", tableName, e.getMessage());
+            return null;
+        }
     }
 
     private String getColumnType(List<ColumnMetadata> metadata, String columnName) {
