@@ -107,7 +107,7 @@
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">URL / Path</label>
-                            <input type="text" id="url" required class="input-field w-full" placeholder="jdbc:... or /path/to/dir">
+                            <input type="text" id="url" class="input-field w-full" placeholder="jdbc:... or /path/to/dir">
                         </div>
                         <div id="credentialsDiv" class="space-y-4">
                             <div>
@@ -118,6 +118,10 @@
                                 <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Password</label>
                                 <input type="password" id="password" class="input-field w-full">
                             </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Vault Path</label>
+                            <input type="text" id="vaultPath" class="input-field w-full" placeholder="secret/data/database/source">
                         </div>
 
                         <button type="submit" class="w-full bg-bnp-emerald text-white py-2 rounded-lg font-bold shadow hover:bg-[#007a4c] transition mt-4">
@@ -137,7 +141,7 @@
                                 <tr>
                                     <th class="px-6 py-3">Name</th>
                                     <th class="px-6 py-3">Dept / Type</th>
-                                    <th class="px-6 py-3">URL</th>
+                                    <th class="px-6 py-3">URL / Vault Path</th>
                                     <th class="px-6 py-3">Action</th>
                                 </tr>
                             </thead>
@@ -186,6 +190,15 @@
             }
         });
 
+        document.getElementById('vaultPath').addEventListener('input', (e) => {
+            const hasVaultPath = e.target.value.trim() !== '';
+            const creds = document.getElementById('credentialsDiv');
+            creds.style.display = hasVaultPath ? 'none' : 'block';
+            document.getElementById('url').required = !hasVaultPath;
+            document.getElementById('username').required = !hasVaultPath;
+            document.getElementById('password').required = !hasVaultPath;
+        });
+
         async function fetchDbs() {
             // Get all connections by passing department=ALL
             const res = await fetch('/api/connections?department=ALL');
@@ -200,13 +213,14 @@
 
                 data.forEach(db => {
                     const tr = document.createElement('tr');
+                    const displayPath = db.vaultPath || db.url;
                     tr.innerHTML = `
                         <td class="px-6 py-4 font-bold text-gray-800">${db.name}</td>
                         <td class="px-6 py-4">
                             <span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-[10px] font-bold uppercase mr-1">${db.department}</span>
                             <span class="bg-bnp-emerald/10 text-bnp-emerald px-2 py-1 rounded text-[10px] font-bold uppercase">${db.dbType} - ${db.envType}</span>
                         </td>
-                        <td class="px-6 py-4 text-xs font-mono text-gray-500 truncate max-w-xs" title="${db.url}">${db.url}</td>
+                        <td class="px-6 py-4 text-xs font-mono text-gray-500 truncate max-w-xs" title="${displayPath}">${displayPath}</td>
                         <td class="px-6 py-4 text-right">
                             <button onclick="deleteDb('${db.id}')" class="text-red-500 hover:text-red-700 transition"><i class="fas fa-trash-alt"></i></button>
                         </td>
@@ -225,7 +239,8 @@
                 envType: document.getElementById('envType').value,
                 url: document.getElementById('url').value,
                 username: document.getElementById('username').value,
-                password: document.getElementById('password').value
+                password: document.getElementById('password').value,
+                vaultPath: document.getElementById('vaultPath').value
             };
 
             const res = await fetch('/api/connections', {
@@ -237,6 +252,7 @@
             if (res.ok) {
                 document.getElementById('dbForm').reset();
                 document.getElementById('dbType').dispatchEvent(new Event('change'));
+                document.getElementById('vaultPath').dispatchEvent(new Event('input'));
                 fetchDbs();
             } else {
                 alert('Failed to save connection');

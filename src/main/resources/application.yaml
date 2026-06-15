@@ -7,6 +7,16 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
+  cloud:
+    vault:
+      uri: https://localhost:8200
+      authentication: CERT
+      ssl:
+        key-store: classpath:vault.p12
+        key-store-password: your-keystore-password
+        trust-store: classpath:vault.p12
+        trust-store-password: your-truststore-password
+
   datasource:
     # Batch Metadata Database Configuration (Primary)
     batchdb:
@@ -21,8 +31,8 @@ spring:
     # Source Database Configuration (Read-only)
     source:
       url: jdbc:postgresql://localhost:5432/source_db
-      username: postgres
-      password: postgres
+      username: '{vault.secret.database.source.username}'
+      password: '{vault.secret.database.source.password}'
       driver-class-name: org.postgresql.Driver
       hikari:
         maximum-pool-size: 10
@@ -31,8 +41,8 @@ spring:
     # Destination Database Configuration (Write)
     destination:
       url: jdbc:postgresql://localhost:5432/destination_db
-      username:  postgres
-      password: postgres
+      username: '{vault.secret.database.destination.username}'
+      password: '{vault.secret.database.destination.password}'
       driver-class-name: org.postgresql.Driver
       hikari:
         maximum-pool-size: 10

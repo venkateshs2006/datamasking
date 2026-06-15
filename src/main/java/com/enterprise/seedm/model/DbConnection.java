@@ -28,7 +28,7 @@ public class DbConnection {
     @Column(name = "environment", nullable = false)
     private String envType; // "source", "destination"
 
-    @Column(name = "dburi", nullable = false)
+    @Column(name = "dburi")
     private String url; // For json this is the directory path
 
     @Column(name = "username")
@@ -36,4 +36,7 @@ public class DbConnection {
 
     @Column(name = "password")
     private String password;
+    
+    @Column(name = "vault_path")
+    private String vaultPath; // Path in HashiCorp Vault to fetch url, username, and password
 }

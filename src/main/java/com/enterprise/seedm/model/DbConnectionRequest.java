@@ -10,4 +10,5 @@ public class DbConnectionRequest {
     private String username;
     private String password;
     private String schema;
+    private String vaultPath;
 }

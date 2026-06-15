@@ -8,9 +8,11 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -19,16 +21,28 @@ public class DynamicDataSourceService {
     private final SwappableDataSource sourceDataSource;
     private final SwappableDataSource destinationDataSource;
     private final SchemaConfig schemaConfig;
+    private final VaultService vaultService;
 
     public DynamicDataSourceService(@Qualifier("sourceDataSource") SwappableDataSource sourceDataSource,
                                     @Qualifier("destinationDataSource") SwappableDataSource destinationDataSource,
-                                    SchemaConfig schemaConfig) {
+                                    SchemaConfig schemaConfig,
+                                    VaultService vaultService) {
         this.sourceDataSource = sourceDataSource;
         this.destinationDataSource = destinationDataSource;
         this.schemaConfig = schemaConfig;
+        this.vaultService = vaultService;
     }
 
     public List<String> fetchSchemas(DbConnectionRequest request) {
+        if (StringUtils.hasText(request.getVaultPath())) {
+            Map<String, Object> credentials = vaultService.getDatabaseCredentials(request.getVaultPath());
+            if (credentials != null) {
+                if (credentials.containsKey("url")) request.setUrl((String) credentials.get("url"));
+                if (credentials.containsKey("username")) request.setUsername((String) credentials.get("username"));
+                if (credentials.containsKey("password")) request.setPassword((String) credentials.get("password"));
+            }
+        }
+        
         DataSource tempDs = DataSourceBuilder.create()
                 .url(request.getUrl())
                 .username(request.getUsername())
@@ -51,6 +65,15 @@ public class DynamicDataSourceService {
 
     public void createSchema(DbConnectionRequest request) {
         log.info("Creating schema {} for {} connection", request.getSchema(), request.getType());
+        
+        if (StringUtils.hasText(request.getVaultPath())) {
+            Map<String, Object> credentials = vaultService.getDatabaseCredentials(request.getVaultPath());
+            if (credentials != null) {
+                if (credentials.containsKey("url")) request.setUrl((String) credentials.get("url"));
+                if (credentials.containsKey("username")) request.setUsername((String) credentials.get("username"));
+                if (credentials.containsKey("password")) request.setPassword((String) credentials.get("password"));
+            }
+        }
         
         DataSource tempDs = DataSourceBuilder.create()
                 .url(request.getUrl())
@@ -78,6 +101,15 @@ public class DynamicDataSourceService {
 
     public void updateConnection(DbConnectionRequest request) {
         log.info("Updating {} connection to {}", request.getType(), request.getUrl());
+        
+        if (StringUtils.hasText(request.getVaultPath())) {
+            Map<String, Object> credentials = vaultService.getDatabaseCredentials(request.getVaultPath());
+            if (credentials != null) {
+                if (credentials.containsKey("url")) request.setUrl((String) credentials.get("url"));
+                if (credentials.containsKey("username")) request.setUsername((String) credentials.get("username"));
+                if (credentials.containsKey("password")) request.setPassword((String) credentials.get("password"));
+            }
+        }
         
         HikariDataSource newDataSource = (HikariDataSource) DataSourceBuilder.create()
                 .url(request.getUrl())

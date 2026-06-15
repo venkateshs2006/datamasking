@@ -39,6 +39,7 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-mongodb</artifactId>
+			<version>4.1.0</version>
         </dependency>
 
 <!--		<dependency>-->
@@ -62,6 +63,13 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-batch</artifactId>
 		</dependency>
+
+        <!-- Spring Vault -->
+        <dependency>
+            <groupId>org.springframework.vault</groupId>
+            <artifactId>spring-vault-starter</artifactId>
+			<version>4.1.0</version>
+        </dependency>
 
 		<!-- Database Drivers -->
 		<dependency>
