@@ -33,15 +33,30 @@ public class DynamicDataSourceService {
         this.vaultService = vaultService;
     }
 
-    public List<String> fetchSchemas(DbConnectionRequest request) {
+    private void resolveVaultCredentials(DbConnectionRequest request) {
         if (StringUtils.hasText(request.getVaultPath())) {
-            Map<String, Object> credentials = vaultService.getDatabaseCredentials(request.getVaultPath());
+            String path = request.getVaultPath();
+            if (StringUtils.hasText(request.getVaultRole())) {
+                path = path + "/" + request.getVaultRole();
+            }
+            Map<String, Object> credentials = vaultService.getDatabaseCredentials(path);
             if (credentials != null) {
-                if (credentials.containsKey("url")) request.setUrl((String) credentials.get("url"));
+                // For DB secrets engine, user/pass are often directly in data
                 if (credentials.containsKey("username")) request.setUsername((String) credentials.get("username"));
                 if (credentials.containsKey("password")) request.setPassword((String) credentials.get("password"));
+                // Also check for a nested 'data' block for KV v2 secrets
+                if (credentials.containsKey("data") && credentials.get("data") instanceof Map) {
+                    Map<String, Object> nestedData = (Map<String, Object>) credentials.get("data");
+                    if (nestedData.containsKey("url")) request.setUrl((String) nestedData.get("url"));
+                    if (nestedData.containsKey("username")) request.setUsername((String) nestedData.get("username"));
+                    if (nestedData.containsKey("password")) request.setPassword((String) nestedData.get("password"));
+                }
             }
         }
+    }
+
+    public List<String> fetchSchemas(DbConnectionRequest request) {
+        resolveVaultCredentials(request);
         
         DataSource tempDs = DataSourceBuilder.create()
                 .url(request.getUrl())
@@ -66,14 +81,7 @@ public class DynamicDataSourceService {
     public void createSchema(DbConnectionRequest request) {
         log.info("Creating schema {} for {} connection", request.getSchema(), request.getType());
         
-        if (StringUtils.hasText(request.getVaultPath())) {
-            Map<String, Object> credentials = vaultService.getDatabaseCredentials(request.getVaultPath());
-            if (credentials != null) {
-                if (credentials.containsKey("url")) request.setUrl((String) credentials.get("url"));
-                if (credentials.containsKey("username")) request.setUsername((String) credentials.get("username"));
-                if (credentials.containsKey("password")) request.setPassword((String) credentials.get("password"));
-            }
-        }
+        resolveVaultCredentials(request);
         
         DataSource tempDs = DataSourceBuilder.create()
                 .url(request.getUrl())
@@ -85,7 +93,6 @@ public class DynamicDataSourceService {
         
         JdbcTemplate jdbcTemplate = new JdbcTemplate(tempDs);
         try {
-            // Prevent SQL injection via basic regex validation
             if (request.getSchema() != null && request.getSchema().matches("^[a-zA-Z_][a-zA-Z0-9_]*$")) {
                 jdbcTemplate.execute("CREATE SCHEMA IF NOT EXISTS " + request.getSchema());
                 log.info("Schema {} created successfully.", request.getSchema());
@@ -102,14 +109,7 @@ public class DynamicDataSourceService {
     public void updateConnection(DbConnectionRequest request) {
         log.info("Updating {} connection to {}", request.getType(), request.getUrl());
         
-        if (StringUtils.hasText(request.getVaultPath())) {
-            Map<String, Object> credentials = vaultService.getDatabaseCredentials(request.getVaultPath());
-            if (credentials != null) {
-                if (credentials.containsKey("url")) request.setUrl((String) credentials.get("url"));
-                if (credentials.containsKey("username")) request.setUsername((String) credentials.get("username"));
-                if (credentials.containsKey("password")) request.setPassword((String) credentials.get("password"));
-            }
-        }
+        resolveVaultCredentials(request);
         
         HikariDataSource newDataSource = (HikariDataSource) DataSourceBuilder.create()
                 .url(request.getUrl())

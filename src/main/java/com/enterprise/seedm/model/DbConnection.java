@@ -39,4 +39,7 @@ public class DbConnection {
     
     @Column(name = "vault_path")
     private String vaultPath; // Path in HashiCorp Vault to fetch url, username, and password
+    
+    @Column(name = "vault_role")
+    private String vaultRole;
 }

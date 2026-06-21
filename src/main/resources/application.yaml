@@ -8,14 +8,12 @@ spring:
       write-dates-as-timestamps: false
 
   cloud:
+    compatibility-verifier:
+      enabled: false
     vault:
       uri: https://localhost:8200
-      authentication: CERT
-      ssl:
-        key-store: classpath:vault.p12
-        key-store-password: your-keystore-password
-        trust-store: classpath:vault.p12
-        trust-store-password: your-truststore-password
+      authentication: TOKEN
+      token: your-vault-token
 
   datasource:
     # Batch Metadata Database Configuration (Primary)

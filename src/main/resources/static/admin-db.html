@@ -107,7 +107,7 @@
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">URL / Path</label>
-                            <input type="text" id="url" class="input-field w-full" placeholder="jdbc:... or /path/to/dir">
+                            <input type="text" id="url" required class="input-field w-full" placeholder="jdbc:... or /path/to/dir">
                         </div>
                         <div id="credentialsDiv" class="space-y-4">
                             <div>
@@ -119,9 +119,15 @@
                                 <input type="password" id="password" class="input-field w-full">
                             </div>
                         </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Vault Path</label>
-                            <input type="text" id="vaultPath" class="input-field w-full" placeholder="secret/data/database/source">
+                        <div id="vaultDiv" class="space-y-4" style="display: none;">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Vault Path</label>
+                                <input type="text" id="vaultPath" class="input-field w-full" placeholder="secret/data/database/source">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Vault Role</label>
+                                <input type="text" id="vaultRole" class="input-field w-full" placeholder="db-role-name">
+                            </div>
                         </div>
 
                         <button type="submit" class="w-full bg-bnp-emerald text-white py-2 rounded-lg font-bold shadow hover:bg-[#007a4c] transition mt-4">
@@ -178,26 +184,40 @@
 
         document.getElementById('dbType').addEventListener('change', (e) => {
             const isJson = e.target.value === 'json';
-            const creds = document.getElementById('credentialsDiv');
-            if (isJson) {
-                creds.style.display = 'none';
-                document.getElementById('username').required = false;
-                document.getElementById('password').required = false;
-            } else {
-                creds.style.display = 'block';
-                document.getElementById('username').required = true;
-                document.getElementById('password').required = true;
-            }
+            const urlInput = document.getElementById('url');
+            toggleFields(isJson, urlInput.value);
         });
 
-        document.getElementById('vaultPath').addEventListener('input', (e) => {
-            const hasVaultPath = e.target.value.trim() !== '';
-            const creds = document.getElementById('credentialsDiv');
-            creds.style.display = hasVaultPath ? 'none' : 'block';
-            document.getElementById('url').required = !hasVaultPath;
-            document.getElementById('username').required = !hasVaultPath;
-            document.getElementById('password').required = !hasVaultPath;
+        document.getElementById('url').addEventListener('input', (e) => {
+            const isJson = document.getElementById('dbType').value === 'json';
+            toggleFields(isJson, e.target.value);
         });
+
+        function toggleFields(isJson, urlValue) {
+            const credsDiv = document.getElementById('credentialsDiv');
+            const vaultDiv = document.getElementById('vaultDiv');
+            const isLocalhost = urlValue.includes('localhost');
+
+            if (isJson) {
+                credsDiv.style.display = 'none';
+                vaultDiv.style.display = 'none';
+                document.getElementById('username').required = false;
+                document.getElementById('password').required = false;
+                document.getElementById('vaultPath').required = false;
+            } else if (isLocalhost) {
+                credsDiv.style.display = 'block';
+                vaultDiv.style.display = 'none';
+                document.getElementById('username').required = true;
+                document.getElementById('password').required = true;
+                document.getElementById('vaultPath').required = false;
+            } else {
+                credsDiv.style.display = 'none';
+                vaultDiv.style.display = 'block';
+                document.getElementById('username').required = false;
+                document.getElementById('password').required = false;
+                document.getElementById('vaultPath').required = true;
+            }
+        }
 
         async function fetchDbs() {
             // Get all connections by passing department=ALL
@@ -240,7 +260,8 @@
                 url: document.getElementById('url').value,
                 username: document.getElementById('username').value,
                 password: document.getElementById('password').value,
-                vaultPath: document.getElementById('vaultPath').value
+                vaultPath: document.getElementById('vaultPath').value,
+                vaultRole: document.getElementById('vaultRole').value
             };
 
             const res = await fetch('/api/connections', {
@@ -251,8 +272,7 @@
 
             if (res.ok) {
                 document.getElementById('dbForm').reset();
-                document.getElementById('dbType').dispatchEvent(new Event('change'));
-                document.getElementById('vaultPath').dispatchEvent(new Event('input'));
+                toggleFields(false, '');
                 fetchDbs();
             } else {
                 alert('Failed to save connection');
@@ -265,6 +285,9 @@
                 fetchDbs();
             }
         }
+
+        // Initial state
+        toggleFields(false, '');
     </script>
 </body>
 </html>
