@@ -35,6 +35,9 @@ public class JobRequest {
     @Column(name = "created_at")
     private long createdAt;
 
+    @Column(name = "department")
+    private String department;
+
     @Transient
     private Object configDetails; // For passing to/from frontend
 

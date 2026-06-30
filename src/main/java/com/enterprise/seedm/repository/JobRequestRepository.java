@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface JobRequestRepository extends JpaRepository<JobRequest, Long> {
     List<JobRequest> findAllByOrderByCreatedAtDesc();
+    List<JobRequest> findByDepartmentInOrderByCreatedAtDesc(List<String> departments);
 }

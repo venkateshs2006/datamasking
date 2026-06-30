@@ -34,12 +34,12 @@ public class AuthController {
             // or we could store the full lists in session.
             // For existing UI which expects a single role/department string, we'll store the primary one
             // but also provide the lists if needed.
-            String primaryRole = user.getRoles().isEmpty() ? "VIEWER" : user.getRoles().iterator().next();
+            String primaryRole = user.getRole().isEmpty() ? "VIEWER" : user.getRole();
             String primaryDepartment = user.getDepartments().isEmpty() ? "NONE" : user.getDepartments().iterator().next();
             
             session.setAttribute("user", user.getUsername());
             session.setAttribute("role", primaryRole);
-            session.setAttribute("roles", new ArrayList<>(user.getRoles()));
+            session.setAttribute("roles", user.getRole());
             session.setAttribute("department", primaryDepartment);
             session.setAttribute("departments", new ArrayList<>(user.getDepartments()));
             
@@ -48,7 +48,7 @@ public class AuthController {
                     "redirect", "/select-db.html", 
                     "role", primaryRole, 
                     "department", primaryDepartment,
-                    "roles", user.getRoles(),
+                    "roles", user.getRole(),
                     "departments", user.getDepartments()
             ));
         }

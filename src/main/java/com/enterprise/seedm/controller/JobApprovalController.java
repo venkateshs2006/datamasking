@@ -3,10 +3,12 @@ package com.enterprise.seedm.controller;
 import com.enterprise.seedm.model.JobRequest;
 import com.enterprise.seedm.service.JobApprovalService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -19,15 +21,26 @@ public class JobApprovalController {
 
     @PostMapping("/request")
     public ResponseEntity<?> submitJobRequest(@RequestBody JobRequest request, HttpServletRequest servletRequest) {
-        String user = (String) servletRequest.getSession().getAttribute("user");
+        HttpSession session = servletRequest.getSession(false);
+        if (session == null) {
+            return ResponseEntity.status(401).build();
+        }
+        String user = (String) session.getAttribute("user");
+        List<String> departments = (List<String>) session.getAttribute("departments");
+        
         request.setSubmittedBy(user);
+        if (departments != null && !departments.isEmpty()) {
+            request.setDepartment(departments.get(0));
+        }
+
         JobRequest submittedJob = jobApprovalService.submitJob(request);
         return ResponseEntity.ok(submittedJob);
     }
 
     @GetMapping
-    public List<JobRequest> getAllJobs() {
-        return jobApprovalService.getAllJobs();
+    public List<JobRequest> getAllJobs(@RequestParam(required = false) String department) {
+        List<String> depts = department != null ? Arrays.asList(department.split(",")) : null;
+        return jobApprovalService.getAllJobs(depts);
     }
 
     @GetMapping("/{id}")

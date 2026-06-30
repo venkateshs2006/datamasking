@@ -4,6 +4,7 @@ import com.enterprise.seedm.model.CosConnection;
 import com.enterprise.seedm.repository.CosConnectionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -26,7 +27,7 @@ public class CosConnectionService {
         return cosConnectionRepository.findAll().stream()
                 .filter(c -> departments != null && (departments.contains("ALL") || departments.contains(c.getDepartment())))
                 .filter(c -> envType == null || envType.isEmpty() || c.getEnvType().equalsIgnoreCase(envType))
-                .filter(c -> storageType == null || storageType.isEmpty() || (c.getStorageType() != null && c.getStorageType().equalsIgnoreCase(storageType)))
+                .filter(c -> !StringUtils.hasText(storageType) || (c.getStorageType() != null && c.getStorageType().equalsIgnoreCase(storageType)))
                 .collect(Collectors.toList());
     }
 

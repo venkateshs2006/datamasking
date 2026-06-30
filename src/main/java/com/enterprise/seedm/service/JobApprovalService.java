@@ -4,6 +4,7 @@ import com.enterprise.seedm.model.JobRequest;
 import com.enterprise.seedm.repository.JobRequestRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 import java.util.List;
 
@@ -19,7 +20,10 @@ public class JobApprovalService {
         return jobRequestRepository.save(request);
     }
 
-    public List<JobRequest> getAllJobs() {
+    public List<JobRequest> getAllJobs(List<String> departments) {
+        if (!CollectionUtils.isEmpty(departments)) {
+               return jobRequestRepository.findByDepartmentInOrderByCreatedAtDesc(departments);
+        }
         return jobRequestRepository.findAllByOrderByCreatedAtDesc();
     }
 

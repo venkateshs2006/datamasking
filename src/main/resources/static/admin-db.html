@@ -29,6 +29,7 @@
         nav ul li { margin-left: 25px; }
         nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
         nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+        nav ul li a.active { color: var(--bnp-emerald); border-bottom: 2px solid var(--bnp-emerald); padding-bottom: 4px; }
 
         footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; }
         .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
@@ -54,16 +55,17 @@
         </div>
         <nav>
             <ul>
-                <li><a href="/admin-db.html" style="color: var(--bnp-emerald);"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
-                <li><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
-                <li><a href="/select-db.html"><i class="fas fa-project-diagram mr-1.5"></i> Workflows</a></li>
+                <li><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+                <li><a href="/select-db.html"><i class="fas fa-database mr-1.5"></i> Workflows</a></li>
+                <li><a href="/admin-db.html" class="active">Admin DB</a></li>
+                <li><a href="/admin-cos.html">Admin Storage</a></li>
                 <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
             </ul>
         </nav>
     </header>
 
     <main class="flex-1 p-8">
-        <div class="max-w-5xl mx-auto w-full">
+        <div class="max-w-7xl mx-auto w-full">
             <div class="flex justify-between items-center mb-8">
                 <div>
                     <h2 class="text-3xl font-bold text-bnp-dark-grey">Database Connections</h2>
@@ -74,7 +76,7 @@
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                 <!-- Add New DB Form -->
-                <div class="card p-6 lg:col-span-1">
+                <div class="card p-6 lg:col-span-1 h-fit">
                     <h3 class="text-lg font-bold text-bnp-dark-grey mb-4 border-b pb-2">Add New Connection</h3>
                     <form id="dbForm" onsubmit="saveDb(event)" class="space-y-4">
                         <div>
@@ -84,10 +86,6 @@
                         <div>
                             <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department</label>
                             <select id="department" required class="input-field w-full">
-                                <option value="Finance">Finance</option>
-                                <option value="HR">HR</option>
-                                <option value="IT">IT</option>
-                                <option value="Admin">Admin</option>
                             </select>
                         </div>
                         <div>
@@ -95,7 +93,6 @@
                             <select id="dbType" required class="input-field w-full">
                                 <option value="postgres">Relational SQL (Postgres)</option>
                                 <option value="mongo">NoSQL (MongoDB)</option>
-                                <option value="json">JSON Directory</option>
                             </select>
                         </div>
                         <div>
@@ -137,7 +134,7 @@
                 </div>
 
                 <!-- Existing DBs -->
-                <div class="card overflow-hidden lg:col-span-2">
+                <div class="card overflow-hidden lg:col-span-2 h-fit">
                     <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
                         <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Registered Endpoints</h3>
                     </div>
@@ -170,10 +167,16 @@
     </footer>
 
     <script>
+        let userRole = '';
+        let userDepartments = [];
+
         fetch('/api/auth/check').then(r => r.json()).then(data => {
-            if(!data.authenticated || data.role !== 'ADMIN') {
+            if(!data.authenticated || !['ADMIN', 'MANAGER'].includes(data.role)) {
                 window.location.href = '/login.html';
             }
+            userRole = data.role;
+            userDepartments = data.departments;
+            setupDepartmentDropdown();
             fetchDbs();
         });
 
@@ -182,29 +185,36 @@
             window.location.href = '/login.html';
         }
 
-        document.getElementById('dbType').addEventListener('change', (e) => {
-            const isJson = e.target.value === 'json';
-            const urlInput = document.getElementById('url');
-            toggleFields(isJson, urlInput.value);
-        });
+        function setupDepartmentDropdown() {
+            const departmentDropdown = document.getElementById('department');
+            departmentDropdown.innerHTML = '';
+            if (userRole === 'ADMIN') {
+                ['Finance', 'HR', 'IT', 'Admin'].forEach(dept => {
+                    const option = document.createElement('option');
+                    option.value = dept;
+                    option.textContent = dept;
+                    departmentDropdown.appendChild(option);
+                });
+            } else if (userRole === 'MANAGER') {
+                userDepartments.forEach(dept => {
+                    const option = document.createElement('option');
+                    option.value = dept;
+                    option.textContent = dept;
+                    departmentDropdown.appendChild(option);
+                });
+            }
+        }
 
         document.getElementById('url').addEventListener('input', (e) => {
-            const isJson = document.getElementById('dbType').value === 'json';
-            toggleFields(isJson, e.target.value);
+            toggleFields(e.target.value);
         });
 
-        function toggleFields(isJson, urlValue) {
+        function toggleFields(urlValue) {
             const credsDiv = document.getElementById('credentialsDiv');
             const vaultDiv = document.getElementById('vaultDiv');
             const isLocalhost = urlValue.includes('localhost');
 
-            if (isJson) {
-                credsDiv.style.display = 'none';
-                vaultDiv.style.display = 'none';
-                document.getElementById('username').required = false;
-                document.getElementById('password').required = false;
-                document.getElementById('vaultPath').required = false;
-            } else if (isLocalhost) {
+            if (isLocalhost) {
                 credsDiv.style.display = 'block';
                 vaultDiv.style.display = 'none';
                 document.getElementById('username').required = true;
@@ -220,10 +230,16 @@
         }
 
         async function fetchDbs() {
-            // Get all connections by passing department=ALL
-            const res = await fetch('/api/connections?department=ALL');
+            let url = '/api/connections';
+            if (userRole === 'ADMIN') {
+                url += '?department=ALL';
+            }
+            const res = await fetch(url);
             if(res.ok) {
-                const data = await res.json();
+                let data = await res.json();
+                // Filter out JSON types
+                data = data.filter(db => db.dbType !== 'json');
+
                 const tbody = document.getElementById('dbTableBody');
                 tbody.innerHTML = '';
                 if(data.length === 0) {
@@ -241,7 +257,7 @@
                             <span class="bg-bnp-emerald/10 text-bnp-emerald px-2 py-1 rounded text-[10px] font-bold uppercase">${db.dbType} - ${db.envType}</span>
                         </td>
                         <td class="px-6 py-4 text-xs font-mono text-gray-500 truncate max-w-xs" title="${displayPath}">${displayPath}</td>
-                        <td class="px-6 py-4 text-right">
+                        <td class="px-s6 py-4 text-center">
                             <button onclick="deleteDb('${db.id}')" class="text-red-500 hover:text-red-700 transition"><i class="fas fa-trash-alt"></i></button>
                         </td>
                     `;
@@ -272,7 +288,7 @@
 
             if (res.ok) {
                 document.getElementById('dbForm').reset();
-                toggleFields(false, '');
+                toggleFields('');
                 fetchDbs();
             } else {
                 alert('Failed to save connection');
@@ -287,7 +303,7 @@
         }
 
         // Initial state
-        toggleFields(false, '');
+        toggleFields('');
     </script>
 </body>
 </html>

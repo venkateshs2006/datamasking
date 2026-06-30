@@ -73,22 +73,54 @@ public class DbConnectionController {
     @PostMapping
     public ResponseEntity<?> addConnection(@RequestBody DbConnection connection, HttpServletRequest request) {
         HttpSession session = request.getSession(false);
-        if (session == null || !"ADMIN".equals(session.getAttribute("role"))) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Only Admins can add connections"));
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        DbConnection saved = connectionService.saveConnection(connection);
-        return ResponseEntity.ok(saved);
+        String role = (String) session.getAttribute("role");
+        if ("ADMIN".equals(role)) {
+            DbConnection saved = connectionService.saveConnection(connection);
+            return ResponseEntity.ok(saved);
+        }
+
+        if ("MANAGER".equals(role)) {
+            List<String> departments = (List<String>) session.getAttribute("departments");
+            if (departments != null && departments.contains(connection.getDepartment())) {
+                DbConnection saved = connectionService.saveConnection(connection);
+                return ResponseEntity.ok(saved);
+            } else {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "You are not authorized to add a connection for this department."));
+            }
+        }
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "You are not authorized to perform this action."));
     }
     
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteConnection(@PathVariable Long id, HttpServletRequest request) {
         HttpSession session = request.getSession(false);
-        if (session == null || !"ADMIN".equals(session.getAttribute("role"))) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Only Admins can delete connections"));
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        
-        connectionService.deleteConnection(id);
-        return ResponseEntity.ok(Map.of("status", "SUCCESS"));
+
+        String role = (String) session.getAttribute("role");
+        if ("ADMIN".equals(role)) {
+            connectionService.deleteConnection(id);
+            return ResponseEntity.ok(Map.of("status", "SUCCESS"));
+        }
+
+        if ("MANAGER".equals(role)) {
+            DbConnection connection = connectionService.getConnection(id);
+            if (connection != null) {
+                List<String> departments = (List<String>) session.getAttribute("departments");
+                if (departments != null && departments.contains(connection.getDepartment())) {
+                    connectionService.deleteConnection(id);
+                    return ResponseEntity.ok(Map.of("status", "SUCCESS"));
+                }
+            }
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "You are not authorized to delete this connection."));
+        }
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "You are not authorized to perform this action."));
     }
 }

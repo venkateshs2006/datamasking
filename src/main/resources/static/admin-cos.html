@@ -96,10 +96,6 @@
                             <div>
                                 <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department</label>
                                 <select id="department" required class="input-field w-full">
-                                    <option value="Finance">Finance</option>
-                                    <option value="HR">HR</option>
-                                    <option value="IT">IT</option>
-                                    <option value="Admin">Admin</option>
                                 </select>
                             </div>
                             <div>
@@ -180,7 +176,7 @@
                 <!-- Existing Connections -->
                 <div class="card overflow-hidden lg:col-span-2 h-fit">
                     <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                        <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Registered Storage Locations</h3>
+                        <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Registered Endpoints</h3>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm">
@@ -211,16 +207,42 @@
     </footer>
 
     <script>
+        let userRole = '';
+        let userDepartments = [];
+
         fetch('/api/auth/check').then(r => r.json()).then(data => {
-            if(!data.authenticated || data.role !== 'ADMIN') {
+            if(!data.authenticated || !['ADMIN', 'MANAGER'].includes(data.role)) {
                 window.location.href = '/login.html';
             }
+            userRole = data.role;
+            userDepartments = data.departments;
+            setupDepartmentDropdown();
             fetchCos();
         });
 
         async function logout() {
             await fetch('/api/auth/logout', {method: 'POST'});
             window.location.href = '/login.html';
+        }
+
+        function setupDepartmentDropdown() {
+            const departmentDropdown = document.getElementById('department');
+            departmentDropdown.innerHTML = '';
+            if (userRole === 'ADMIN') {
+                ['Finance', 'HR', 'IT', 'Admin'].forEach(dept => {
+                    const option = document.createElement('option');
+                    option.value = dept;
+                    option.textContent = dept;
+                    departmentDropdown.appendChild(option);
+                });
+            } else if (userRole === 'MANAGER') {
+                userDepartments.forEach(dept => {
+                    const option = document.createElement('option');
+                    option.value = dept;
+                    option.textContent = dept;
+                    departmentDropdown.appendChild(option);
+                });
+            }
         }
 
         function toggleStorageFields() {
@@ -260,10 +282,14 @@
         toggleStorageFields();
 
         async function fetchCos() {
-            // Get all connections by passing department=ALL
-            const res = await fetch('/api/cos-connections?department=ALL');
+            let url = '/api/cos-connections';
+            if (userRole === 'ADMIN') {
+                url += '?department=ALL';
+            }
+            const res = await fetch(url);
             if(res.ok) {
-                const data = await res.json();
+                let data = await res.json();
+
                 const tbody = document.getElementById('cosTableBody');
                 tbody.innerHTML = '';
                 if(data.length === 0) {
