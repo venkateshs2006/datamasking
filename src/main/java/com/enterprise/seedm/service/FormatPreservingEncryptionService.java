@@ -35,7 +35,7 @@ public class FormatPreservingEncryptionService {
         }
 
         String type = dataType.toLowerCase();
-
+        System.out.println("Name :"+value+"   "+"Type :"+dataType);
         try {
             switch (type) {
                 case "integer":

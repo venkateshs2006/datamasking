@@ -4,12 +4,12 @@ import com.enterprise.seedm.model.ColumnMetadata;
 import com.enterprise.seedm.model.MaskingConfig;
 import lombok.extern.slf4j.Slf4j;
 import net.datafaker.Faker;
+import net.datafaker.providers.base.Finance;
 import org.bson.Document;
-import org.postgresql.util.PGobject;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
-import java.sql.SQLException;
+import java.time.ZoneId;
 import java.util.*;
 
 /**
@@ -207,11 +207,12 @@ public class DataMaskingService {
         else if (lowerCol.contains("city")) result = faker.address().city();
         else if (lowerCol.contains("country")) result = faker.address().country();
         else if (lowerCol.contains("zip") || lowerCol.contains("postal")) result = faker.address().zipCode();
-        else if (lowerCol.contains("card") || lowerCol.contains("credit")) result = faker.finance().creditCard();
+        else if (lowerCol.contains("card") || lowerCol.contains("debit card") || lowerCol.contains("credit card")) result = faker.finance().creditCard(Finance.CreditCardType.MASTERCARD);
         else if (lowerCol.contains("ssn")) result = faker.idNumber().ssnValid();
         else if (originalValue instanceof Number) result = faker.number().numberBetween(1, 10000);
         else if (originalValue instanceof Date) {
-            Date dummyDate = faker.date().birthday();
+
+            Date dummyDate =Date.from(faker.timeAndDate().birthday(20,50).atStartOfDay(ZoneId.systemDefault()).toInstant());
             if (originalValue instanceof java.sql.Timestamp) result = new java.sql.Timestamp(dummyDate.getTime());
             else if (originalValue instanceof java.sql.Date) result = new java.sql.Date(dummyDate.getTime());
             else result = dummyDate;

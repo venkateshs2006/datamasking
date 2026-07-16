@@ -34,8 +34,8 @@ public class AuthController {
             // or we could store the full lists in session.
             // For existing UI which expects a single role/department string, we'll store the primary one
             // but also provide the lists if needed.
-            String primaryRole = user.getRole().isEmpty() ? "VIEWER" : user.getRole();
-            String primaryDepartment = user.getDepartments().isEmpty() ? "NONE" : user.getDepartments().iterator().next();
+            String primaryRole = user.getRole()==null ? "VIEWER" : user.getRole().getName();
+            String primaryDepartment = user.getDepartments().isEmpty() ? "NONE" : user.getDepartments().iterator().next().getName();
             
             session.setAttribute("user", user.getUsername());
             session.setAttribute("role", primaryRole);

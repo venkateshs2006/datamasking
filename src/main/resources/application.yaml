@@ -58,7 +58,7 @@ spring:
   # JPA Configuration (for Spring Batch metadata)
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
     show-sql: false
 
 # Migration Configuration

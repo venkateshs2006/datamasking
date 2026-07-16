@@ -87,6 +87,7 @@
             <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
             <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
             <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
+            <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> User Management</a></li>
             <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
         </ul>
     </nav>
@@ -268,6 +269,7 @@
         } else if (data.role === 'ADMIN') {
             document.getElementById('adminDbLink').style.display = 'block';
             document.getElementById('adminCosLink').style.display = 'block';
+            document.getElementById('userManagementLink').style.display = 'block';
         }
     });
 
