@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNP Paribas - SeEDM Migration Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); display: flex; flex-direction: column; min-height: 100vh; color: var(--text-main); }
+
+        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
+        .bnp-logo { height: 48px; display: block; }
+        nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
+        nav ul li { margin-left: 25px; }
+        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
+        nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+
+        main { flex: 1; padding: 30px 8%; display: flex; flex-direction: column; }
+
+        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
+        .tagline { font-weight: 300; letter-spacing: 1px; }
+
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9; transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="flex items-center">
+        <a href="/index.html" class="logo-link mr-6 nav-scheduler-only">
+            <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+        </a>
+        <a href="/jobs.html" class="logo-link mr-6" style="display: none;" id="approverLogoLink">
+            <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+        </a>
+        <div class="hidden md:block border-l border-gray-300 pl-6">
+            <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
+            <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Job Monitor</p>
+        </div>
+    </div>
+    <nav>
+        <ul>
+            <li class="nav-scheduler-only"><a href="/select-db.html"><i class="fas fa-plus mr-1.5"></i> New Migration</a></li>
+            <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+            <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
+            <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
+            <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> User Management</a></li>
+            <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
+        </ul>
+    </nav>
+</header>
+
+<main>
+    <div class="max-w-7xl mx-auto w-full">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+            <div>
+                <h2 class="text-3xl font-bold text-bnp-dark-grey tracking-tight">Database Discovery</h2>
+                <p class="text-sm text-gray-500 mt-2 flex items-center">
+                    Connect to a database to discover tables.
+                </p>
+            </div>
+        </div>
+    </div>
+</main>
+
+<footer>
+    <div class="footer-content">
+        <p>© BNP Paribas - 2026</p>
+        <p class="tagline">The bank for a changing world</p>
+    </div>
+</footer>
+
+<script>
+    // Authentication Check
+    fetch('/api/auth/check').then(r => r.json()).then(data => {
+        if(!data.authenticated) {
+            window.location.href = '/login.html';
+        } else if (data.role === 'APPROVER') {
+            document.body.classList.add('role-approver');
+            document.getElementById('approverLogoLink').style.display = 'block';
+        } else if (data.role === 'ADMIN') {
+            document.getElementById('adminDbLink').style.display = 'block';
+            document.getElementById('adminCosLink').style.display = 'block';
+            document.getElementById('userManagementLink').style.display = 'block';
+        }
+    });
+
+    async function logout() {
+        await fetch('/api/auth/logout', {method: 'POST'});
+        window.location.href = '/login.html';
+    }
+</script>
+</body>
+</html>

@@ -46,7 +46,7 @@ public class AuthController {
             return ResponseEntity.ok(Map.of(
                     "status", "SUCCESS", 
                     "redirect", "/select-db.html", 
-                    "role", primaryRole, 
+                    "role", primaryRole.toUpperCase(),
                     "department", primaryDepartment,
                     "roles", user.getRole(),
                     "departments", user.getDepartments()

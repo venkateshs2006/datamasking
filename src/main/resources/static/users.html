@@ -2,61 +2,153 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>User Management</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management - SeEDM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--bnp-dark-grey); }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 20px -2px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; }
+        .btn { padding: 8px 16px; border-radius: 8px; font-weight: 600; transition: background-color 0.2s; }
+        .btn-primary { background-color: var(--bnp-emerald); color: white; }
+        .btn-primary:hover { background-color: #007a4d; }
+        .btn-secondary { background-color: #e2e8f0; color: #334155; }
+        .btn-secondary:hover { background-color: #cbd5e1; }
+        .btn-danger { background-color: #ef4444; color: white; }
+        .btn-danger:hover { background-color: #dc2626; }
+        .form-input { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; width: 100%; }
+        .form-input:focus { outline: none; border-color: var(--bnp-emerald); box-shadow: 0 0 0 2px rgba(0,150,94,0.2); }
+    </style>
 </head>
-<body>
-<h1>User Management</h1>
+<body class="flex flex-col min-h-screen">
 
-<h2>Add/Update User</h2>
-<form id="user-form">
-    <input type="hidden" id="user-id">
-    <label for="username">Username:</label>
-    <input type="text" id="username" required><br>
-    <label for="password">Password:</label>
-    <input type="password" id="password"><br>
-    <label for="role">Role:</label>
-    <input type="text" id="role" required><br>
-    <label for="departments">Departments (comma-separated):</label>
-    <input type="text" id="departments" required><br>
-    <button type="submit">Save User</button>
-</form>
+<header class="border-t-4 border-bnp-emerald bg-white shadow-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+            <div class="flex items-center">
+                <a href="/index.html">
+                    <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="h-8">
+                </a>
+                <div class="hidden md:block border-l border-gray-300 ml-6 pl-6">
+                    <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight">SeEDM</h1>
+                    <p class="text-xs text-gray-500 font-semibold uppercase tracking-widest">User Management</p>
+                </div>
+            </div>
+            <nav>
+                <ul class="flex items-center space-x-6">
+                    <li><a href="/index.html" class="text-sm font-medium text-gray-600 hover:text-bnp-emerald"><i class="fas fa-chart-line mr-1"></i> Dashboard</a></li>
+                    <li><a href="/jobs.html" class="text-sm font-medium text-gray-600 hover:text-bnp-emerald"><i class="fas fa-tasks mr-1"></i> Jobs</a></li>
+                    <li><button onclick="logout()" class="text-sm font-medium text-gray-600 hover:text-bnp-emerald"><i class="fas fa-sign-out-alt mr-1"></i> Sign Out</button></li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</header>
 
-<h2>Users</h2>
-<table border="1">
-    <thead>
-    <tr>
-        <th>ID</th>
-        <th>Username</th>
-        <th>Role</th>
-        <th>Departments</th>
-        <th>Actions</th>
-    </tr>
-    </thead>
-    <tbody id="user-table-body">
-    </tbody>
-</table>
+<main class="flex-1">
+    <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div class="md:col-span-1">
+                <div class="card p-6">
+                    <h2 class="text-lg font-bold text-bnp-dark-grey mb-4" id="form-title">Add New User</h2>
+                    <form id="user-form" class="space-y-4">
+                        <input type="hidden" id="user-id">
+                        <div>
+                            <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                            <input type="text" id="username" class="form-input mt-1" required>
+                        </div>
+                        <div>
+                            <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                            <input type="password" id="password" class="form-input mt-1" placeholder="Leave blank to keep unchanged">
+                        </div>
+                        <div>
+                            <label for="role" class="block text-sm font-medium text-gray-700">Role</label>
+                            <input type="text" id="role" class="form-input mt-1" required>
+                        </div>
+                        <div>
+                            <label for="departments" class="block text-sm font-medium text-gray-700">Departments (comma-separated)</label>
+                            <input type="text" id="departments" class="form-input mt-1">
+                        </div>
+                        <div class="flex justify-end space-x-2 pt-2">
+                            <button type="button" id="cancel-edit" class="btn btn-secondary" style="display: none;">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save User</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="md:col-span-2">
+                <div class="card overflow-hidden">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50 border-b border-gray-200">
+                            <tr class="text-xs text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-3 font-semibold">Username</th>
+                                <th class="px-6 py-3 font-semibold">Role</th>
+                                <th class="px-6 py-3 font-semibold">Departments</th>
+                                <th class="px-6 py-3 font-semibold text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100" id="user-table-body">
+                            <!-- User rows will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<footer class="bg-bnp-dark-grey text-white mt-auto">
+    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center text-sm">
+            <p>© BNP Paribas - 2026</p>
+            <p class="font-light tracking-wide">The bank for a changing world</p>
+        </div>
+    </div>
+</footer>
 
 <script>
+    async function logout() {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        window.location.href = '/login.html';
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         const userForm = document.getElementById('user-form');
         const userTableBody = document.getElementById('user-table-body');
+        const formTitle = document.getElementById('form-title');
+        const cancelBtn = document.getElementById('cancel-edit');
 
-        // Fetch and display users
+        function resetForm() {
+            userForm.reset();
+            document.getElementById('user-id').value = '';
+            formTitle.textContent = 'Add New User';
+            cancelBtn.style.display = 'none';
+        }
+
+        cancelBtn.addEventListener('click', resetForm);
+
         function fetchUsers() {
             fetch('/api/users')
                 .then(response => response.json())
                 .then(users => {
                     userTableBody.innerHTML = '';
+                    if (!users || users.length === 0) {
+                        userTableBody.innerHTML = '<tr><td colspan="4" class="text-center py-10 text-gray-500">No users found.</td></tr>';
+                        return;
+                    }
                     users.forEach(user => {
                         const row = document.createElement('tr');
+                        row.className = 'hover:bg-gray-50';
+                        const departments = user.departments.map(d => d.name).join(', ');
                         row.innerHTML = `
-                            <td>${user.id}</td>
-                            <td>${user.username}</td>
-                            <td>${user.role.name}</td>
-                            <td>${user.departments.map(d => d.name).join(', ')}</td>
-                            <td>
-                                <button onclick="editUser(${user.id}, '${user.username}', '${user.role.name}', '${user.departments.map(d => d.name).join(',')}')">Edit</button>
-                                <button onclick="deleteUser(${user.id})">Delete</button>
+                            <td class="px-6 py-4 font-medium text-gray-800">${user.username}</td>
+                            <td class="px-6 py-4 text-gray-600">${user.role.name}</td>
+                            <td class="px-6 py-4 text-gray-600">${departments}</td>
+                            <td class="px-6 py-4 text-center space-x-2">
+                                <button onclick="editUser('${user.id}', '${user.username}', '${user.role.name}', '${departments}')" class="btn btn-secondary btn-sm"><i class="fas fa-edit"></i></button>
+                                <button onclick="deleteUser(${user.id})" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
                             </td>
                         `;
                         userTableBody.appendChild(row);
@@ -64,51 +156,50 @@
                 });
         }
 
-        // Handle form submission for creating/updating users
         userForm.addEventListener('submit', function (event) {
             event.preventDefault();
             const userId = document.getElementById('user-id').value;
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             const role = document.getElementById('role').value;
-            const departments = document.getElementById('departments').value.split(',').map(s => s.trim());
+            const departments = document.getElementById('departments').value.split(',').map(s => s.trim()).filter(Boolean);
 
-            const userRequest = {
-                username,
-                password,
-                role,
-                departments
-            };
+            const userRequest = { username, role, departments };
+            if (password) {
+                userRequest.password = password;
+            }
 
             const url = userId ? `/api/users/${userId}` : '/api/users';
             const method = userId ? 'PUT' : 'POST';
 
             fetch(url, {
                 method: method,
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(userRequest)
-            }).then(() => {
-                fetchUsers();
-                userForm.reset();
+            }).then(response => {
+                if (response.ok) {
+                    fetchUsers();
+                    resetForm();
+                } else {
+                    alert('Failed to save user.');
+                }
             });
         });
 
-        // Edit user
         window.editUser = function (id, username, role, departments) {
             document.getElementById('user-id').value = id;
             document.getElementById('username').value = username;
             document.getElementById('role').value = role;
             document.getElementById('departments').value = departments;
+            formTitle.textContent = 'Edit User';
+            cancelBtn.style.display = 'inline-block';
+            window.scrollTo(0, 0);
         };
 
-        // Delete user
         window.deleteUser = function (id) {
             if (confirm('Are you sure you want to delete this user?')) {
-                fetch(`/api/users/${id}`, {
-                    method: 'DELETE'
-                }).then(() => fetchUsers());
+                fetch(`/api/users/${id}`, { method: 'DELETE' })
+                    .then(() => fetchUsers());
             }
         };
 

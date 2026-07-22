@@ -189,17 +189,20 @@
             const departmentDropdown = document.getElementById('department');
             departmentDropdown.innerHTML = '';
             if (userRole === 'ADMIN') {
-                ['Finance', 'HR', 'IT', 'Admin'].forEach(dept => {
-                    const option = document.createElement('option');
-                    option.value = dept;
-                    option.textContent = dept;
-                    departmentDropdown.appendChild(option);
+                // Assuming admin gets a list of department objects
+                fetch('/api/departments').then(r => r.json()).then(departments => {
+                    departments.forEach(dept => {
+                        const option = document.createElement('option');
+                        option.value = dept.name;
+                        option.textContent = dept.name;
+                        departmentDropdown.appendChild(option);
+                    });
                 });
             } else if (userRole === 'MANAGER') {
                 userDepartments.forEach(dept => {
                     const option = document.createElement('option');
-                    option.value = dept;
-                    option.textContent = dept;
+                    option.value = dept.name;
+                    option.textContent = dept.name;
                     departmentDropdown.appendChild(option);
                 });
             }
@@ -231,9 +234,6 @@
 
         async function fetchDbs() {
             let url = '/api/connections';
-            if (userRole === 'ADMIN') {
-                url += '?department=ALL';
-            }
             const res = await fetch(url);
             if(res.ok) {
                 let data = await res.json();
@@ -250,10 +250,11 @@
                 data.forEach(db => {
                     const tr = document.createElement('tr');
                     const displayPath = db.vaultPath || db.url;
+                    const departmentName = db.department ? db.department.name : 'N/A';
                     tr.innerHTML = `
                         <td class="px-6 py-4 font-bold text-gray-800">${db.name}</td>
                         <td class="px-6 py-4">
-                            <span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-[10px] font-bold uppercase mr-1">${db.department}</span>
+                            <span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-[10px] font-bold uppercase mr-1">${departmentName}</span>
                             <span class="bg-bnp-emerald/10 text-bnp-emerald px-2 py-1 rounded text-[10px] font-bold uppercase">${db.dbType} - ${db.envType}</span>
                         </td>
                         <td class="px-6 py-4 text-xs font-mono text-gray-500 truncate max-w-xs" title="${displayPath}">${displayPath}</td>
