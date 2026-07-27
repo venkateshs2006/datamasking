@@ -21,7 +21,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class JsonMigrationService {
 
-    private final JsonMaskingConfigService configService;
     private final FormatPreservingEncryptionService fpeService;
     private final ObjectMapper objectMapper;
     private final Faker faker;
@@ -29,8 +28,7 @@ public class JsonMigrationService {
     // In-memory store for async job progress
     private final Map<String, JsonMigrationProgress> progressMap = new ConcurrentHashMap<>();
 
-    public JsonMigrationService(JsonMaskingConfigService configService, FormatPreservingEncryptionService fpeService) {
-        this.configService = configService;
+    public JsonMigrationService(FormatPreservingEncryptionService fpeService) {
         this.fpeService = fpeService;
         this.objectMapper = new ObjectMapper()
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
@@ -38,17 +36,14 @@ public class JsonMigrationService {
         this.faker = new Faker();
     }
 
-    public String processMigrationAsync(String executionId) {
-        JsonMigrationConfig config = configService.getConfig();
-        if (config == null || config.getSourceDir() == null || config.getDestDir() == null) {
+    public String processMigrationAsync(String executionId, JsonMigrationConfig config) {
+        if (config == null || config.getSource() == null || config.getDest() == null || config.getRules() == null) {
             updateProgress(executionId, "FAILED", 0, 0, "JSON Migration configuration is missing or incomplete.");
             throw new IllegalStateException("JSON Migration configuration is missing or incomplete.");
         }
-        System.out.println("Source Directory :"+config.getSourceDir());
-        System.out.println("Destination Directory :"+config.getDestDir());
 
-        Path sourceDir = Paths.get(config.getSourceDir());
-        Path destDir = Paths.get(config.getDestDir());
+        Path sourceDir = Paths.get(config.getSource().getSourceDir());
+        Path destDir = Paths.get(config.getDest().getDestDir());
 
         if (!Files.exists(sourceDir) || !Files.isDirectory(sourceDir)) {
             updateProgress(executionId, "FAILED", 0, 0, "Source directory does not exist or is not a directory: " + sourceDir);
@@ -154,11 +149,12 @@ public class JsonMigrationService {
     }
 
     private String applyRules(String fieldPath, String value, JsonMigrationConfig config) {
-        if (config.getMaskingFields() != null && containsIgnoreCase(config.getMaskingFields(), fieldPath)) {
+        JsonMigrationConfig.RulesConfig rules = config.getRules();
+        if (rules.getMaskingColumns() != null && containsIgnoreCase(rules.getMaskingColumns(), fieldPath)) {
             return generateFakeData(fieldPath);
-        } else if (config.getPartialMaskingFields() != null && containsIgnoreCase(config.getPartialMaskingFields(), fieldPath)) {
+        } else if (rules.getPartialMaskingColumns() != null && containsIgnoreCase(rules.getPartialMaskingColumns(), fieldPath)) {
             return applyPartialMasking(value);
-        } else if (config.getConstraintFields() != null && containsIgnoreCase(config.getConstraintFields(), fieldPath)) {
+        } else if (rules.getConstraintFields() != null && containsIgnoreCase(rules.getConstraintFields(), fieldPath)) {
             try {
                 return (String) fpeService.encrypt(value, "string");
             } catch (Exception e) {

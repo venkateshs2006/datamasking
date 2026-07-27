@@ -7,8 +7,8 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 /**
- * SeEDM Platform Main Application
- * Secure Enterprise Data Masking and Migration Platform
+ * Anonify Platform Main Application
+ * Data Anonymization and Migration Platform
  *
  * This application provides:
  * - High-performance database migration using Spring Batch
@@ -21,10 +21,10 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 @EnableAsync
 @EnableTransactionManagement
 @ConfigurationPropertiesScan
-public class SeedmApplication {
+public class AnonifyApplication {
 	public static void main(String[] args) {
 		// Enable virtual threads for high concurrency
 		System.setProperty("spring.threads.virtual.enabled", "true");
-		SpringApplication.run(SeedmApplication.class, args);
+		SpringApplication.run(AnonifyApplication.class, args);
 	}
 }

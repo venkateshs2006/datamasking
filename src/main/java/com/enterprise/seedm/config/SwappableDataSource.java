@@ -11,6 +11,9 @@ public class SwappableDataSource extends AbstractDataSource {
 
     private DataSource targetDataSource;
 
+    public SwappableDataSource() {
+    }
+
     public SwappableDataSource(DataSource targetDataSource) {
         this.targetDataSource = targetDataSource;
     }
@@ -29,21 +32,30 @@ public class SwappableDataSource extends AbstractDataSource {
 
     @Override
     public Connection getConnection() throws SQLException {
+        if (targetDataSource == null) {
+            throw new IllegalStateException("Target DataSource is not configured");
+        }
         return targetDataSource.getConnection();
     }
 
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
+        if (targetDataSource == null) {
+            throw new IllegalStateException("Target DataSource is not configured");
+        }
         return targetDataSource.getConnection(username, password);
     }
 
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return targetDataSource.isWrapperFor(iface);
+        return targetDataSource != null && targetDataSource.isWrapperFor(iface);
     }
 
     @Override
     public <T> T unwrap(Class<T> iface) throws SQLException {
+        if (targetDataSource == null) {
+            throw new IllegalStateException("Target DataSource is not configured");
+        }
         return targetDataSource.unwrap(iface);
     }
 }

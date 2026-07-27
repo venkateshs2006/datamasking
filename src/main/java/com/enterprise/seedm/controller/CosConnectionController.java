@@ -1,6 +1,7 @@
 package com.enterprise.seedm.controller;
 
 import com.enterprise.seedm.model.CosConnection;
+import com.enterprise.seedm.model.Department;
 import com.enterprise.seedm.service.CosConnectionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/cos-connections")
@@ -46,8 +48,13 @@ public class CosConnectionController {
                 
                 Object deptsObj = session.getAttribute("departments");
                 if (deptsObj instanceof List) {
-                    allowedDepartments.addAll((List<String>) deptsObj);
-                } 
+                    List<?> deptsList = (List<?>) deptsObj;
+                    if (!deptsList.isEmpty() && deptsList.get(0) instanceof Department) {
+                        allowedDepartments.addAll(deptsList.stream().map(d -> ((Department) d).getName()).collect(Collectors.toList()));
+                    } else if (!deptsList.isEmpty() && deptsList.get(0) instanceof String) {
+                        allowedDepartments.addAll((List<String>) deptsList);
+                    }
+                }
                 
                 if (allowedDepartments.isEmpty() && session.getAttribute("department") != null) {
                     allowedDepartments.add((String) session.getAttribute("department"));
@@ -90,8 +97,8 @@ public class CosConnectionController {
         }
 
         if ("MANAGER".equals(role)) {
-            List<String> departments = (List<String>) session.getAttribute("departments");
-            if (departments != null && departments.contains(connection.getDepartment())) {
+            List<Department> departments = (List<Department>) session.getAttribute("departments");
+            if (departments != null && departments.stream().anyMatch(d -> d.getName().equals(connection.getDepartment()))) {
                 CosConnection saved = connectionService.saveConnection(connection);
                 return ResponseEntity.ok(saved);
             } else {
@@ -118,8 +125,8 @@ public class CosConnectionController {
         if ("MANAGER".equals(role)) {
             CosConnection connection = connectionService.getConnection(id);
             if (connection != null) {
-                List<String> departments = (List<String>) session.getAttribute("departments");
-                if (departments != null && departments.contains(connection.getDepartment())) {
+                List<Department> departments = (List<Department>) session.getAttribute("departments");
+                if (departments != null && departments.stream().anyMatch(d -> d.getName().equals(connection.getDepartment()))) {
                     connectionService.deleteConnection(id);
                     return ResponseEntity.ok(Map.of("status", "SUCCESS"));
                 }

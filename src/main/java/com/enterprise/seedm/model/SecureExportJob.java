@@ -4,6 +4,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 
 @Entity
 public class SecureExportJob {
@@ -13,10 +14,17 @@ public class SecureExportJob {
     private Long id;
 
     private Long sourceConnectionId;
+    private String schemaName;
     private String storageType;
     private Long cosConnectionId;
     private String localPath;
     private String status;
+
+    @Lob
+    private String tables;
+
+    @Lob
+    private String rules;
 
     // Getters and Setters
     public Long getId() {
@@ -33,6 +41,14 @@ public class SecureExportJob {
 
     public void setSourceConnectionId(Long sourceConnectionId) {
         this.sourceConnectionId = sourceConnectionId;
+    }
+
+    public String getSchemaName() {
+        return schemaName;
+    }
+
+    public void setSchemaName(String schemaName) {
+        this.schemaName = schemaName;
     }
 
     public String getStorageType() {
@@ -65,5 +81,21 @@ public class SecureExportJob {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getTables() {
+        return tables;
+    }
+
+    public void setTables(String tables) {
+        this.tables = tables;
+    }
+
+    public String getRules() {
+        return rules;
+    }
+
+    public void setRules(String rules) {
+        this.rules = rules;
     }
 }

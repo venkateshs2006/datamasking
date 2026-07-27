@@ -7,191 +7,918 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4' }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; }
-        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: #4a4a4a; }
-        .card { background: white; border-radius: 12px; box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9; }
-        #storage-options-container > div { display: none; }
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
+
+        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
+        .bnp-logo { height: 48px; display: block; }
+        nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
+        nav ul li { margin-left: 25px; }
+        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
+        nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+
+        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; z-index: 20; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
+        .tagline { font-weight: 300; letter-spacing: 1px; }
+
+        .step-container { display: none !important; }
+        .step-container.active {
+            display: flex !important;
+            flex-direction: column;
+            animation: fadeIn 0.3s ease-out;
+            flex: 1;
+            min-height: 0;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Stepper Styles */
+        .stepper-item { flex: 1; text-align: center; position: relative; }
+        .stepper-item::after { content: ''; position: absolute; top: 16px; left: 50%; width: 100%; height: 2px; background-color: #e2e8f0; z-index: 1; transition: background-color 0.3s; }
+        .stepper-item:last-child::after { display: none; }
+        .stepper-item.completed::after { background-color: var(--bnp-emerald); }
+        .stepper-circle { width: 34px; height: 34px; border-radius: 50%; background-color: #fff; border: 2px solid #cbd5e1; color: #94a3b8; display: flex; align-items: center; justify-content: center; font-weight: 600; margin: 0 auto; position: relative; z-index: 2; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+
+        .stepper-item.active .stepper-circle { border-color: var(--bnp-emerald); color: var(--bnp-emerald); background-color: #fff; box-shadow: 0 0 0 4px rgba(0, 150, 94, 0.1); }
+        .stepper-item.completed .stepper-circle { background-color: var(--bnp-emerald); border-color: var(--bnp-emerald); color: white; }
+
+        .stepper-label { font-size: 0.7rem; font-weight: 600; color: #64748b; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em; transition: color 0.3s; }
+        .stepper-item.active .stepper-label { color: var(--bnp-dark-grey); font-weight: 700; }
+        .stepper-item.completed .stepper-label { color: var(--bnp-emerald); }
+
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #f1f5f9; }
+
+        .input-field { width: 100%; padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.875rem; transition: all 0.2s; background-color: #f8fafc; color: #334155; }
+        .input-field:focus { outline: none; border-color: var(--bnp-emerald); box-shadow: 0 0 0 3px rgba(0, 150, 94, 0.15); background-color: #fff; }
+        .input-field:disabled { background-color: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+        .input-field.error { border-color: #ef4444; background-color: #fef2f2; }
+
+        .btn { padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 600; font-size: 0.875rem; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+        .btn-primary { background-color: var(--bnp-emerald); color: white; border: 1px solid transparent; }
+        .btn-primary:hover:not(:disabled) { background-color: #007a4c; box-shadow: 0 4px 6px rgba(0, 150, 94, 0.2); transform: translateY(-1px); }
+        .btn-secondary { background-color: #fff; color: #475569; border: 1px solid #cbd5e1; }
+        .btn-secondary:hover:not(:disabled) { background-color: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
+        .btn-success { background-color: #10b981; color: white; border: 1px solid transparent; }
+        .btn-success:hover:not(:disabled) { background-color: #059669; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2); transform: translateY(-1px); }
+
+        .list-container { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; overflow: hidden; display: flex; flex-direction: column; }
+        .list-item { padding: 0.6rem 0.875rem; border-radius: 6px; font-size: 0.875rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; transition: all 0.15s; border: 1px solid transparent; }
+        .list-item:hover { background-color: #f8fafc; border-color: #e2e8f0; }
+        .list-item.selected { background-color: rgba(0,150,94,0.05); color: var(--bnp-emerald); font-weight: 600; border-color: rgba(0,150,94,0.2); box-shadow: inset 3px 0 0 var(--bnp-emerald); }
+
+        .rule-btn { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; transition: all 0.2s; border: 1px solid transparent; }
+        .rule-btn-std { color: var(--bnp-emerald); background: rgba(0,150,94,0.05); border-color: rgba(0,150,94,0.2); }
+        .rule-btn-std:hover { background: rgba(0,150,94,0.1); }
+        .rule-btn-prt { color: #ea580c; background: #fff7ed; border-color: #fed7aa; }
+        .rule-btn-prt:hover { background: #ffedd5; }
+        .rule-btn-enc { color: #7c3aed; background: #faf5ff; border-color: #e9d5ff; }
+        .rule-btn-enc:hover { background: #f3e8ff; }
     </style>
 </head>
-<body class="flex flex-col min-h-screen">
+<body>
 
-<header class="border-t-5 border-[var(--bnp-emerald)] p-4 sm:px-8 flex justify-between items-center bg-white shadow-md sticky top-0 z-1000">
-    <div class="flex items-center">
-        <a href="/index.html" class="logo-link mr-6">
-            <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="h-12">
-        </a>
-        <div class="hidden md:block border-l border-gray-300 pl-6">
-            <h1 class="text-xl font-bold text-[var(--bnp-dark-grey)] tracking-tight leading-none">SeEDM</h1>
-            <p class="text-xs text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Secure Data Export</p>
+    <header>
+        <div class="flex items-center">
+            <a href="/index.html" class="logo-link mr-6">
+                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+            </a>
+            <div class="hidden md:block border-l border-gray-300 pl-6">
+                <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
+                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Secure Data Export</p>
+            </div>
         </div>
-    </div>
-    <nav>
-        <ul class="flex list-none items-center m-0 p-0">
-            <li class="ml-6"><a href="/index.html" class="text-decoration-none text-[var(--bnp-dark-grey)] font-semibold text-sm uppercase hover:text-[var(--bnp-emerald)]"><i class="fas fa-tachometer-alt mr-1.5"></i> Dashboard</a></li>
-            <li class="ml-6"><a href="/jobs.html" class="text-decoration-none text-[var(--bnp-dark-grey)] font-semibold text-sm uppercase hover:text-[var(--bnp-emerald)]"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
-            <li class="ml-6"><button onclick="logout()" class="text-decoration-none text-[var(--bnp-dark-grey)] font-semibold text-sm uppercase hover:text-[var(--bnp-emerald)] bg-none border-none cursor-pointer"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
-        </ul>
-    </nav>
-</header>
+        <nav>
+            <ul>
+                <li><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+                <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
+            </ul>
+        </nav>
+    </header>
 
-<main class="flex-1 p-4 sm:p-8">
-    <div class="max-w-4xl mx-auto">
-        <div class="card p-6 sm:p-8">
-            <h2 class="text-2xl font-bold text-[var(--bnp-dark-grey)] tracking-tight mb-2">Create Secure Export Job</h2>
-            <p class="text-sm text-gray-500 mb-6">Anonymize data from a source database and export it to a secure location.</p>
+    <main class="flex-1 flex flex-col overflow-hidden bg-transparent">
+        <div class="w-full max-w-6xl mx-auto px-6 py-8 flex flex-col h-full">
 
-            <form id="secure-export-form">
-                <div class="space-y-6">
-                    <!-- Source Database -->
-                    <div>
-                        <label for="source-db" class="block text-sm font-medium text-gray-700 mb-1">Source Database</label>
-                        <select id="source-db" name="source-db" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-[var(--bnp-emerald)] focus:border-[var(--bnp-emerald)] text-sm bg-white shadow-sm cursor-pointer">
-                            <!-- Options will be populated by JavaScript -->
-                        </select>
-                    </div>
+            <div class="mb-8 shrink-0 text-center">
+                <h2 class="text-3xl font-bold text-gray-900">Configure Secure Export</h2>
+                <p class="text-sm text-gray-500 mt-2">Define your source, storage, and masking rules in 4 simple steps.</p>
+            </div>
 
-                    <!-- Storage Type -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Storage Type</label>
-                        <div class="flex gap-4">
-                            <label><input type="radio" name="storage-type" value="cos" checked> Cloud Object Storage</label>
-                            <label><input type="radio" name="storage-type" value="local"> Local Storage</label>
+            <!-- Stepper -->
+            <div class="flex items-start mb-8 px-4 w-[80%] mx-auto shrink-0">
+                <div class="stepper-item active" id="step1-indicator"><div class="stepper-circle"><i class="fas fa-plug text-sm"></i></div><div class="stepper-label">Connection</div></div>
+                <div class="stepper-item" id="step2-indicator"><div class="stepper-circle"><i class="fas fa-table text-sm"></i></div><div class="stepper-label">Tables</div></div>
+                <div class="stepper-item" id="step3-indicator"><div class="stepper-circle"><i class="fas fa-mask text-sm"></i></div><div class="stepper-label">Rules</div></div>
+                <div class="stepper-item" id="step4-indicator"><div class="stepper-circle"><i class="fas fa-flag-checkered text-sm"></i></div><div class="stepper-label">Review</div></div>
+            </div>
+
+            <!-- Main Card -->
+            <div class="card flex-1 flex flex-col overflow-hidden relative shadow-md bg-white rounded-xl">
+
+                <!-- STEP 1: CONNECTIONS -->
+                <div id="step1" class="step-container active p-8">
+                    <div class="flex flex-col md:flex-row flex-1 gap-12 relative h-full">
+                        <!-- Source Form -->
+                        <div class="flex-1 flex flex-col">
+                            <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
+                                <div class="w-10 h-10 rounded-lg bg-bnp-emerald/10 flex items-center justify-center text-bnp-emerald mr-4 border border-bnp-emerald/20"><i class="fas fa-database text-lg"></i></div>
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-800 leading-tight">Source Environment</h3>
+                                    <p class="text-xs text-gray-500">Database to read data from</p>
+                                </div>
+                            </div>
+                            <form id="sourceForm" class="space-y-5 flex-1 flex flex-col">
+                                <input type="hidden" name="type" value="source">
+                                <div>
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Connection Endpoint</label>
+                                    <select name="id" id="sourceId" class="input-field cursor-pointer bg-white" required onchange="validateStep1()">
+                                        <option value="">Loading connections...</option>
+                                    </select>
+                                </div>
+                                <div class="mt-auto pt-6 border-t border-gray-50">
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
+                                        Target Schema
+                                        <button type="button" id="btnFetchSrc" onclick="fetchSchemas('source')" class="text-xs text-bnp-emerald hover:text-[#007a4c] normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch</button>
+                                    </label>
+                                    <select name="schema" id="sourceSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
+                                        <option value="">Fetch schemas first...</option>
+                                    </select>
+                                </div>
+                            </form>
                         </div>
-                    </div>
 
-                    <!-- Storage Options -->
-                    <div id="storage-options-container">
-                        <div id="cos-storage-option">
-                            <label for="cos-connection" class="block text-sm font-medium text-gray-700 mb-1">COS Connection</label>
-                            <select id="cos-connection" name="cos-connection" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-[var(--bnp-emerald)] focus:border-[var(--bnp-emerald)] text-sm bg-white shadow-sm cursor-pointer">
-                                <!-- Options will be populated by JavaScript -->
-                            </select>
-                        </div>
-                        <div id="local-storage-option">
-                            <label for="local-path" class="block text-sm font-medium text-gray-700 mb-1">Local Path</label>
-                            <input type="text" id="local-path" name="local-path" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-[var(--bnp-emerald)] focus:border-[var(--bnp-emerald)]" placeholder="e.g., /path/to/backups">
+                        <!-- Divider -->
+                        <div class="hidden md:block absolute left-1/2 top-4 bottom-4 w-px bg-gray-200 transform -translate-x-1/2"></div>
+
+                        <!-- Storage Form -->
+                        <div class="flex-1 flex flex-col pl-2">
+                            <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
+                                <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 mr-4 border border-emerald-100"><i class="fas fa-archive text-lg"></i></div>
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-800 leading-tight">Storage Environment</h3>
+                                    <p class="text-xs text-gray-500">Where to save the exported data</p>
+                                </div>
+                            </div>
+                            <form id="storageForm" class="space-y-5 flex-1 flex flex-col">
+                                <div>
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2 block">Storage Type</label>
+                                    <div class="flex gap-4">
+                                        <label class="flex items-center text-sm"><input type="radio" name="storage-type" value="cos" class="mr-2" onchange="toggleStorageOptions()" checked> Cloud Object Storage</label>
+                                        <label class="flex items-center text-sm"><input type="radio" name="storage-type" value="local" class="mr-2" onchange="toggleStorageOptions()"> Local Storage</label>
+                                    </div>
+                                </div>
+
+                                <div id="cos-storage-option" class="mt-4">
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">COS Connection</label>
+                                    <select id="cos-connection" name="cos-connection" class="input-field cursor-pointer bg-white" onchange="validateStep1()">
+                                        <option value="">Loading connections...</option>
+                                    </select>
+                                </div>
+
+                                <div id="local-storage-option" class="mt-4" style="display: none;">
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Path</label>
+                                    <input type="text" id="local-path" name="local-path" class="input-field" placeholder="e.g., /path/to/backups" oninput="validateStep1()">
+                                </div>
+                            </form>
                         </div>
                     </div>
                 </div>
 
-                <div class="mt-8 pt-6 border-t border-gray-200 text-right">
-                    <button type="submit" class="bg-[var(--bnp-emerald)] text-white font-bold py-2 px-6 rounded-lg hover:opacity-90 transition-opacity">
-                        <i class="fas fa-paper-plane mr-2"></i>Submit for Approval
+                <!-- STEP 2: TABLES -->
+                <div id="step2" class="step-container p-8 flex flex-col">
+                    <div class="mb-6 flex justify-between items-end">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800">Select Tables</h3>
+                            <p class="text-sm text-gray-500 mt-1">Choose the tables you want to include in this export.</p>
+                        </div>
+                        <button onclick="selectAllTables()" class="text-sm font-semibold text-bnp-emerald hover:text-[#007a4c] transition flex items-center bg-bnp-emerald/10 px-3 py-1.5 rounded-lg border border-bnp-emerald/20 shadow-sm hover:shadow">
+                            <i class="fas fa-check-double mr-2"></i> Select All
+                        </button>
+                    </div>
+
+                    <div class="flex flex-1 gap-8 min-h-0 bg-gray-50/50 p-4 rounded-xl border border-gray-200">
+                        <!-- Available -->
+                        <div class="list-container flex-1 bg-white shadow-sm border-gray-200 flex flex-col h-full overflow-hidden">
+                            <div class="list-header bg-white border-b border-gray-100 py-3 shrink-0">
+                                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Available in Source</span>
+                            </div>
+                            <div id="availableTables" class="list-body p-3 space-y-1 overflow-y-auto flex-1"></div>
+                        </div>
+
+                        <div class="flex items-center justify-center shrink-0">
+                            <div class="w-10 h-10 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-400">
+                                <i class="fas fa-arrow-right"></i>
+                            </div>
+                        </div>
+
+                        <!-- Selected -->
+                        <div class="list-container flex-1 border-bnp-emerald/30 bg-bnp-emerald/5 shadow-sm flex flex-col h-full overflow-hidden">
+                            <div class="list-header bg-white border-b border-bnp-emerald/20 py-3 shrink-0">
+                                <span class="text-xs font-bold text-bnp-emerald uppercase tracking-wider">Selected (<span id="selectedTableCount">0</span>)</span>
+                            </div>
+                            <div id="selectedTablesList" class="list-body p-3 space-y-1 overflow-y-auto flex-1"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 3: RULES -->
+                <div id="step3" class="step-container p-8 flex flex-col">
+                    <div class="flex justify-between items-start mb-6 shrink-0">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800">Assign Masking Rules</h3>
+                            <p class="text-sm text-gray-500 mt-1">Configure how sensitive columns should be transformed.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-1 gap-6 min-h-0">
+                        <!-- Tables List -->
+                        <div class="list-container w-1/4 bg-white shadow-sm border-gray-200 flex flex-col overflow-hidden">
+                            <div class="list-header bg-gray-50 py-3 shrink-0"><span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Tables</span></div>
+                            <div id="ruleTablesList" class="list-body p-2 overflow-y-auto flex-1"></div>
+                        </div>
+
+                        <!-- Columns List -->
+                        <div class="list-container w-1/3 bg-white shadow-sm border-gray-200 flex flex-col overflow-hidden">
+                            <div class="list-header bg-gray-50 py-3 flex justify-between shrink-0">
+                                <span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Columns</span>
+                                <span id="activeTableName" class="text-[10px] font-mono text-bnp-emerald bg-bnp-emerald/10 px-2 py-0.5 rounded border border-bnp-emerald/20 hidden"></span>
+                            </div>
+                            <div id="ruleColumnsList" class="list-body p-2 overflow-y-auto flex-1 relative">
+                                <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 text-sm bg-white z-10" id="columnsPlaceholder">
+                                    <i class="fas fa-arrow-left text-2xl mb-2 opacity-50"></i>
+                                    Select a table to view columns
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Applied Rules Overview -->
+                        <div class="list-container flex-1 bg-gray-50 border-gray-200 shadow-inner flex flex-col overflow-hidden">
+                            <div class="list-header bg-gray-100 py-3 border-b border-gray-200 shrink-0">
+                                <span class="text-xs font-bold text-gray-700 uppercase tracking-wider">Active Rules Overview</span>
+                            </div>
+                            <div class="p-5 space-y-5 flex-1 overflow-y-auto relative">
+                                <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 text-sm bg-gray-50 z-10 hidden" id="rulesPlaceholder">
+                                    <i class="fas fa-info-circle text-2xl mb-2 opacity-50"></i>
+                                    Select a table to view its rules
+                                </div>
+                                <!-- Standard -->
+                                <div>
+                                    <h5 class="text-[10px] font-bold text-bnp-emerald uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-bnp-emerald/10 flex items-center justify-center mr-1.5"><i class="fas fa-mask"></i></div> SFD (STANDARD FAKER DATA)</h5>
+                                    <div id="tags-masking" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-bnp-emerald/40 shadow-sm"></div>
+                                </div>
+                                <!-- Partial -->
+                                <div>
+                                    <h5 class="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-orange-100 flex items-center justify-center mr-1.5"><i class="fas fa-eye-slash"></i></div> PMD (Partial masking DATA)</h5>
+                                    <div id="tags-partial" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-orange-200 shadow-sm"></div>
+                                </div>
+                                <!-- Encrypt -->
+                                <div>
+                                    <h5 class="text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-purple-100 flex items-center justify-center mr-1.5"><i class="fas fa-key"></i></div> FPH (Format Perserving Hashing(keep Last 4))</h5>
+                                    <div id="tags-constraint" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-purple-200 shadow-sm"></div>
+                                </div>
+
+                                <!-- New FPH Key Container -->
+                                <div class="mt-4 p-4 bg-white border border-gray-200 rounded-lg shadow-sm" id="fphKeyContainer" style="display: none;">
+                                    <label class="text-[10px] font-bold text-purple-800 uppercase tracking-wider mb-2 flex items-center">
+                                        <i class="fas fa-key mr-1.5"></i> FPH Encryption Key Configuration
+                                    </label>
+
+                                    <div class="mb-3 flex items-center">
+                                        <input type="checkbox" id="autoGenerateKey" class="mr-2 cursor-pointer" onchange="toggleAutoGenerateKey()" checked>
+                                        <label for="autoGenerateKey" class="text-xs text-gray-600 cursor-pointer font-semibold">Generate 16-character salt key automatically</label>
+                                    </div>
+
+                                    <div class="flex shadow-sm rounded" id="keyInputsWrapper">
+                                        <input type="text" id="saltPrefix" class="w-full p-2 text-sm font-mono border border-purple-200 bg-purple-50 text-purple-800 rounded focus:outline-none cursor-not-allowed text-center tracking-widest" readonly title="Generated by backend">
+                                        <input type="text" id="userSalt" class="w-1/2 p-2 text-sm font-mono border border-purple-200 rounded-r focus:border-purple-500 focus:ring-purple-200 outline-none transition text-center tracking-widest" placeholder="Enter 8 chars" maxlength="8" oninput="validateStep3()" style="display: none;">
+                                    </div>
+                                    <p class="text-[10px] text-gray-400 mt-2" id="keyHintText">Full 16-character salt key is auto-generated by the backend.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 4: PREVIEW -->
+                <div id="step4" class="step-container p-8 overflow-y-auto">
+                    <div class="max-w-4xl mx-auto w-full flex flex-col h-full">
+                        <div class="text-center mb-8 shrink-0">
+                            <div class="w-16 h-16 bg-bnp-emerald/10 text-bnp-emerald rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-bnp-emerald/5">
+                                <i class="fas fa-check"></i>
+                            </div>
+                            <h3 class="text-2xl font-bold text-gray-900">Ready to Submit</h3>
+                            <p class="text-sm text-gray-500 mt-2">Review your configuration summary before submitting for approval.</p>
+                        </div>
+
+                        <div class="mb-6 max-w-lg mx-auto w-full space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Export Name</label>
+                                <input type="text" id="migrationName" class="input-field" placeholder="e.g. Q3 Finance Export" required>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department</label>
+                                <select id="department" class="input-field cursor-pointer bg-white" required>
+                                    <option value="">Loading departments...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 shrink-0">
+                            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                                <div class="absolute top-0 right-0 p-4 opacity-5 text-4xl"><i class="fas fa-network-wired"></i></div>
+                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">Environment Targets</h4>
+                                <div class="space-y-4">
+                                    <div>
+                                        <span class="text-[10px] font-bold text-bnp-emerald uppercase flex items-center"><i class="fas fa-database mr-1.5"></i> Source</span>
+                                        <div id="previewSrc" class="text-xs font-mono text-gray-700 mt-1 truncate" title=""></div>
+                                    </div>
+                                    <div>
+                                        <span class="text-[10px] font-bold text-emerald-600 uppercase flex items-center"><i class="fas fa-archive mr-1.5"></i> Storage</span>
+                                        <div id="previewDest" class="text-xs font-mono text-gray-700 mt-1 truncate" title=""></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-center gap-12 relative overflow-hidden">
+                                <div class="absolute top-0 right-0 p-4 opacity-5 text-4xl"><i class="fas fa-chart-pie"></i></div>
+                                <div class="text-center">
+                                    <span class="block text-5xl font-black text-bnp-emerald" id="previewTableCount">0</span>
+                                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2 block">Tables</span>
+                                </div>
+                                <div class="w-px h-20 bg-gray-100"></div>
+                                <div class="text-center">
+                                    <span class="block text-5xl font-black text-purple-600" id="previewRuleCount">0</span>
+                                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2 block">Rules applied</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col min-h-[300px]">
+                            <div class="bg-gray-50 px-5 py-4 border-b border-gray-200 flex justify-between items-center">
+                                <span class="text-xs font-bold text-gray-600 uppercase tracking-wider"><i class="fas fa-list-ul mr-2"></i> Export Scope Details</span>
+                            </div>
+                            <div class="overflow-y-auto flex-1 p-0">
+                                <table class="w-full text-sm text-left">
+                                    <thead class="bg-white sticky top-0 border-b border-gray-100 shadow-sm z-10">
+                                        <tr>
+                                            <th class="p-4 pl-6 font-semibold text-gray-500 text-xs uppercase w-1/3">Table</th>
+                                            <th class="p-4 font-semibold text-gray-500 text-xs uppercase w-2/3">Transformations</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="previewRulesTable" class="divide-y divide-gray-50"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Footer -->
+                <div class="mt-auto border-t border-gray-200 px-8 py-4 bg-gray-50 flex justify-between items-center shrink-0 rounded-b-xl z-10 relative">
+                    <button id="btnPrev" onclick="prevStep()" class="btn btn-secondary text-sm font-bold tracking-wide"><i class="fas fa-chevron-left mr-2 text-xs"></i> BACK</button>
+                    <div class="flex-1"></div>
+                    <button id="btnNext" onclick="nextStep()" class="btn btn-primary px-8 text-sm font-bold tracking-wide shadow-md hover:shadow-lg">CONTINUE <i class="fas fa-chevron-right ml-2 text-xs"></i></button>
+                    <button id="btnStart" onclick="submitWorkflow()" class="btn btn-success px-10 py-3 text-base font-bold tracking-wide shadow-lg hover:shadow-xl hidden animate-pulse bg-bnp-emerald hover:bg-[#007a4c]">
+                        SUBMIT FOR APPROVAL <i class="fas fa-paper-plane ml-2"></i>
                     </button>
                 </div>
-            </form>
-        </div>
-    </div>
-</main>
 
-<footer class="bg-[var(--bnp-dark-grey)] text-white p-10 text-sm mt-auto">
-    <div class="max-w-7xl mx-auto flex justify-between items-center opacity-80">
-        <p>© BNP Paribas - 2026</p>
-        <p class="font-light tracking-wider">The bank for a changing world</p>
-    </div>
-</footer>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <p>© BNP Paribas - 2026</p>
+            <p class="tagline">The bank for a changing world</p>
+        </div>
+    </footer>
 
 <script>
+    let userDepartments = [];
+    async function loadRandomSalt() {
+        // Initial setup for the automatic generation
+        toggleAutoGenerateKey();
+    }
+
+    async function toggleAutoGenerateKey() {
+        const autoGen = document.getElementById('autoGenerateKey').checked;
+        const userSaltInput = document.getElementById('userSalt');
+        const prefixInput = document.getElementById('saltPrefix');
+        const hintText = document.getElementById('keyHintText');
+
+        if (autoGen) {
+            try {
+                const res = await fetch('/api/config/random-salt?length=16');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (prefixInput) {
+                        prefixInput.value = data.saltPrefix;
+                        prefixInput.className = "w-full p-2 text-sm font-mono border border-purple-200 bg-purple-50 text-purple-800 rounded focus:outline-none cursor-not-allowed text-center tracking-widest";
+                    }
+                    if (userSaltInput) {
+                        userSaltInput.style.display = 'none';
+                        userSaltInput.value = '';
+                    }
+                    if (hintText) hintText.innerText = "Full 16-character salt key is auto-generated by the backend.";
+                }
+            } catch (e) { console.error("Failed to fetch 16-char salt", e); }
+        } else {
+            try {
+                const res = await fetch('/api/config/random-salt?length=8');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (prefixInput) {
+                        prefixInput.value = data.saltPrefix;
+                        prefixInput.className = "w-1/2 p-2 text-sm font-mono border-y border-l border-purple-200 bg-purple-50 text-purple-800 rounded-l focus:outline-none cursor-not-allowed text-center tracking-widest";
+                    }
+                    if (userSaltInput) {
+                        userSaltInput.style.display = 'block';
+                        userSaltInput.value = '';
+                    }
+                    if (hintText) hintText.innerText = "First 8 chars are auto-generated. You must provide the remaining 8 chars.";
+                }
+            } catch (e) { console.error("Failed to fetch 8-char salt", e); }
+        }
+        validateStep3();
+    }
+
+    fetch('/api/auth/check').then(r => r.json()).then(data => {
+        if(!data.authenticated) {
+            window.location.href = '/login.html';
+        } else if (data.role === 'APPROVER') {
+            window.location.href = '/jobs.html';
+        } else {
+            userDepartments = data.departments;
+            const deptSelect = document.getElementById('department');
+            deptSelect.innerHTML = '<option value="">Select a department...</option>';
+            userDepartments.forEach(d => deptSelect.add(new Option(d.name, d.name)));
+
+            fetchConnections();
+            loadRandomSalt();
+            toggleStorageOptions();
+        }
+    });
+
     async function logout() {
         await fetch('/api/auth/logout', {method: 'POST'});
         window.location.href = '/login.html';
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        // Populate source database dropdown
-        fetch('/api/connections?dbType=postgres&envType=source')
-            .then(response => response.json())
-            .then(connections => {
-                const dbSelect = document.getElementById('source-db');
-                dbSelect.innerHTML = '<option value="">-- Select a Database --</option>';
-                connections.forEach(conn => {
-                    const option = new Option(`${conn.name} (${conn.dbType})`, conn.id);
-                    dbSelect.add(option);
-                });
-            })
-            .catch(error => {
-                console.error('Error fetching database connections:', error);
-                document.getElementById('source-db').innerHTML = '<option value="">Could not load databases</option>';
-            });
+    let currentStep = 1;
+    const totalSteps = 4;
+    let state = {
+        tables: [],
+        selectedTables: [],
+        columnsCache: {},
+        rules: { maskingColumns: [], constraintColumns: [], partialMaskingColumns: [], targetTables: [] },
+        storage: {}
+    };
 
-        // Populate COS connections dropdown
-        fetch('/api/cos-connections?envType=destination')
-            .then(response => response.json())
-            .then(connections => {
-                const cosSelect = document.getElementById('cos-connection');
-                cosSelect.innerHTML = '<option value="">-- Select a COS Connection --</option>';
-                connections.forEach(conn => {
-                    const option = new Option(conn.cosName, conn.id);
-                    cosSelect.add(option);
-                });
-            })
-            .catch(error => {
-                console.error('Error fetching COS connections:', error);
-                document.getElementById('cos-connection').innerHTML = '<option value="">Could not load connections</option>';
-            });
+    async function fetchConnections() {
+        // Fetch source connections for postgres
+        const resSrc = await fetch('/api/connections?dbType=postgres&envType=source');
+        if (resSrc.ok) {
+            const srcConns = await resSrc.json();
+            const srcSelect = document.getElementById('sourceId');
+            srcSelect.innerHTML = '<option value="">Select a source database...</option>';
+            srcConns.forEach(c => srcSelect.add(new Option(c.name + ' (' + c.url + ')', c.id)));
+        }
 
-        // Handle storage type switching
-        const storageTypeRadios = document.querySelectorAll('input[name="storage-type"]');
+        // Fetch destination COS connections
+        const resCos = await fetch('/api/cos-connections?envType=destination');
+        if (resCos.ok) {
+            const cosConns = await resCos.json();
+            const cosSelect = document.getElementById('cos-connection');
+            cosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
+            cosConns.forEach(c => cosSelect.add(new Option(c.cosName, c.id)));
+        }
+
+        validateStep1();
+    }
+
+    function toggleStorageOptions() {
+        const storageType = document.querySelector('input[name="storage-type"]:checked').value;
         const cosOption = document.getElementById('cos-storage-option');
         const localOption = document.getElementById('local-storage-option');
+        if (storageType === 'cos') {
+            cosOption.style.display = 'block';
+            localOption.style.display = 'none';
+        } else {
+            cosOption.style.display = 'none';
+            localOption.style.display = 'block';
+        }
+        validateStep1();
+    }
 
-        function toggleStorageOptions() {
-            if (document.querySelector('input[name="storage-type"]:checked').value === 'cos') {
-                cosOption.style.display = 'block';
-                localOption.style.display = 'none';
+    function validateStep1() {
+        const sourceForm = document.getElementById('sourceForm');
+        const sourceId = sourceForm.querySelector('#sourceId').value;
+        const sourceSchema = sourceForm.querySelector('select[name="schema"]').value;
+        document.getElementById('btnFetchSrc').disabled = !sourceId;
+
+        let sourceValid = sourceId && sourceSchema;
+
+        const storageType = document.querySelector('input[name="storage-type"]:checked').value;
+        let storageValid = false;
+        if (storageType === 'cos') {
+            storageValid = !!document.getElementById('cos-connection').value;
+        } else { // local
+            storageValid = !!document.getElementById('local-path').value.trim();
+        }
+
+        document.getElementById('btnNext').disabled = !(sourceValid && storageValid);
+    }
+
+    function validateStep2() {
+        const btnNext = document.getElementById('btnNext');
+        const valid = state.selectedTables.length > 0;
+        btnNext.disabled = !valid;
+    }
+
+    function validateStep3() {
+        const userSalt = document.getElementById('userSalt');
+        const autoGen = document.getElementById('autoGenerateKey');
+        const btnNext = document.getElementById('btnNext');
+        const container = document.getElementById('fphKeyContainer');
+
+        const hasFph = state.rules.constraintColumns && state.rules.constraintColumns.length > 0;
+
+        if (hasFph) {
+            if (container) container.style.display = 'block';
+            if (autoGen && autoGen.checked) {
+                if (btnNext) btnNext.disabled = false;
             } else {
-                cosOption.style.display = 'none';
-                localOption.style.display = 'block';
+                const valid = userSalt && userSalt.value.trim().length === 8;
+                if (userSalt) userSalt.classList.toggle('border-red-400', userSalt.value.length > 0 && !valid);
+                if (btnNext) btnNext.disabled = !valid;
+            }
+        } else {
+            if (container) container.style.display = 'none';
+            if (btnNext) btnNext.disabled = false;
+        }
+    }
+
+    function updateUI() {
+        document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active'));
+        document.getElementById(`step${currentStep}`).classList.add('active');
+
+        // Stepper
+        for(let i=1; i<=totalSteps; i++) {
+            const el = document.getElementById(`step${i}-indicator`);
+            if(el) {
+                el.classList.toggle('completed', i < currentStep);
+                el.classList.toggle('active', i === currentStep);
+
+                const iconWrap = el.querySelector('.stepper-circle');
+                if(i < currentStep) {
+                    iconWrap.innerHTML = '<i class="fas fa-check"></i>';
+                } else {
+                    const icons = ['plug', 'table', 'mask', 'flag-checkered'];
+                    iconWrap.innerHTML = `<i class="fas fa-${icons[i-1]} text-sm"></i>`;
+                }
             }
         }
-        toggleStorageOptions(); // Initial call
-        storageTypeRadios.forEach(radio => radio.addEventListener('change', toggleStorageOptions));
 
-        // Handle form submission
-        const form = document.getElementById('secure-export-form');
-        form.addEventListener('submit', event => {
-            event.preventDefault();
+        document.getElementById('btnPrev').style.visibility = currentStep > 1 ? 'visible' : 'hidden';
+        document.getElementById('btnNext').classList.toggle('hidden', currentStep === totalSteps);
+        document.getElementById('btnStart').classList.toggle('hidden', currentStep !== totalSteps);
 
-            const sourceDb = document.getElementById('source-db').value;
-            const storageType = document.querySelector('input[name="storage-type"]:checked').value;
+        if (currentStep === 1) validateStep1();
+        if (currentStep === 2) validateStep2();
+        if (currentStep === 3) validateStep3();
+        if (currentStep === 4) populatePreview();
+    }
 
-            let jobData = {
-                sourceConnectionId: sourceDb,
-                storageType: storageType
-            };
+    async function nextStep() {
+        const btn = document.getElementById('btnNext');
+        const origHtml = btn.innerHTML;
 
-            if (storageType === 'cos') {
-                jobData.cosConnectionId = document.getElementById('cos-connection').value;
-            } else {
-                jobData.localPath = document.getElementById('local-path').value;
-            }
+        if (currentStep === 1) {
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Connecting...';
+            btn.disabled = true;
+            try {
+                const srcData = Object.fromEntries(new FormData(document.getElementById('sourceForm')).entries());
 
-            if (!sourceDb || (storageType === 'cos' && !jobData.cosConnectionId) || (storageType === 'local' && !jobData.localPath)) {
-                alert('Please fill out all fields.');
+                // Store storage config
+                const storageType = document.querySelector('input[name="storage-type"]:checked').value;
+                state.storage.type = storageType;
+                if (storageType === 'cos') {
+                    const cosSelect = document.getElementById('cos-connection');
+                    state.storage.id = cosSelect.value;
+                    state.storage.name = cosSelect.options[cosSelect.selectedIndex]?.text;
+                } else {
+                    state.storage.path = document.getElementById('local-path').value;
+                }
+
+                await Promise.all([
+                    fetch('/api/connections/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(srcData) }),
+                    fetch('/api/config/target-tables', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify([]) })
+                ]);
+
+                const res = await fetch('/api/config/tables');
+                state.tables = await res.json();
+                renderAvailableTables();
+            } catch (e) {
+                alert("Connection failed.");
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
                 return;
             }
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+        }
+        if (currentStep === 2) renderRuleTables();
 
-            fetch('/api/secure-export/create', {
+        currentStep++;
+        updateUI();
+    }
+
+    function prevStep() { if (currentStep > 1) { currentStep--; updateUI(); } }
+
+    // --- STEP LOGIC ---
+
+    async function fetchSchemas(type) {
+        const formId = type === 'source' ? 'sourceForm' : 'destForm';
+        const selectId = type === 'source' ? 'sourceSchema' : 'destSchema';
+        const form = document.getElementById(formId);
+        const select = document.getElementById(selectId);
+
+        select.innerHTML = '<option value="">Loading...</option>';
+        try {
+            const res = await fetch('/api/connections/schemas', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(jobData)
-            })
-            .then(response => {
-                if (response.ok) {
-                    alert('Secure export job submitted for approval!');
-                    window.location.href = '/jobs.html';
-                } else {
-                    response.text().then(text => alert('Error: ' + text));
-                }
-            })
-            .catch(error => {
-                console.error('Error submitting job:', error);
-                alert('An unexpected error occurred.');
+                body: JSON.stringify(Object.fromEntries(new FormData(form).entries()))
             });
-        });
-    });
-</script>
+            const schemas = await res.json();
+            select.innerHTML = '<option value="">Select Schema</option>';
+            schemas.forEach(s => select.add(new Option(s, s)));
+            select.disabled = false;
+        } catch (e) {
+            select.innerHTML = '<option value="">Error</option>';
+        }
+        validateStep1();
+    }
 
+    function renderAvailableTables() {
+        const container = document.getElementById('availableTables');
+        container.innerHTML = '';
+        const filtered = state.tables.filter(t => !state.selectedTables.includes(t));
+
+        if(filtered.length === 0) {
+            container.innerHTML = '<div class="text-center text-gray-400 text-xs py-4 italic">No tables left</div>';
+            return;
+        }
+
+        filtered.forEach(t => {
+            const d = document.createElement('div');
+            d.className = 'list-item bg-white border border-gray-200 hover:border-bnp-emerald/40 shadow-sm text-gray-700 font-medium group';
+            d.innerHTML = `<span>${t}</span><div class="w-6 h-6 rounded bg-gray-50 flex items-center justify-center group-hover:bg-bnp-emerald/10 transition"><i class="fas fa-plus text-[10px] text-gray-400 group-hover:text-bnp-emerald"></i></div>`;
+            d.onclick = () => { state.selectedTables.push(t); renderAvailableTables(); renderSelectedTables(); validateStep2(); };
+            container.appendChild(d);
+        });
+    }
+
+    function renderSelectedTables() {
+        const container = document.getElementById('selectedTablesList');
+        container.innerHTML = '';
+        document.getElementById('selectedTableCount').innerText = state.selectedTables.length;
+
+        if(state.selectedTables.length === 0) {
+            container.innerHTML = '<div class="text-center text-gray-400 text-xs py-8 italic flex flex-col items-center"><i class="fas fa-hand-pointer text-2xl mb-2 opacity-50"></i>Select tables</div>';
+            return;
+        }
+
+        state.selectedTables.forEach(t => {
+            const d = document.createElement('div');
+            d.className = 'list-item bg-bnp-emerald/10 border border-bnp-emerald/20 text-bnp-emerald font-semibold shadow-sm group';
+            d.innerHTML = `<span>${t}</span><button class="w-6 h-6 rounded hover:bg-red-100 flex items-center justify-center transition"><i class="fas fa-times text-[10px] text-bnp-emerald/50 hover:text-red-500"></i></button>`;
+            d.querySelector('button').onclick = (e) => { e.stopPropagation(); state.selectedTables = state.selectedTables.filter(x => x !== t); renderAvailableTables(); renderSelectedTables(); validateStep2(); };
+            container.appendChild(d);
+        });
+    }
+
+    function selectAllTables() { state.selectedTables = [...state.tables]; renderAvailableTables(); renderSelectedTables(); validateStep2(); }
+
+    let activeRuleTable = null;
+
+    function renderRuleTables() {
+        const container = document.getElementById('ruleTablesList');
+        container.innerHTML = '';
+        state.selectedTables.forEach(t => {
+            const d = document.createElement('div');
+            d.className = 'list-item border-b rounded-none px-3 py-2';
+            d.innerHTML = `<span class="font-medium text-gray-700">${t}</span><i class="fas fa-chevron-right text-[10px] text-gray-300"></i>`;
+            d.onclick = () => loadColumns(t, d);
+            container.appendChild(d);
+        });
+        if(state.selectedTables.length > 0) loadColumns(state.selectedTables[0], container.firstChild);
+    }
+
+    async function loadColumns(table, el) {
+        document.querySelectorAll('#ruleTablesList .list-item').forEach(i => i.classList.remove('selected', 'bg-gray-50', 'border-l-4', 'border-gray-400'));
+        if(el) el.classList.add('bg-gray-50', 'border-l-4', 'border-gray-400');
+
+        activeRuleTable = table;
+        const nameDisplay = document.getElementById('activeTableName');
+        nameDisplay.innerText = table;
+        nameDisplay.classList.remove('hidden');
+
+        const cp = document.getElementById('columnsPlaceholder');
+        if (cp) cp.classList.add('hidden');
+
+        const rp = document.getElementById('rulesPlaceholder');
+        if (rp) rp.classList.add('hidden');
+
+        const colList = document.getElementById('ruleColumnsList');
+        if(!state.columnsCache[table]) {
+            colList.innerHTML = '<div class="text-center text-gray-400 mt-10 text-xs"><i class="fas fa-circle-notch fa-spin mb-2 text-lg"></i><br>Loading columns...</div>';
+            const res = await fetch(`/api/config/columns/${table}`);
+            state.columnsCache[table] = await res.json();
+        }
+        renderColumnList(table, state.columnsCache[table]);
+        renderTags(table);
+    }
+
+    function renderColumnList(table, columns) {
+        const container = document.getElementById('ruleColumnsList');
+        container.innerHTML = '';
+        columns.forEach(col => {
+            const full = `${table}.${col}`;
+            const d = document.createElement('div');
+            d.className = 'p-2.5 border-b border-gray-100 bg-white hover:bg-gray-50 transition';
+
+            const isStd = state.rules.maskingColumns.includes(full);
+            const isPrt = state.rules.partialMaskingColumns.includes(full);
+            const isEnc = state.rules.constraintColumns.includes(full);
+
+            d.innerHTML = `
+                <div class="text-[11px] font-bold text-gray-700 mb-1.5 truncate" title="${col}">${col}</div>
+                <div class="flex gap-1.5">
+                    <button class="flex-1 rule-btn rule-btn-std ${isStd ? 'ring-2 ring-bnp-emerald/50 ring-offset-1' : ''}" onclick="toggleRule('${full}','maskingColumns','${table}')">SFD</button>
+                    <button class="flex-1 rule-btn rule-btn-prt ${isPrt ? 'ring-2 ring-orange-400 ring-offset-1' : ''}" onclick="toggleRule('${full}','partialMaskingColumns','${table}')">PMD</button>
+                    <button class="flex-1 rule-btn rule-btn-enc ${isEnc ? 'ring-2 ring-purple-400 ring-offset-1' : ''}" onclick="toggleRule('${full}','constraintColumns','${table}')">FPH</button>
+                </div>
+            `;
+            container.appendChild(d);
+        });
+    }
+
+    function toggleRule(full, type, table) {
+        if(!state.selectedTables.includes(table)) {
+            state.selectedTables.push(table);
+            renderAvailableTables();
+            validateStep2();
+        }
+
+        ['maskingColumns','partialMaskingColumns','constraintColumns'].forEach(r => { if(r !== type) state.rules[r] = state.rules[r].filter(c => c !== full); });
+        const list = state.rules[type];
+        const idx = list.indexOf(full);
+        if(idx === -1) list.push(full); else list.splice(idx, 1);
+
+        if(state.columnsCache[table]) {
+             renderColumnList(table, state.columnsCache[table]);
+        }
+
+        renderTags(table);
+        if (currentStep === 3) validateStep3();
+    }
+
+    function renderTags(table) {
+        const f = (type, id, colorClass) => {
+            const c = document.getElementById(id);
+            c.innerHTML = '';
+            const rules = state.rules[type].filter(x => x.startsWith(table+'.'));
+            if(rules.length === 0) {
+                c.innerHTML = '<span class="text-[10px] text-gray-400 italic py-0.5">No columns assigned</span>';
+                return;
+            }
+            rules.forEach(full => {
+                const s = document.createElement('span');
+                s.className = `inline-flex items-center text-[10px] font-bold px-2 py-1 rounded-md ${colorClass} shadow-sm`;
+                s.innerHTML = `${full.split('.')[1]} <button class="ml-1.5 hover:text-black focus:outline-none" onclick="toggleRule('${full}','${type}','${table}')"><i class="fas fa-times"></i></button>`;
+                c.appendChild(s);
+            });
+        };
+        f('maskingColumns','tags-masking','bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20');
+        f('partialMaskingColumns','tags-partial','bg-orange-100 text-orange-700 border border-orange-200');
+        f('constraintColumns','tags-constraint','bg-purple-100 text-purple-700 border border-purple-200');
+    }
+
+    function populatePreview() {
+        const srcSelect = document.getElementById('sourceId');
+        document.getElementById('previewSrc').innerText = srcSelect.options[srcSelect.selectedIndex]?.text || '';
+
+        const destPreview = document.getElementById('previewDest');
+        if (state.storage.type === 'cos') {
+            destPreview.innerText = `COS: ${state.storage.name}`;
+        } else {
+            destPreview.innerText = `Local: ${state.storage.path}`;
+        }
+
+        const totalRules = state.rules.maskingColumns.length + state.rules.constraintColumns.length + state.rules.partialMaskingColumns.length;
+        document.getElementById('previewTableCount').innerText = state.selectedTables.length;
+        document.getElementById('previewRuleCount').innerText = totalRules;
+
+        const body = document.getElementById('previewRulesTable');
+        body.innerHTML = '';
+        state.selectedTables.forEach(t => {
+            const masks = state.rules.maskingColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20 px-1.5 py-0.5 rounded text-[9px] font-bold mr-1 mb-1 inline-block shadow-sm">SFD: ${x.split('.')[1]}</span>`);
+            const parts = state.rules.partialMaskingColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-orange-50 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded text-[9px] font-bold mr-1 mb-1 inline-block shadow-sm">PMD: ${x.split('.')[1]}</span>`);
+            const encs = state.rules.constraintColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded text-[9px] font-bold mr-1 mb-1 inline-block shadow-sm">FPH: ${x.split('.')[1]}</span>`);
+
+            const rules = [...masks, ...parts, ...encs].join('') || '<span class="text-gray-400 italic text-[10px]">Direct Copy (No Rules)</span>';
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50 transition-colors';
+            tr.innerHTML = `<td class="p-4 pl-6 font-semibold text-gray-800 align-top">${t}</td><td class="p-4 align-top">${rules}</td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    async function submitWorkflow() {
+        const btn = document.getElementById('btnStart');
+        const mNameInput = document.getElementById('migrationName');
+        const migrationName = mNameInput ? mNameInput.value.trim() : '';
+        const department = document.getElementById('department').value;
+
+        if (!migrationName) {
+            alert("Please enter an Export Name");
+            return;
+        }
+        if (!department) {
+            alert("Please select a Department");
+            return;
+        }
+
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Submitting...';
+        btn.disabled = true;
+
+        try {
+            state.rules.targetTables = state.selectedTables;
+
+            const prefix = document.getElementById('saltPrefix').value;
+            const autoGen = document.getElementById('autoGenerateKey').checked;
+            const suffix = autoGen ? '' : document.getElementById('userSalt').value.trim();
+            if (state.rules.constraintColumns && state.rules.constraintColumns.length > 0) {
+                state.rules.maskingKey = prefix + suffix;
+            } else {
+                state.rules.maskingKey = null;
+            }
+
+            const srcSelect = document.getElementById('sourceId');
+
+            const payload = {
+                migrationName: migrationName,
+                department: department,
+                jobType: 'secure-export',
+                configDetails: {
+                    source: {
+                        id: srcSelect.value,
+                        url: srcSelect.options[srcSelect.selectedIndex]?.text,
+                        schema: document.getElementById('sourceSchema').value
+                    },
+                    storage: {
+                        type: state.storage.type,
+                        id: state.storage.type === 'cos' ? state.storage.id : null,
+                        path: state.storage.type === 'local' ? state.storage.path : null
+                    },
+                    rules: state.rules
+                }
+            };
+
+            const res = await fetch('/api/jobs/request', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                alert('Job submitted for approval successfully!');
+                window.location.href = '/jobs.html';
+            } else {
+                throw new Error('Failed to submit job.');
+            }
+        } catch (e) {
+            alert('Failed to submit export job.');
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+        }
+    }
+
+    updateUI();
+</script>
 </body>
 </html>

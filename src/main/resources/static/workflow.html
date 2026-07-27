@@ -323,9 +323,17 @@
                             <p class="text-sm text-gray-500 mt-2">Review your configuration summary before submitting for approval.</p>
                         </div>
 
-                        <div class="mb-6 max-w-lg mx-auto">
-                            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Migration Name</label>
-                            <input type="text" id="migrationName" class="input-field" placeholder="e.g. Q3 Finance Sync" required>
+                        <div class="mb-6 max-w-lg mx-auto w-full space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Migration Name</label>
+                                <input type="text" id="migrationName" class="input-field" placeholder="e.g. Q3 Finance Sync" required>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department</label>
+                                <select id="department" class="input-field cursor-pointer bg-white" required>
+                                    <option value="">Loading departments...</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 shrink-0">
@@ -398,6 +406,7 @@
     </footer>
 
 <script>
+    let userDepartments = [];
     async function loadRandomSalt() {
         // Initial setup for the automatic generation
         toggleAutoGenerateKey();
@@ -451,6 +460,11 @@
         } else if (data.role === 'APPROVER') {
             window.location.href = '/jobs.html';
         } else {
+            userDepartments = data.departments;
+            const deptSelect = document.getElementById('department');
+            deptSelect.innerHTML = '<option value="">Select a department...</option>';
+            userDepartments.forEach(d => deptSelect.add(new Option(d.name, d.name)));
+
             fetchConnections();
             loadRandomSalt();
         }
@@ -504,7 +518,7 @@
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
             btn.disabled = true;
             try {
-                const res = await fetch('/api/connection/create-schema', {
+                const res = await fetch('/api/connections/create-schema', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ id: destId, type: 'destination', schema: newSchema.trim() })
@@ -533,11 +547,11 @@
 
         forms.forEach(id => {
             const form = document.getElementById(id);
-            const connectionId = form.id.value;
+            const connectionId = form.querySelector('select[name="id"]').value;
             const schema = form.querySelector('select[name="schema"]').value;
             const fetchBtn = document.getElementById(id === 'sourceForm' ? 'btnFetchSrc' : 'btnFetchDest');
 
-            fetchBtn.disabled = !connectionId;
+            if(fetchBtn) fetchBtn.disabled = !connectionId;
 
             if (id === 'destForm') {
                 const createBtn = document.getElementById('btnCreateSchema');
@@ -622,8 +636,8 @@
                 const destData = Object.fromEntries(new FormData(document.getElementById('destForm')).entries());
 
                 await Promise.all([
-                    fetch('/api/connection/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(srcData) }),
-                    fetch('/api/connection/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(destData) }),
+                    fetch('/api/connections/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(srcData) }),
+                    fetch('/api/connections/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(destData) }),
                     fetch('/api/config/target-tables', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify([]) })
                 ]);
 
@@ -657,7 +671,7 @@
 
         select.innerHTML = '<option value="">Loading...</option>';
         try {
-            const res = await fetch('/api/connection/schemas', {
+            const res = await fetch('/api/connections/schemas', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(Object.fromEntries(new FormData(form).entries()))
@@ -846,9 +860,14 @@
         const btn = document.getElementById('btnStart');
         const mNameInput = document.getElementById('migrationName');
         const migrationName = mNameInput ? mNameInput.value.trim() : '';
+        const department = document.getElementById('department').value;
 
         if (!migrationName) {
             alert("Please enter a Migration Name");
+            return;
+        }
+        if (!department) {
+            alert("Please select a Department");
             return;
         }
 
@@ -873,6 +892,7 @@
 
             const payload = {
                 migrationName: migrationName,
+                department: department,
                 jobType: 'postgres',
                 configDetails: {
                     source: {

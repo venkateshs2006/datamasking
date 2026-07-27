@@ -13,7 +13,7 @@ spring:
     vault:
       uri: https://localhost:8200
       authentication: TOKEN
-      token: your-vault-token
+      token: hvault
 
   datasource:
     # Batch Metadata Database Configuration (Primary)
@@ -29,8 +29,8 @@ spring:
     # Source Database Configuration (Read-only)
     source:
       url: jdbc:postgresql://localhost:5432/source_db
-      username: '{vault.secret.database.source.username}'
-      password: '{vault.secret.database.source.password}'
+      username: postgres
+      password: postgres
       driver-class-name: org.postgresql.Driver
       hikari:
         maximum-pool-size: 10
@@ -39,8 +39,8 @@ spring:
     # Destination Database Configuration (Write)
     destination:
       url: jdbc:postgresql://localhost:5432/destination_db
-      username: '{vault.secret.database.destination.username}'
-      password: '{vault.secret.database.destination.password}'
+      username: postgres
+      password: postgres
       driver-class-name: org.postgresql.Driver
       hikari:
         maximum-pool-size: 10

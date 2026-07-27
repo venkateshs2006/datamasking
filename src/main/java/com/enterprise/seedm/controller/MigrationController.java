@@ -1,13 +1,19 @@
 package com.enterprise.seedm.controller;
 
 import com.enterprise.seedm.config.SwappableDataSource;
+import com.enterprise.seedm.model.DbConnection;
+import com.enterprise.seedm.model.DbConnectionRequest;
+import com.enterprise.seedm.model.JsonMigrationConfig;
+import com.enterprise.seedm.service.DbConnectionService;
 import com.enterprise.seedm.service.DestinationTableDiscoveryService;
+import com.enterprise.seedm.service.DynamicDataSourceService;
 import com.enterprise.seedm.service.JsonMigrationService;
 import com.enterprise.seedm.service.MigrationJobFactory;
 import com.enterprise.seedm.service.MongoMigrationService;
 import com.enterprise.seedm.service.TableDiscoveryService;
 import com.enterprise.seedm.model.JobRequest;
 import com.enterprise.seedm.service.JobApprovalService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.BatchStatus;
@@ -50,7 +56,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class MigrationController {
     @Autowired
     private  JobLauncher jobLauncher;
-    
+
     @Autowired
     private MigrationJobFactory migrationJobFactory;
 
@@ -77,6 +83,15 @@ public class MigrationController {
     @Autowired
     private JobApprovalService jobApprovalService;
 
+    @Autowired
+    private DynamicDataSourceService dynamicDataSourceService;
+
+    @Autowired
+    private DbConnectionService dbConnectionService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
     @Qualifier("sourceDataSource")
     @Autowired
     private SwappableDataSource sourceDataSource;
@@ -94,14 +109,14 @@ public class MigrationController {
     @GetMapping("/connections")
     public Map<String, String> getConnections() {
         Map<String, String> response = new HashMap<>();
-        
+
         try {
             if (sourceDataSource.getTargetDataSource() != null) {
                 response.put("sourceUrl", sourceDataSource.getConnection().getMetaData().getURL());
             } else {
                 response.put("sourceUrl", "Not Connected");
             }
-            
+
             if (destinationDataSource.getTargetDataSource() != null) {
                 response.put("destinationUrl", destinationDataSource.getConnection().getMetaData().getURL());
             } else {
@@ -112,7 +127,7 @@ public class MigrationController {
             response.put("sourceUrl", "Error getting connection");
             response.put("destinationUrl", "Error getting connection");
         }
-        
+
         return response;
     }
 
@@ -133,7 +148,7 @@ public class MigrationController {
             for (String tableName : tables) {
                 long rowCount = tableDiscoveryService.getTableRowCount(tableName);
                 totalRows += rowCount;
-                
+
                 Map<String, Object> tableInfo = new HashMap<>();
                 tableInfo.put("tableName", tableName);
                 tableInfo.put("rowCount", rowCount);
@@ -154,7 +169,7 @@ public class MigrationController {
     public Map<String, Object> getDestinationTablePreview(@PathVariable String tableName) {
         Map<String, Object> response = new HashMap<>();
         long count = destinationTableDiscoveryService.getTableRowCount(tableName);
-        
+
         response.put("tableName", tableName);
         response.put("rowCount", count);
 
@@ -164,15 +179,47 @@ public class MigrationController {
     /**
      * Manually trigger migration job and redirect to dashboard
      */
-    @PostMapping("/start")
-    public void startMigration(HttpServletResponse response) throws IOException {
+    @PostMapping("/start/{id}")
+    public void startMigration(@PathVariable Long id, HttpServletResponse response) throws IOException {
         try {
             random = new SecureRandom();
             log.info("Starting migration job manually...");
-            
+
+            JobRequest jobRequest = jobApprovalService.getJob(id);
+            if (jobRequest == null) {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND, "Job not found");
+                return;
+            }
+
+            Map<String, Object> configDetailsMap = objectMapper.convertValue(jobRequest.getConfigDetails(), Map.class);
+
+            if (configDetailsMap.containsKey("source")) {
+                Map<String, Object> sourceMap = (Map<String, Object>) configDetailsMap.get("source");
+                DbConnection sourceConnection = dbConnectionService.getConnection(Long.valueOf(sourceMap.get("id").toString()));
+                DbConnectionRequest sourceReq = new DbConnectionRequest();
+                sourceReq.setUrl(sourceConnection.getUrl());
+                sourceReq.setUsername(sourceConnection.getUsername());
+                sourceReq.setPassword(sourceConnection.getPassword());
+                sourceReq.setSchema((String) sourceMap.get("schema"));
+                sourceReq.setType("source");
+                dynamicDataSourceService.updateConnection(sourceReq);
+            }
+
+            if (configDetailsMap.containsKey("dest")) {
+                Map<String, Object> destMap = (Map<String, Object>) configDetailsMap.get("dest");
+                DbConnection destConnection = dbConnectionService.getConnection(Long.valueOf(destMap.get("id").toString()));
+                DbConnectionRequest destReq = new DbConnectionRequest();
+                destReq.setUrl(destConnection.getUrl());
+                destReq.setUsername(destConnection.getUsername());
+                destReq.setPassword(destConnection.getPassword());
+                destReq.setSchema((String) destMap.get("schema"));
+                destReq.setType("destination");
+                dynamicDataSourceService.updateConnection(destReq);
+            }
+
             // Create a fresh job instance based on current DB connection/schema
             Job migrationJob = migrationJobFactory.createMigrationJob();
-            
+
             int uniqueId=random.nextInt();
             String jobName="DBMigrationJob";
             JobParameters jobParameters = new JobParametersBuilder()
@@ -198,7 +245,7 @@ public class MigrationController {
             // with the JobExecution that has been persisted to the DB (status STARTING/STARTED).
             if(jobExecution==null){
                 // Wait briefly for the async thread to start the job
-                Thread.sleep(500); 
+                Thread.sleep(500);
                 if (jobExecution == null) {
                      // Fallback: try to find it, get the latest one
                      jobExecution = jobExplorer.findRunningJobExecutions(jobName).stream()
@@ -206,7 +253,7 @@ public class MigrationController {
                              .orElse(null);
                 }
             }
-            
+
             if (jobExecution != null) {
                 response.sendRedirect("/index.html?executionId=" + jobExecution.getId());
             } else {
@@ -229,21 +276,34 @@ public class MigrationController {
         }
     }
 
-    @PostMapping("/json/start")
-    public ResponseEntity<?> startJsonMigration() {
+    @PostMapping("/json/start/{id}")
+    public ResponseEntity<?> startJsonMigration(@PathVariable Long id) {
         try {
             log.info("Starting JSON migration job manually...");
-            
+            JobRequest jobRequest = jobApprovalService.getJob(id);
+            System.out.println("#########################################");
+            System.out.println(jobRequest.toString());
+            System.out.println("#########################################");
+            if (jobRequest == null) {
+                return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "message", "Job not found"));
+            }
+
+            JsonMigrationConfig config = objectMapper.convertValue(jobRequest.getConfigDetails(), JsonMigrationConfig.class);
+            System.out.println("#########################################");
+            System.out.println("Job config Details :"+jobRequest.getConfigDetails().toString());
+            System.out.println("ObjMapper config Details :"+objectMapper.convertValue(jobRequest.getConfigDetails(), JsonMigrationConfig.class).toString());
+            System.out.println(config.toString());
+            System.out.println("#########################################");
             // Execute the JSON migration process asynchronously
             String executionId = "json-" + jsonSequence.getAndIncrement();
             taskExecutor.execute(() -> {
                 try {
-                    jsonMigrationService.processMigrationAsync(executionId);
+                    jsonMigrationService.processMigrationAsync(executionId, config);
                 } catch (Exception e) {
                     log.error("JSON Migration failed in background task", e);
                 }
             });
-            
+
             log.info("JSON Migration task launched with id: {}", executionId);
             return ResponseEntity.ok(Map.of("status", "SUCCESS", "executionId", executionId, "message", "JSON Migration started"));
 
@@ -319,7 +379,7 @@ public class MigrationController {
         try {
             // Get last few instances from Spring Batch
             List<JobInstance> instances = jobExplorer.getJobInstances(jobName, 0, 20);
-            
+
             for (JobInstance instance : instances) {
                 List<JobExecution> executions = jobExplorer.getJobExecutions(instance);
                 for (JobExecution execution : executions) {
@@ -330,15 +390,15 @@ public class MigrationController {
                     result.add(execMap);
                 }
             }
-            
+
             // Add JSON executions
             result.addAll(jsonMigrationService.getAllExecutions());
-            
+
             // Sort descending by ID (using string comparison for mixed types)
             result.sort((m1, m2) -> {
                 String id1 = m1.get("id").toString();
                 String id2 = m2.get("id").toString();
-                
+
                 // Try numeric sort if both are numbers (batch IDs)
                 try {
                     long l1 = Long.parseLong(id1);
@@ -349,11 +409,11 @@ public class MigrationController {
                     return id2.compareTo(id1);
                 }
             });
-            
+
         } catch (Exception e) {
             log.error("Failed to fetch executions", e);
         }
-        
+
         return result;
     }
 
@@ -389,17 +449,17 @@ public class MigrationController {
         response.put("startTime", execution.getStartTime());
         response.put("endTime", execution.getEndTime());
         response.put("exitStatus", execution.getExitStatus().getExitCode());
-        
+
         // Add failure exceptions if any
         if (execution.getStatus() == BatchStatus.FAILED) {
             List<String> errors = new ArrayList<>();
-            
+
             // 1. Get Exit Description (often contains the main error message)
             String exitDescription = execution.getExitStatus().getExitDescription();
             if (exitDescription != null && !exitDescription.isEmpty()) {
                 errors.add(exitDescription);
             }
-            
+
             // 2. Get step-level exceptions
             for (StepExecution stepExecution : execution.getStepExecutions()) {
                 if (!stepExecution.getFailureExceptions().isEmpty()) {
@@ -408,14 +468,14 @@ public class MigrationController {
                     });
                 }
             }
-            
+
             // 3. Get job-level exceptions (if any)
             if (!execution.getFailureExceptions().isEmpty()) {
                  execution.getFailureExceptions().forEach(e -> {
                      errors.add("Job Error: " + e.getMessage());
                  });
             }
-            
+
             response.put("errors", errors);
         }
 
@@ -424,7 +484,7 @@ public class MigrationController {
         int completedSteps = 0;
         List<Map<String, Object>> tableProgress = new ArrayList<>();
         List<String> completedTables = new ArrayList<>();
-        
+
         for (StepExecution stepExecution : execution.getStepExecutions()) {
             totalSteps++;
             if (stepExecution.getStatus() == BatchStatus.COMPLETED) {
@@ -448,20 +508,20 @@ public class MigrationController {
             } else if (stepExecution.getStatus() == BatchStatus.FAILED) {
                  // Capture constraint creation failure specifically
                  List<String> stepErrors = new ArrayList<>();
-                 
+
                  // Add exit description for the step
                  String exitDesc = stepExecution.getExitStatus().getExitDescription();
                  if (exitDesc != null && !exitDesc.isEmpty()) {
                      stepErrors.add(exitDesc);
                  }
-                 
+
                  // Add explicit failure exceptions
                  stepExecution.getFailureExceptions().forEach(e -> stepErrors.add(e.getMessage()));
-                 
+
                  response.put("stepErrors", Map.of(stepName, stepErrors));
             }
         }
-        
+
         response.put("completedTables", completedTables);
 
         int progress = totalSteps == 0 ? 0 : (int) ((completedSteps / (double) totalSteps) * 100);
@@ -477,7 +537,7 @@ public class MigrationController {
     @PostMapping("/stop/{executionId}")
     public Map<String, String> stopMigration(@PathVariable String executionId) {
         Map<String, String> response = new HashMap<>();
-        
+
         if (executionId.startsWith("json-")) {
             // Stopping async JSON/Mongo jobs dynamically might require extra tracking inside those services
             // Assuming no stop functionality defined for async in memory for now

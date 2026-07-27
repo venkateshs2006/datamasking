@@ -56,9 +56,10 @@
         <nav>
             <ul>
                 <li><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
-                <li><a href="/select-db.html"><i class="fas fa-database mr-1.5"></i> Workflows</a></li>
-                <li><a href="/admin-db.html">Admin DB</a></li>
-                <li><a href="/admin-cos.html" class="active">Admin Storage</a></li>
+                <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
+                <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html" class="active"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
+                <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> User Management</a></li>
                 <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
             </ul>
         </nav>
@@ -211,11 +212,20 @@
         let userDepartments = [];
 
         fetch('/api/auth/check').then(r => r.json()).then(data => {
-            if(!data.authenticated || !['ADMIN', 'MANAGER'].includes(data.role)) {
+            if(!data.authenticated) {
                 window.location.href = '/login.html';
             }
-            userRole = data.role;
+            userRole = data.role.toUpperCase();
             userDepartments = data.departments;
+
+            if (userRole === 'APPROVER') {
+                document.body.classList.add('role-approver');
+            } else if (userRole === 'ADMIN' || userRole === 'MANAGER') {
+                document.getElementById('adminDbLink').style.display = 'block';
+                document.getElementById('adminCosLink').style.display = 'block';
+                document.getElementById('userManagementLink').style.display = 'block';
+            }
+
             setupDepartmentDropdown();
             fetchCos();
         });

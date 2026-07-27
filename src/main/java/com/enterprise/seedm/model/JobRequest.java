@@ -33,7 +33,7 @@ public class JobRequest {
     private String submittedBy;
 
     @Column(name = "created_at")
-    private long createdAt;
+    private Long createdAt;
 
     @Column(name = "department")
     private String department;

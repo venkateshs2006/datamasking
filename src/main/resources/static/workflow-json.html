@@ -330,9 +330,17 @@
                         <p class="text-sm text-gray-500 mt-2">Review your configuration summary before submitting for approval.</p>
                     </div>
 
-                    <div class="mb-6 max-w-lg mx-auto">
-                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Migration Name</label>
-                        <input type="text" id="migrationName" class="input-field" placeholder="e.g. JSON Log Archival" required>
+                    <div class="mb-6 max-w-lg mx-auto w-full space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Migration Name</label>
+                            <input type="text" id="migrationName" class="input-field" placeholder="e.g. JSON Log Archival" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department</label>
+                            <select id="department" class="input-field cursor-pointer bg-white" required>
+                                <option value="">Loading departments...</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 shrink-0">
@@ -407,6 +415,7 @@
 </div>
 
 <script>
+    let userDepartments = [];
     async function loadRandomSalt() {
         // Initial setup for the automatic generation
         toggleAutoGenerateKey();
@@ -460,6 +469,11 @@
         } else if (data.role === 'APPROVER') {
             window.location.href = '/jobs.html';
         } else {
+            userDepartments = data.departments;
+            const deptSelect = document.getElementById('department');
+            deptSelect.innerHTML = '<option value="">Select a department...</option>';
+            userDepartments.forEach(d => deptSelect.add(new Option(d.name, d.name)));
+
             fetchConnections();
             fetchCosConnections();
         }
@@ -847,9 +861,14 @@
         const btn = document.getElementById('btnStart');
         const mNameInput = document.getElementById('migrationName');
         const migrationName = mNameInput ? mNameInput.value.trim() : '';
+        const department = document.getElementById('department').value;
 
         if (!migrationName) {
             alert("Please enter a Migration Name");
+            return;
+        }
+        if (!department) {
+            alert("Please select a Department");
             return;
         }
 
@@ -877,21 +896,39 @@
 
             const payload = {
                 migrationName: migrationName,
+                department: department,
                 jobType: 'json',
                 configDetails: {
                     source: {
                         id: srcSelect.value,
-                        url: srcSelect.options[srcSelect.selectedIndex]?.dataset.path,
+                        source_dir: srcSelect.options[srcSelect.selectedIndex]?.dataset.path,
                         storageType: state.rules.sourceType,
-                        schema: ''
+                        authentication_type: "",
+                        api_key: "",
+                        service_instance_id: "",
+                        bucket_url_endpoint: "",
+                        location: "",
+                        bucket_name: "",
+                        bucket_id: ""
                     },
                     dest: {
                         id: destSelect.value,
-                        url: destSelect.options[destSelect.selectedIndex]?.dataset.path,
+                        dest_dir: destSelect.options[destSelect.selectedIndex]?.dataset.path,
                         storageType: state.rules.destType,
-                        schema: ''
+                        authentication_type: "",
+                        api_key: "",
+                        service_instance_id: "",
+                        bucket_url_endpoint: "",
+                        location: "",
+                        bucket_name: "",
+                        bucket_id: ""
                     },
-                    rules: state.rules
+                    rules: {
+                        maskingColumns: state.rules.maskingColumns,
+                        partialMaskingColumns: state.rules.partialMaskingColumns,
+                        constraintFields: state.rules.constraintFields,
+                        maskingKey: state.rules.maskingKey
+                    }
                 }
             };
 

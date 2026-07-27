@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -34,7 +35,8 @@ public class UserService {
 
         Role role = roleRepository.findByName(roleName).orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
         Set<Department> departments = departmentNames.stream()
-                .map(name -> departmentRepository.findByName(name).orElseThrow(() -> new RuntimeException("Department not found: " + name)))
+                .map(name -> Optional.ofNullable(departmentRepository.findByName(name))
+                        .orElseThrow(() -> new RuntimeException("Department not found: " + name)))
                 .collect(Collectors.toSet());
 
         AppUser newUser = new AppUser();
@@ -54,7 +56,8 @@ public class UserService {
         AppUser user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found: " + userId));
         Role role = roleRepository.findByName(roleName).orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
         Set<Department> departments = departmentNames.stream()
-                .map(name -> departmentRepository.findByName(name).orElseThrow(() -> new RuntimeException("Department not found: " + name)))
+                .map(name -> Optional.ofNullable(departmentRepository.findByName(name))
+                        .orElseThrow(() -> new RuntimeException("Department not found: " + name)))
                 .collect(Collectors.toSet());
 
         user.setUsername(username);

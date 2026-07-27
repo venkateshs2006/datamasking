@@ -13,10 +13,10 @@
 	</parent>
 
 	<groupId>com.enterprise</groupId>
-	<artifactId>seedm</artifactId>
+	<artifactId>anonify</artifactId>
 	<version>1.0.0-SNAPSHOT</version>
-	<name>SeEDM Platform</name>
-	<description>Secure Enterprise Data Masking and Migration Platform</description>
+	<name>Anonify</name>
+	<description>Data Anonymization and Migration Platform</description>
 
 	<properties>
 		<java.version>17</java.version>
@@ -53,17 +53,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-mongodb</artifactId>
         </dependency>
-
-<!--		<dependency>-->
-<!--			<groupId>org.springframework.boot</groupId>-->
-<!--			<artifactId>spring-boot-starter-security</artifactId>-->
-<!--		</dependency>-->
-
-		<!-- Spring Security Crypto for BCrypt -->
-		<dependency>
-			<groupId>org.springframework.security</groupId>
-			<artifactId>spring-security-crypto</artifactId>
-		</dependency>
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

@@ -259,37 +259,3 @@ INSERT INTO public.user_roles (user_id, role) VALUES
                                                   (5, 'manager'), (6, 'approver'), (7, 'manager'), (8, 'approver'),
                                                   (9, 'scheduler'), (10, 'manager');
 
--- 6. Insert COS Connections
-INSERT INTO public.cos_connections (cos_name, department_id, env_type, bucket_name)
-SELECT 'COS_' || i, (i % 10) + 1, 'PROD', 'bucket_' || i
-FROM generate_series(1, 10) AS s(i);
-
--- 7. Insert DB Connections
-INSERT INTO public.db_connections (connection_name, department, environment, type_of_database)
-SELECT 'DB_' || i, 'Dept_' || i, 'PROD', 'POSTGRESQL'
-FROM generate_series(1, 10) AS s(i);
-
--- 8. Insert Job Definitions
-INSERT INTO public.job_definitions (job_name, config_yaml, status, created_at)
-SELECT 'Job_' || i, 'config: data', 'CONFIGURED', NOW()
-FROM generate_series(1, 10) AS s(i);
-
--- 9. Insert Job Requests
-INSERT INTO public.job_requests (migration_name, job_type, status)
-SELECT 'Mig_' || i, 'FULL', 'PENDING'
-FROM generate_series(1, 10) AS s(i);
-
--- 10. Insert Migration Jobs
-INSERT INTO public.migration_job (job_id, job_status, project_id)
-SELECT 'JID_' || i, 'RUNNING', 'PROJ_' || i
-FROM generate_series(1, 10) AS s(i);
-
--- 11. Insert Mongo Migration Details
-INSERT INTO public.mongo_migration_details (job_id, status)
-SELECT 'JID_' || i, 'STARTED'
-FROM generate_series(1, 10) AS s(i);
-
--- 12. Insert Job Checkpoints
-INSERT INTO public.job_checkpoints (job_execution_id, table_name, partition_id, last_read_offset, total_rows_processed, updated_at)
-SELECT i, 'table_' || i, 0, 0, 0, NOW()
-FROM generate_series(1, 10) AS s(i);

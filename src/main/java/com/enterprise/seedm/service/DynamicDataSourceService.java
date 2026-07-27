@@ -108,9 +108,11 @@ public class DynamicDataSourceService {
 
     public void updateConnection(DbConnectionRequest request) {
         log.info("Updating {} connection to {}", request.getType(), request.getUrl());
-        
-        resolveVaultCredentials(request);
-        
+
+        if (!StringUtils.hasText(request.getUsername()) || !StringUtils.hasText(request.getPassword())) {
+            resolveVaultCredentials(request);
+        }
+
         HikariDataSource newDataSource = (HikariDataSource) DataSourceBuilder.create()
                 .url(request.getUrl())
                 .username(request.getUsername())
@@ -118,7 +120,7 @@ public class DynamicDataSourceService {
                 .driverClassName("org.postgresql.Driver")
                 .type(HikariDataSource.class)
                 .build();
-        
+
         newDataSource.setMaximumPoolSize(10);
         newDataSource.setMinimumIdle(2);
 
@@ -131,7 +133,7 @@ public class DynamicDataSourceService {
         } else {
             throw new IllegalArgumentException("Invalid connection type: " + request.getType());
         }
-        
+
         log.info("Successfully updated {} datasource and schema to {}", request.getType(), request.getSchema());
     }
 }

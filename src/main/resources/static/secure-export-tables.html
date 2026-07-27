@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNP Paribas - SeEDM Secure Export</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: #4a4a4a; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9; }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+<header class="border-t-5 border-[var(--bnp-emerald)] p-4 sm:px-8 flex justify-between items-center bg-white shadow-md sticky top-0 z-1000">
+    <div class="flex items-center">
+        <a href="/index.html" class="logo-link mr-6">
+            <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="h-12">
+        </a>
+        <div class="hidden md:block border-l border-gray-300 pl-6">
+            <h1 class="text-xl font-bold text-[var(--bnp-dark-grey)] tracking-tight leading-none">SeEDM</h1>
+            <p class="text-xs text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Secure Data Export</p>
+        </div>
+    </div>
+    <nav>
+        <ul class="flex list-none items-center m-0 p-0">
+            <li><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+            <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+            <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
+            <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
+            <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> User Management</a></li>
+            <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
+        </ul>
+    </nav>
+</header>
+
+<main class="flex-1 p-4 sm:p-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="card p-6 sm:p-8">
+            <h2 class="text-2xl font-bold text-[var(--bnp-dark-grey)] tracking-tight mb-2">Create Secure Export Job - Step 2</h2>
+            <p class="text-sm text-gray-500 mb-6">Select the tables to include in the export.</p>
+
+            <form id="secure-export-tables-form">
+                <div class="space-y-6">
+                    <div id="tables-container">
+                        <!-- Tables will be populated by JavaScript -->
+                    </div>
+                </div>
+
+                <div class="mt-8 pt-6 border-t border-gray-200 flex justify-between">
+                    <button type="button" onclick="window.history.back()" class="text-gray-600 font-bold py-2 px-6 rounded-lg hover:bg-gray-200 transition-colors">
+                        <i class="fas fa-arrow-left mr-2"></i> Back
+                    </button>
+                    <button type="submit" class="bg-[var(--bnp-emerald)] text-white font-bold py-2 px-6 rounded-lg hover:opacity-90 transition-opacity">
+                        Next: Configure Masking <i class="fas fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+
+<footer class="bg-[var(--bnp-dark-grey)] text-white p-10 text-sm mt-auto">
+    <div class="max-w-7xl mx-auto flex justify-between items-center opacity-80">
+        <p>© BNP Paribas - 2026</p>
+        <p class="font-light tracking-wider">The bank for a changing world</p>
+    </div>
+</footer>
+
+<script>
+    let userRole = '';
+
+    fetch('/api/auth/check').then(r => r.json()).then(data => {
+        if(!data.authenticated) {
+            window.location.href = '/login.html';
+        }
+        userRole = data.role.toUpperCase();
+
+        if (userRole === 'APPROVER') {
+            document.body.classList.add('role-approver');
+        } else if (userRole === 'ADMIN' || userRole === 'MANAGER') {
+            document.getElementById('adminDbLink').style.display = 'block';
+            document.getElementById('adminCosLink').style.display = 'block';
+            document.getElementById('userManagementLink').style.display = 'block';
+        }
+    });
+
+    async function logout() {
+        await fetch('/api/auth/logout', {method: 'POST'});
+        window.location.href = '/login.html';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const config = JSON.parse(sessionStorage.getItem('secureExportConfig'));
+        if (!config) {
+            window.location.href = '/secure-export.html';
+            return;
+        }
+
+        const tablesContainer = document.getElementById('tables-container');
+
+        fetch(`/api/connections/${config.sourceConnectionId}/schemas/${config.schema}/tables`)
+            .then(response => response.json())
+            .then(tables => {
+                tablesContainer.innerHTML = '';
+                tables.forEach(table => {
+                    const checkbox = document.createElement('div');
+                    checkbox.innerHTML = `
+                        <label class="flex items-center">
+                            <input type="checkbox" name="tables" value="${table}" class="mr-2">
+                            ${table}
+                        </label>
+                    `;
+                    tablesContainer.appendChild(checkbox);
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching tables:', error);
+                tablesContainer.innerHTML = '<p>Could not load tables.</p>';
+            });
+
+        const form = document.getElementById('secure-export-tables-form');
+        form.addEventListener('submit', event => {
+            event.preventDefault();
+
+            const selectedTables = Array.from(document.querySelectorAll('input[name="tables"]:checked')).map(cb => cb.value);
+            if (selectedTables.length === 0) {
+                alert('Please select at least one table.');
+                return;
+            }
+
+            config.tables = selectedTables;
+            sessionStorage.setItem('secureExportConfig', JSON.stringify(config));
+            window.location.href = '/secure-export-masking.html';
+        });
+    });
+</script>
+
+</body>
+</html>
