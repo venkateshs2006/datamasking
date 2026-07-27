@@ -1,48 +1,39 @@
 package com.enterprise.seedm.controller;
 
-import com.enterprise.seedm.dto.SecureExportRequest;
-import com.enterprise.seedm.model.SecureExportJob;
+import com.enterprise.seedm.model.SecureExportConfig;
+import com.enterprise.seedm.service.JsonMigrationService;
 import com.enterprise.seedm.service.SecureExportService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/secure-export")
 public class SecureExportController {
 
-    @Autowired
-    private SecureExportService secureExportService;
+    private final JsonMigrationService jsonMigrationService;
+    private final SecureExportService secureExportService;
 
-    @PostMapping("/create")
-    public ResponseEntity<?> createSecureExportJob(@RequestBody SecureExportRequest request) {
-        try {
-            secureExportService.createJob(request);
-            return ResponseEntity.ok().build();
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public SecureExportController(JsonMigrationService jsonMigrationService, SecureExportService secureExportService) {
+        this.jsonMigrationService = jsonMigrationService;
+        this.secureExportService = secureExportService;
     }
 
-    @GetMapping("/jobs")
-    public ResponseEntity<List<SecureExportJob>> getJobs() {
-        return ResponseEntity.ok(secureExportService.getAllJobs());
+    @PostMapping("/start")
+    public ResponseEntity<Map<String, String>> startSecureExport(@RequestBody SecureExportConfig config) {
+        String executionId = jsonMigrationService.runSecureExportAsync(config);
+        return ResponseEntity.ok(Map.of("executionId", executionId));
     }
 
-    @PostMapping("/jobs/{id}/approve")
-    public ResponseEntity<?> approveJob(@PathVariable Long id) {
-        try {
-            secureExportService.approveJob(id);
-            return ResponseEntity.ok().build();
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    @GetMapping("/progress/{executionId}")
+    public ResponseEntity<Map<String, Object>> getProgress(@PathVariable String executionId) {
+        return ResponseEntity.ok(secureExportService.getProgress(executionId));
+    }
+
+    @GetMapping("/executions")
+public ResponseEntity<List<Map<String, Object>>> getAllExecutions() {
+        return ResponseEntity.ok(secureExportService.getAllExecutions());
     }
 }

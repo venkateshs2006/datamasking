@@ -1,6 +1,7 @@
 package com.enterprise.seedm.service;
 
 import com.enterprise.seedm.model.JsonMigrationConfig;
+import com.enterprise.seedm.model.SecureExportConfig;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,6 +9,8 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.javafaker.Faker;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -22,18 +25,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class JsonMigrationService {
 
     private final FormatPreservingEncryptionService fpeService;
+    private final SecureExportService secureExportService;
     private final ObjectMapper objectMapper;
     private final Faker faker;
-    
+    private final TaskExecutor taskExecutor;
+
     // In-memory store for async job progress
     private final Map<String, JsonMigrationProgress> progressMap = new ConcurrentHashMap<>();
 
-    public JsonMigrationService(FormatPreservingEncryptionService fpeService) {
+    public JsonMigrationService(FormatPreservingEncryptionService fpeService, SecureExportService secureExportService, @Qualifier("secureExportTaskExecutor") TaskExecutor taskExecutor) {
         this.fpeService = fpeService;
+        this.secureExportService = secureExportService;
         this.objectMapper = new ObjectMapper()
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
             .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         this.faker = new Faker();
+        this.taskExecutor = taskExecutor;
     }
 
     public String processMigrationAsync(String executionId, JsonMigrationConfig config) {
@@ -87,6 +94,12 @@ public class JsonMigrationService {
             updateProgress(executionId, "FAILED", progress.getProcessedFiles(), progress.getTotalFiles(), "JSON migration failed: " + e.getMessage());
             throw new RuntimeException("JSON migration failed", e);
         }
+        return executionId;
+    }
+
+    public String runSecureExportAsync(SecureExportConfig config) {
+        String executionId = UUID.randomUUID().toString();
+        taskExecutor.execute(() -> secureExportService.processSecureExport(executionId, config));
         return executionId;
     }
 
