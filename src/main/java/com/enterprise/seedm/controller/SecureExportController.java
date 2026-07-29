@@ -1,29 +1,32 @@
 package com.enterprise.seedm.controller;
 
 import com.enterprise.seedm.model.SecureExportConfig;
-import com.enterprise.seedm.service.JsonMigrationService;
 import com.enterprise.seedm.service.SecureExportService;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/secure-export")
 public class SecureExportController {
 
-    private final JsonMigrationService jsonMigrationService;
     private final SecureExportService secureExportService;
+    private final TaskExecutor taskExecutor;
 
-    public SecureExportController(JsonMigrationService jsonMigrationService, SecureExportService secureExportService) {
-        this.jsonMigrationService = jsonMigrationService;
+    public SecureExportController(SecureExportService secureExportService, @Qualifier("secureExportTaskExecutor") TaskExecutor taskExecutor) {
         this.secureExportService = secureExportService;
+        this.taskExecutor = taskExecutor;
     }
 
     @PostMapping("/start")
     public ResponseEntity<Map<String, String>> startSecureExport(@RequestBody SecureExportConfig config) {
-        String executionId = jsonMigrationService.runSecureExportAsync(config);
+        String executionId = UUID.randomUUID().toString();
+        taskExecutor.execute(() -> secureExportService.processSecureExport(executionId, config));
         return ResponseEntity.ok(Map.of("executionId", executionId));
     }
 
@@ -33,7 +36,7 @@ public class SecureExportController {
     }
 
     @GetMapping("/executions")
-public ResponseEntity<List<Map<String, Object>>> getAllExecutions() {
+    public ResponseEntity<List<Map<String, Object>>> getAllExecutions() {
         return ResponseEntity.ok(secureExportService.getAllExecutions());
     }
 }

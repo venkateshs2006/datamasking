@@ -1,6 +1,6 @@
 # Compiled class files
 *.class
-
+opencode.exe
 # Log files
 *.log
 logs/

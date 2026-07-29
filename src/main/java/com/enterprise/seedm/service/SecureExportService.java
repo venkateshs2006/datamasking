@@ -4,6 +4,7 @@ import com.enterprise.seedm.model.SecureExportConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.javafaker.Faker;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
@@ -28,6 +29,7 @@ public class SecureExportService {
     private final Faker faker;
     private final DataSource dataSource;
     private final FormatPreservingEncryptionService fpeService;
+    private static final int BATCH_SIZE = 1000;
 
     private enum DbDialect {
         POSTGRES,
@@ -38,7 +40,7 @@ public class SecureExportService {
     // In-memory store for async job progress
     private final Map<String, SecureExportProgress> progressMap = new ConcurrentHashMap<>();
 
-    public SecureExportService(ObjectMapper objectMapper, Faker faker, DataSource dataSource, FormatPreservingEncryptionService fpeService) {
+    public SecureExportService(ObjectMapper objectMapper, Faker faker, @Qualifier("sourceDataSource") DataSource dataSource, FormatPreservingEncryptionService fpeService) {
         this.objectMapper = objectMapper;
         this.faker = faker;
         this.dataSource = dataSource;
@@ -89,32 +91,57 @@ public class SecureExportService {
         writer.newLine();
         writer.newLine();
 
-        try (Statement statement = connection.createStatement();
-             ResultSet resultSet = statement.executeQuery("SELECT * FROM " + tableName)) {
-            writeInsertStatements(writer, resultSet, tableName, config);
+        String insertSql = generateInsertSql(metaData, tableName);
+        try (PreparedStatement preparedStatement = connection.prepareStatement(insertSql)) {
+            writeInsertStatements(preparedStatement, connection, tableName, config);
         }
         writer.newLine();
     }
 
-    private void writeInsertStatements(BufferedWriter writer, ResultSet resultSet, String tableName, SecureExportConfig config) throws SQLException, IOException {
-        ResultSetMetaData rsMetaData = resultSet.getMetaData();
-        int columnCount = rsMetaData.getColumnCount();
+    private void writeInsertStatements(PreparedStatement preparedStatement, Connection connection, String tableName, SecureExportConfig config) throws SQLException {
+        try (Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("SELECT * FROM " + tableName)) {
 
-        while (resultSet.next()) {
-            writer.write("INSERT INTO " + tableName + " VALUES (");
-            for (int i = 1; i <= columnCount; i++) {
-                String columnName = rsMetaData.getColumnName(i);
-                String value = resultSet.getString(i);
-                String maskedValue = applyMaskingRules(columnName, value, config);
-                writer.write("'" + maskedValue + "'");
-                if (i < columnCount) {
-                    writer.write(", ");
+            int batchCount = 0;
+            while (resultSet.next()) {
+                setPreparedStatementValues(preparedStatement, resultSet, config);
+                preparedStatement.addBatch();
+                batchCount++;
+
+                if (batchCount % BATCH_SIZE == 0) {
+                    preparedStatement.executeBatch();
                 }
             }
-            writer.write(");");
-            writer.newLine();
+            preparedStatement.executeBatch(); // Execute remaining queries
         }
     }
+
+    private void setPreparedStatementValues(PreparedStatement preparedStatement, ResultSet resultSet, SecureExportConfig config) throws SQLException {
+        ResultSetMetaData rsMetaData = resultSet.getMetaData();
+        int columnCount = rsMetaData.getColumnCount();
+        for (int i = 1; i <= columnCount; i++) {
+            String columnName = rsMetaData.getColumnName(i);
+            String value = resultSet.getString(i);
+            String maskedValue = applyMaskingRules(columnName, value, config);
+            preparedStatement.setString(i, maskedValue);
+        }
+    }
+
+    private String generateInsertSql(DatabaseMetaData metaData, String tableName) throws SQLException {
+        StringBuilder sb = new StringBuilder("INSERT INTO ").append(tableName).append(" (");
+        StringBuilder values = new StringBuilder("VALUES (");
+        try (ResultSet columns = metaData.getColumns(null, null, tableName, null)) {
+            while (columns.next()) {
+                sb.append(columns.getString("COLUMN_NAME")).append(", ");
+                values.append("?, ");
+            }
+        }
+        sb.setLength(sb.length() - 2); // Remove last comma and space
+        values.setLength(values.length() - 2);
+        sb.append(") ").append(values).append(")");
+        return sb.toString();
+    }
+
 
     private String getCreateTableStatement(DatabaseMetaData metaData, String tableName) throws SQLException {
         StringBuilder sb = new StringBuilder("CREATE TABLE ").append(tableName).append(" (");
