@@ -6,6 +6,7 @@ import java.util.Map;
 
 @Data
 public class SecureExportConfig {
+    private String jobName;
     private SourceConfig source;
     private DestinationConfig dest;
     private RulesConfig rules;
@@ -28,5 +29,6 @@ public class SecureExportConfig {
         private List<String> maskingColumns;
         private List<String> partialMaskingColumns;
         private List<String> constraintFields;
+        private List<String> targetTables;
     }
 }

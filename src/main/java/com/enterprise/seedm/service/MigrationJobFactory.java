@@ -11,6 +11,9 @@ import com.enterprise.seedm.batch.TableItemWriter;
 import com.enterprise.seedm.batch.TablePreparationTasklet;
 import com.enterprise.seedm.model.ColumnMetadata;
 import com.enterprise.seedm.model.JobRequest;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.client.MongoClient;
@@ -85,11 +88,18 @@ public class MigrationJobFactory {
     /**
      * Creates a new migration job based on current DB schema.
      */
-    public Job createMigrationJob() throws SQLException {
+    @SuppressWarnings("unchecked")
+    public Job createMigrationJob(JobRequest jobRequest) throws SQLException, JsonProcessingException {
         log.info("Creating dynamic migration job...");
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> configDetails = mapper.readValue(jobRequest.getConfigDetails(), new TypeReference<Map<String, Object>>(){});
+        Map<String, Object> rulesConfig = (Map<String, Object>) configDetails.get("rules");
+        List<String> tables = (List<String>) rulesConfig.get("targetTables");
 
-        // Discover all tables from source schema (using current connection)
-        List<String> tables = tableDiscoveryService.discoverTables();
+        if (tables == null || tables.isEmpty()) {
+            log.info("No target tables specified, discovering all tables from source schema...");
+            tables = tableDiscoveryService.discoverTables();
+        }
 
         if (tables.isEmpty()) {
             log.warn("No tables found in source schema: {}", schemaConfig.getSourceSchema());
@@ -139,10 +149,10 @@ public class MigrationJobFactory {
     }
 
     @SuppressWarnings("unchecked")
-    public Job createMongoMigrationJob(JobRequest jobRequest) {
+    public Job createMongoMigrationJob(JobRequest jobRequest) throws JsonProcessingException {
         log.info("Creating dynamic Mongo migration job...");
-
-        Map<String, Object> configDetails = (Map<String, Object>) jobRequest.getConfigDetails();
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> configDetails = mapper.readValue(jobRequest.getConfigDetails(), new TypeReference<Map<String, Object>>(){});
         Map<String, Object> sourceConfig = (Map<String, Object>) configDetails.get("source");
         Map<String, Object> destConfig = (Map<String, Object>) configDetails.get("dest");
         Map<String, Object> rulesConfig = (Map<String, Object>) configDetails.get("rules");

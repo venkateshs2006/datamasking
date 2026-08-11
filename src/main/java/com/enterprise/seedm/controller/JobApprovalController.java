@@ -28,12 +28,14 @@ public class JobApprovalController {
     private final ObjectMapper objectMapper;
 
     @PostMapping("/request")
-    public ResponseEntity<?> submitJobRequest(@RequestBody JobRequest request, HttpServletRequest servletRequest) {
+    public ResponseEntity<?> submitJobRequest(@RequestBody Map<String, Object> requestPayload, HttpServletRequest servletRequest) {
         HttpSession session = servletRequest.getSession(false);
         if (session == null) {
             return ResponseEntity.status(401).build();
         }
         String user = (String) session.getAttribute("user");
+
+        JobRequest request = objectMapper.convertValue(requestPayload, JobRequest.class);
         request.setSubmittedBy(user);
 
         if (request.getConfigDetails() != null) {

@@ -1,6 +1,7 @@
 package com.enterprise.seedm;
 
 import com.github.javafaker.Faker;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
@@ -37,16 +38,6 @@ public class AnonifyApplication {
 		return new Faker();
 	}
 
-	@Bean("secureExportTaskExecutor")
-	public TaskExecutor secureExportTaskExecutor() {
-		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-		executor.setCorePoolSize(5);
-		executor.setMaxPoolSize(10);
-		executor.setQueueCapacity(25);
-		executor.setThreadNamePrefix("secure-export-");
-		executor.initialize();
-		return executor;
-	}
 
 	@Bean("applicationTaskExecutor")
 	public TaskExecutor applicationTaskExecutor() {

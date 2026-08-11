@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface SecureExportJobRepository extends JpaRepository<SecureExportJob, Long> {
+    SecureExportJob findByExecutionId(String executionId);
 }

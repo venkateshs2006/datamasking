@@ -6,6 +6,9 @@ import com.enterprise.seedm.model.MongoMigrationDetails;
 import com.enterprise.seedm.model.MongoMigrationProgress;
 import com.enterprise.seedm.repository.MigrationJobRepository;
 import com.enterprise.seedm.repository.MongoMigrationDetailsRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
@@ -32,7 +35,7 @@ public class MongoMigrationService {
     private final MongoMigrationDetailsRepository mongoDetailsRepository;
     
     @SuppressWarnings("unchecked")
-    public void migrate(JobRequest jobRequest, String executionId) {
+    public void migrate(JobRequest jobRequest, String executionId) throws JsonProcessingException {
         MongoMigrationProgress progress = progressMap.computeIfAbsent(executionId, k -> new MongoMigrationProgress());
         progress.setStatus("RUNNING");
         progress.setStartTime(System.currentTimeMillis());
@@ -49,8 +52,8 @@ public class MongoMigrationService {
         migrationJobRepository.save(job);
 
         log.info("Starting MongoDB migration for job: {}", jobRequest.getMigrationName());
-
-        Map<String, Object> configDetails = (Map<String, Object>) jobRequest.getConfigDetails();
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> configDetails = mapper.readValue(jobRequest.getConfigDetails(), new TypeReference<Map<String, Object>>(){});
         Map<String, Object> sourceConfig = (Map<String, Object>) configDetails.get("source");
         Map<String, Object> destConfig = (Map<String, Object>) configDetails.get("dest");
         Map<String, Object> rulesConfig = (Map<String, Object>) configDetails.get("rules");
@@ -67,7 +70,12 @@ public class MongoMigrationService {
             MongoDatabase destDatabase = destClient.getDatabase(destDatabaseName);
 
             List<String> collections = (List<String>) rulesConfig.get("targetTables");
-            if (collections == null) collections = new ArrayList<>();
+            if (collections == null || collections.isEmpty()) {
+                collections = new ArrayList<>();
+                for (String collectionName : sourceDatabase.listCollectionNames()) {
+                    collections.add(collectionName);
+                }
+            }
             progress.getTotalCollections().set(collections.size());
 
             for (String collectionName : collections) {

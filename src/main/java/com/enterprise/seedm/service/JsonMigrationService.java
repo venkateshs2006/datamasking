@@ -16,6 +16,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -59,28 +60,35 @@ public class JsonMigrationService {
                 Files.createDirectories(destDir);
             }
 
-            // Count total JSON files first
-            long[] countArr = new long[1];
-            Files.walkFileTree(sourceDir, new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                    if (file.toString().endsWith(".json")) countArr[0]++;
-                    return FileVisitResult.CONTINUE;
+            List<String> targetFiles = config.getRules().getTargetTables();
+            List<Path> filesToProcess = new ArrayList<>();
+
+            if (targetFiles != null && !targetFiles.isEmpty()) {
+                for (String fileName : targetFiles) {
+                    Path filePath = sourceDir.resolve(fileName);
+                    if (Files.exists(filePath) && filePath.toString().endsWith(".json")) {
+                        filesToProcess.add(filePath);
+                    }
                 }
-            });
-            progress.setTotalFiles((int) countArr[0]);
+            } else {
+                Files.walkFileTree(sourceDir, new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                        if (file.toString().endsWith(".json")) {
+                            filesToProcess.add(file);
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+            }
+            
+            progress.setTotalFiles(filesToProcess.size());
 
             // Process each file
-            Files.walkFileTree(sourceDir, new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                    if (file.toString().endsWith(".json")) {
-                        processFile(file, sourceDir, destDir, config, executionId);
-                        progress.incrementProcessedFiles();
-                    }
-                    return FileVisitResult.CONTINUE;
-                }
-            });
+            for (Path file : filesToProcess) {
+                processFile(file, sourceDir, destDir, config, executionId);
+                progress.incrementProcessedFiles();
+            }
 
             updateProgress(executionId, "COMPLETED", progress.getProcessedFiles(), progress.getTotalFiles(), null);
         } catch (Exception e) {

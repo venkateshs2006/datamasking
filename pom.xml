@@ -83,7 +83,11 @@
 			<artifactId>ojdbc11</artifactId>
 			<version>23.3.0.23.09</version>
 		</dependency>
-
+		<dependency>
+			<groupId>io.hypersistence</groupId>
+			<artifactId>hypersistence-utils-hibernate-73</artifactId>
+			<version>3.15.4</version>
+		</dependency>
 
 		<dependency>
 			<groupId>com.ibm.db2</groupId>

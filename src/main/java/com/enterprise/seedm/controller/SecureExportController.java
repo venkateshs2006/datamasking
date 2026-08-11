@@ -2,6 +2,10 @@ package com.enterprise.seedm.controller;
 
 import com.enterprise.seedm.model.SecureExportConfig;
 import com.enterprise.seedm.service.SecureExportService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.ResponseEntity;
@@ -13,25 +17,41 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/secure-export")
+@RequiredArgsConstructor
+@Slf4j
 public class SecureExportController {
 
-    private final SecureExportService secureExportService;
-    private final TaskExecutor taskExecutor;
+    @Autowired
+    private SecureExportService secureExportService;
 
-    public SecureExportController(SecureExportService secureExportService, @Qualifier("secureExportTaskExecutor") TaskExecutor taskExecutor) {
-        this.secureExportService = secureExportService;
-        this.taskExecutor = taskExecutor;
-    }
+    @Autowired
+    @Qualifier("applicationTaskExecutor")
+    private TaskExecutor taskExecutor;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @PostMapping("/start")
-    public ResponseEntity<Map<String, String>> startSecureExport(@RequestBody SecureExportConfig config) {
-        String executionId = UUID.randomUUID().toString();
-        taskExecutor.execute(() -> secureExportService.processSecureExport(executionId, config));
-        return ResponseEntity.ok(Map.of("executionId", executionId));
+    public ResponseEntity<?> startSecureExport(@RequestBody SecureExportConfig config) {
+        try {
+            String executionId = "secure-export-" + UUID.randomUUID().toString();
+            taskExecutor.execute(() -> {
+                try {
+                    secureExportService.processSecureExport(executionId, config);
+                } catch (Exception e) {
+                    log.error("Secure Export failed in background task", e);
+                }
+            });
+            log.info("Secure Export task launched with id: {}", executionId);
+            return ResponseEntity.ok(Map.of("status", "SUCCESS", "executionId", executionId, "message", "Secure Export started"));
+        } catch (Exception e) {
+            log.error("Failed to start Secure Export", e);
+            return ResponseEntity.internalServerError().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        }
     }
 
-    @GetMapping("/progress/{executionId}")
-    public ResponseEntity<Map<String, Object>> getProgress(@PathVariable String executionId) {
+    @GetMapping("/status/{executionId}")
+    public ResponseEntity<?> getStatus(@PathVariable String executionId) {
         return ResponseEntity.ok(secureExportService.getProgress(executionId));
     }
 

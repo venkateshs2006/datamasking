@@ -16,7 +16,7 @@ public class AuthService {
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public AppUser authenticate(String username, String password) {
-        Optional<AppUser> userOpt = userRepository.findByUsername(username);
+        Optional<AppUser> userOpt = Optional.ofNullable(userRepository.findByUsername(username));
         if (userOpt.isPresent()) {
             AppUser user = userOpt.get();
             if (passwordEncoder.matches(password, user.getPassword())) {
@@ -27,6 +27,10 @@ public class AuthService {
     }
 
     public AppUser findByUsername(String username) {
-        return userRepository.findByUsername(username).orElse(null);
+        AppUser appUser = userRepository.findByUsername(username);
+        if(appUser==null){
+            return null;
+        }
+        return userRepository.findByUsername(username);
     }
 }

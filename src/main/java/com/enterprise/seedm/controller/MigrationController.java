@@ -4,15 +4,9 @@ import com.enterprise.seedm.config.SwappableDataSource;
 import com.enterprise.seedm.model.DbConnection;
 import com.enterprise.seedm.model.DbConnectionRequest;
 import com.enterprise.seedm.model.JsonMigrationConfig;
-import com.enterprise.seedm.service.DbConnectionService;
-import com.enterprise.seedm.service.DestinationTableDiscoveryService;
-import com.enterprise.seedm.service.DynamicDataSourceService;
-import com.enterprise.seedm.service.JsonMigrationService;
-import com.enterprise.seedm.service.MigrationJobFactory;
-import com.enterprise.seedm.service.MongoMigrationService;
-import com.enterprise.seedm.service.TableDiscoveryService;
+import com.enterprise.seedm.model.SecureExportConfig;
+import com.enterprise.seedm.service.*;
 import com.enterprise.seedm.model.JobRequest;
-import com.enterprise.seedm.service.JobApprovalService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -81,6 +75,9 @@ public class MigrationController {
     private MongoMigrationService mongoMigrationService;
 
     @Autowired
+    private SecureExportService secureExportService;
+
+    @Autowired
     private JobApprovalService jobApprovalService;
 
     @Autowired
@@ -102,6 +99,8 @@ public class MigrationController {
 
     private static final AtomicLong jsonSequence = new AtomicLong(1);
     private static final AtomicLong mongoSequence = new AtomicLong(1);
+    private static final AtomicLong secureExportSequence = new AtomicLong(1);
+
 
     /**
      * Get connection details from the active datasources
@@ -193,6 +192,21 @@ public class MigrationController {
 
             Map<String, Object> configDetailsMap = objectMapper.convertValue(jobRequest.getConfigDetails(), Map.class);
 
+            if (jobRequest.getJobType().equalsIgnoreCase("SECURE_EXPORT")) {
+                SecureExportConfig config = objectMapper.convertValue(jobRequest.getConfigDetails(), SecureExportConfig.class);
+                String executionId = "secure-export-" + secureExportSequence.getAndIncrement();
+                taskExecutor.execute(() -> {
+                    try {
+                        secureExportService.processSecureExport(executionId, config);
+                    } catch (Exception e) {
+                        log.error("Secure Export failed in background task", e);
+                    }
+                });
+                response.sendRedirect("/index.html?executionId=" + executionId);
+                return;
+            }
+
+
             if (configDetailsMap.containsKey("source")) {
                 Map<String, Object> sourceMap = (Map<String, Object>) configDetailsMap.get("source");
                 DbConnection sourceConnection = dbConnectionService.getConnection(Long.valueOf(sourceMap.get("id").toString()));
@@ -218,7 +232,7 @@ public class MigrationController {
             }
 
             // Create a fresh job instance based on current DB connection/schema
-            Job migrationJob = migrationJobFactory.createMigrationJob();
+            Job migrationJob = migrationJobFactory.createMigrationJob(jobRequest);
 
             int uniqueId=random.nextInt();
             String jobName="DBMigrationJob";
@@ -393,6 +407,8 @@ public class MigrationController {
 
             // Add JSON executions
             result.addAll(jsonMigrationService.getAllExecutions());
+            result.addAll(secureExportService.getAllExecutions());
+
 
             // Sort descending by ID (using string comparison for mixed types)
             result.sort((m1, m2) -> {
@@ -424,7 +440,10 @@ public class MigrationController {
     public Map<String, Object> getJobStatus(@PathVariable String executionId) {
         if (executionId.startsWith("json-")) {
             return jsonMigrationService.getProgress(executionId);
+        } else if (executionId.startsWith("secure-export-")) {
+            return secureExportService.getProgress(executionId);
         }
+
 
         try {
             Long id = Long.parseLong(executionId);

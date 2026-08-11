@@ -1,101 +1,43 @@
 package com.enterprise.seedm.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
+import lombok.Data;
+import jakarta.persistence.*;
 
 @Entity
+@Table(name = "secure_export_jobs")
+@Data
 public class SecureExportJob {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long sourceConnectionId;
-    private String schemaName;
-    private String storageType;
-    private Long cosConnectionId;
-    private String localPath;
-    private String status;
+    @Column(name = "execution_id", nullable = false, unique = true)
+    private String executionId;
+
+    @Column(name = "job_name", nullable = false)
+    private String jobName;
+
+    @Column(name = "status", nullable = false)
+    private String status; // PENDING, RUNNING, COMPLETED, FAILED
 
     @Lob
-    private String tables;
+    @Column(name = "config_details", columnDefinition = "TEXT")
+    private String configDetails;
+
+    @Column(name = "submitted_by")
+    private String submittedBy;
+
+    @Column(name = "department")
+    private String department;
+
+    @Column(name = "created_at")
+    private Long createdAt;
+
+    @Column(name = "completed_at")
+    private Long completedAt;
 
     @Lob
-    private String rules;
-
-    // Getters and Setters
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getSourceConnectionId() {
-        return sourceConnectionId;
-    }
-
-    public void setSourceConnectionId(Long sourceConnectionId) {
-        this.sourceConnectionId = sourceConnectionId;
-    }
-
-    public String getSchemaName() {
-        return schemaName;
-    }
-
-    public void setSchemaName(String schemaName) {
-        this.schemaName = schemaName;
-    }
-
-    public String getStorageType() {
-        return storageType;
-    }
-
-    public void setStorageType(String storageType) {
-        this.storageType = storageType;
-    }
-
-    public Long getCosConnectionId() {
-        return cosConnectionId;
-    }
-
-    public void setCosConnectionId(Long cosConnectionId) {
-        this.cosConnectionId = cosConnectionId;
-    }
-
-    public String getLocalPath() {
-        return localPath;
-    }
-
-    public void setLocalPath(String localPath) {
-        this.localPath = localPath;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getTables() {
-        return tables;
-    }
-
-    public void setTables(String tables) {
-        this.tables = tables;
-    }
-
-    public String getRules() {
-        return rules;
-    }
-
-    public void setRules(String rules) {
-        this.rules = rules;
-    }
+    @Column(name = "error_message", columnDefinition = "TEXT")
+    private String errorMessage;
 }
