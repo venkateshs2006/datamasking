@@ -1,11 +1,9 @@
 package com.enterprise.seedm.model;
 
-import com.fasterxml.jackson.databind.JsonNode;
-
 import jakarta.persistence.*;
 import lombok.Data;
-import org.hibernate.annotations.Type;
-import org.springframework.data.mongodb.core.schema.JsonSchemaObject;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.util.Map;
 
@@ -24,10 +22,8 @@ public class JobRequest {
     @Column(name = "job_type", nullable = false)
     private String jobType; // "postgres", "mongo", "json", "SECURE_EXPORT"
 
-
-    @Column(columnDefinition = "jsonb")
-    private JsonNode properties;
-    @Column(name = "config_details", columnDefinition = "json")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "config_details", columnDefinition = "jsonb")
     private Map<String, Object> configDetails;
 
     @Column(name = "status", nullable = false)

@@ -92,7 +92,7 @@ public class MigrationJobFactory {
     public Job createMigrationJob(JobRequest jobRequest) throws SQLException, JsonProcessingException {
         log.info("Creating dynamic migration job...");
         ObjectMapper mapper = new ObjectMapper();
-        Map<String, Object> configDetails = mapper.readValue(jobRequest.getConfigDetails(), new TypeReference<Map<String, Object>>(){});
+        Map<String, Object> configDetails =jobRequest.getConfigDetails();
         Map<String, Object> rulesConfig = (Map<String, Object>) configDetails.get("rules");
         List<String> tables = (List<String>) rulesConfig.get("targetTables");
 
@@ -152,7 +152,7 @@ public class MigrationJobFactory {
     public Job createMongoMigrationJob(JobRequest jobRequest) throws JsonProcessingException {
         log.info("Creating dynamic Mongo migration job...");
         ObjectMapper mapper = new ObjectMapper();
-        Map<String, Object> configDetails = mapper.readValue(jobRequest.getConfigDetails(), new TypeReference<Map<String, Object>>(){});
+        Map<String, Object> configDetails = jobRequest.getConfigDetails();
         Map<String, Object> sourceConfig = (Map<String, Object>) configDetails.get("source");
         Map<String, Object> destConfig = (Map<String, Object>) configDetails.get("dest");
         Map<String, Object> rulesConfig = (Map<String, Object>) configDetails.get("rules");

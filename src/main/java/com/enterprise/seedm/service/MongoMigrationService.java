@@ -53,7 +53,7 @@ public class MongoMigrationService {
 
         log.info("Starting MongoDB migration for job: {}", jobRequest.getMigrationName());
         ObjectMapper mapper = new ObjectMapper();
-        Map<String, Object> configDetails = mapper.readValue(jobRequest.getConfigDetails(), new TypeReference<Map<String, Object>>(){});
+        Map<String, Object> configDetails = jobRequest.getConfigDetails();
         Map<String, Object> sourceConfig = (Map<String, Object>) configDetails.get("source");
         Map<String, Object> destConfig = (Map<String, Object>) configDetails.get("dest");
         Map<String, Object> rulesConfig = (Map<String, Object>) configDetails.get("rules");
