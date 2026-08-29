@@ -63,6 +63,7 @@
                 <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
                 <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
                 <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
+                <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> User Management</a></li>
                 <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
             </ul>
         </nav>
@@ -74,40 +75,49 @@
             <p class="text-gray-500 mt-3 font-medium">Choose the data source you want to migrate and mask.</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-8 w-full max-w-5xl">
-            <div class="db-card p-8 text-center group" onclick="selectDbType('postgres')">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 w-full max-w-7xl">
+            <div class="db-card p-6 text-center group" onclick="selectDbType('postgres')">
                 <div class="icon-container shadow-inner"><i class="fas fa-database"></i></div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Relational SQL</h3>
-                <p class="text-sm text-gray-500 mb-6">PostgreSQL, Oracle, DB2, etc.</p>
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Relational SQL</h3>
+                <p class="text-xs text-gray-500 mb-6">PostgreSQL, Oracle, DB2, etc.</p>
                 <div class="flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-bnp-emerald transition-colors">
-                    Configure Workflow <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
+                    Configure <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
                 </div>
             </div>
 
-            <div class="db-card p-8 text-center group" onclick="selectDbType('mongo')">
+            <div class="db-card p-6 text-center group" onclick="selectDbType('mongo')">
                 <div class="icon-container shadow-inner"><i class="fas fa-leaf"></i></div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">NoSQL Document</h3>
-                <p class="text-sm text-gray-500 mb-6">MongoDB Clusters & Replica Sets</p>
+                <h3 class="text-lg font-bold text-gray-800 mb-2">NoSQL Document</h3>
+                <p class="text-xs text-gray-500 mb-6">MongoDB Clusters & Sets</p>
                 <div class="flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-bnp-emerald transition-colors">
-                    Configure Workflow <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
+                    Configure <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
                 </div>
             </div>
 
-            <div class="db-card p-8 text-center group" onclick="selectDbType('json')">
+            <div class="db-card p-6 text-center group" onclick="selectDbType('json')">
                 <div class="icon-container shadow-inner"><i class="fas fa-file-code"></i></div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">JSON Migration</h3>
-                <p class="text-sm text-gray-500 mb-6">Local & Cloud Object Storage</p>
+                <h3 class="text-lg font-bold text-gray-800 mb-2">JSON Migration</h3>
+                <p class="text-xs text-gray-500 mb-6">Local & Cloud Storage</p>
                 <div class="flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-bnp-emerald transition-colors">
-                    Configure Workflow <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
+                    Configure <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
                 </div>
             </div>
 
-            <div class="db-card p-8 text-center group" onclick="selectDbType('secure-export')">
+            <div class="db-card p-6 text-center group" onclick="selectDbType('secure-export')">
                 <div class="icon-container shadow-inner"><i class="fas fa-shield-alt"></i></div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Secure Export</h3>
-                <p class="text-sm text-gray-500 mb-6">Anonymize and export data</p>
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Secure Export</h3>
+                <p class="text-xs text-gray-500 mb-6">Anonymize & export to file</p>
                 <div class="flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-bnp-emerald transition-colors">
-                    Configure Workflow <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
+                    Configure <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
+                </div>
+            </div>
+
+            <div class="db-card p-6 text-center group" onclick="selectDbType('secure-import')">
+                <div class="icon-container shadow-inner"><i class="fas fa-file-import"></i></div>
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Secure Import</h3>
+                <p class="text-xs text-gray-500 mb-6">Import & decrypt from export</p>
+                <div class="flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-bnp-emerald transition-colors">
+                    Configure <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
                 </div>
             </div>
         </div>
@@ -129,6 +139,7 @@
             } else if (data.role === 'ADMIN') {
                 document.getElementById('adminDbLink').style.display = 'block';
                 document.getElementById('adminCosLink').style.display = 'block';
+                document.getElementById('userManagementLink').style.display = 'block';
             }
         });
 
@@ -143,6 +154,7 @@
             else if (type === 'mongo') window.location.href = '/workflow-mongo.html';
             else if (type === 'json') window.location.href = '/workflow-json.html';
             else if (type === 'secure-export') window.location.href = '/secure-export.html';
+            else if (type === 'secure-import') window.location.href = '/secure-import.html';
         }
     </script>
 </body>

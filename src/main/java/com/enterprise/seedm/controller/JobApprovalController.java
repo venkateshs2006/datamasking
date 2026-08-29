@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -74,7 +75,9 @@ public class JobApprovalController {
                     }
                 }
             }
-            request.setDepartment(department);
+            if (department != null) {
+                request.setDepartment(department);
+            }
         }
 
         JobRequest submittedJob = jobApprovalService.submitJob(request);
@@ -82,9 +85,51 @@ public class JobApprovalController {
     }
 
     @GetMapping
-    public List<JobRequest> getAllJobs(@RequestParam(required = false) String department) {
-        List<String> depts = department != null ? Arrays.asList(department.split(",")) : null;
-        return jobApprovalService.getAllJobs(depts);
+    public List<JobRequest> getAllJobs(@RequestParam(required = false) String department, HttpServletRequest servletRequest) {
+        HttpSession session = servletRequest.getSession(false);
+        String role = session != null ? (String) session.getAttribute("role") : null;
+        boolean isAdmin = role != null && "ADMIN".equalsIgnoreCase(role);
+
+        if (isAdmin) {
+            if (department != null && !department.trim().isEmpty() && !"ALL".equalsIgnoreCase(department.trim())) {
+                List<String> depts = Arrays.asList(department.trim().split(","));
+                return jobApprovalService.getAllJobs(depts);
+            }
+            return jobApprovalService.getAllJobs(null);
+        }
+
+        List<String> userDepts = new ArrayList<>();
+        if (session != null) {
+            Object deptsObj = session.getAttribute("departments");
+            if (deptsObj instanceof List) {
+                for (Object d : (List<?>) deptsObj) {
+                    if (d instanceof com.enterprise.seedm.model.Department) {
+                        userDepts.add(((com.enterprise.seedm.model.Department) d).getName());
+                    } else if (d instanceof String) {
+                        userDepts.add((String) d);
+                    }
+                }
+            }
+            if (userDepts.isEmpty() && session.getAttribute("department") != null) {
+                userDepts.add((String) session.getAttribute("department"));
+            }
+        }
+
+        if (department != null && !department.trim().isEmpty() && !"ALL".equalsIgnoreCase(department.trim())) {
+            List<String> requestedDepts = Arrays.asList(department.trim().split(","));
+            List<String> allowedDepts = requestedDepts.stream()
+                    .filter(userDepts::contains)
+                    .collect(java.util.stream.Collectors.toList());
+            if (allowedDepts.isEmpty()) {
+                return List.of();
+            }
+            return jobApprovalService.getAllJobs(allowedDepts);
+        }
+
+        if (userDepts.isEmpty()) {
+            return List.of();
+        }
+        return jobApprovalService.getAllJobs(userDepts);
     }
 
     @GetMapping("/{id}")

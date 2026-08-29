@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -19,53 +20,170 @@
         }
     </script>
     <style>
-        :root { --bnp-emerald: '#00965e'; --bnp-dark-grey: '#333333'; --bnp-light-grey: '#f4f4f4'; }
-        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--bnp-dark-grey); display: flex; flex-direction: column; min-height: 100vh; }
+        :root {
+            --bnp-emerald: #00965e;
+            --bnp-dark-grey: #333333;
+            --bnp-light-grey: #f4f4f4;
+        }
 
-        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .bnp-logo { height: 48px; display: block; }
-        nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
-        nav ul li { margin-left: 25px; }
-        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
-        nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+        body {
+            font-family: 'Open Sans', sans-serif;
+            background-color: var(--bnp-light-grey);
+            color: var(--bnp-dark-grey);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
 
-        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; }
-        .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
+        header {
+            border-top: 5px solid var(--bnp-emerald);
+            padding: 15px 8%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fff;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
 
-        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; backdrop-filter: blur(4px); }
-        .modal-content { background: white; margin: 5% auto; border-radius: 12px; width: 90%; max-width: 800px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); display: flex; flex-col; max-height: 85vh; }
+        .bnp-logo {
+            height: 48px;
+            display: block;
+        }
 
-        .badge { padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
-        .badge-WAITING, .badge-PENDING_APPROVAL { background: #fef3c7; color: #047857; border: 1px solid #a7f3d0; }
-        .badge-APPROVED { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
-        .badge-REJECTED { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+        nav ul {
+            display: flex;
+            list-style: none;
+            align-items: center;
+            margin: 0;
+            padding: 0;
+        }
+
+        nav ul li {
+            margin-left: 25px;
+        }
+
+        nav ul li a,
+        nav ul li button {
+            text-decoration: none;
+            color: var(--bnp-dark-grey);
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            transition: color 0.2s;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+
+        nav ul li a:hover,
+        nav ul li button:hover {
+            color: var(--bnp-emerald);
+        }
+
+        footer {
+            background: var(--bnp-dark-grey);
+            color: #ffffff;
+            padding: 40px 8%;
+            font-size: 0.8rem;
+            margin-top: auto;
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            opacity: 0.8;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+            background: white;
+            margin: 5% auto;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 800px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            max-height: 85vh;
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .badge-WAITING,
+        .badge-PENDING_APPROVAL {
+            background: #fef3c7;
+            color: #047857;
+            border: 1px solid #a7f3d0;
+        }
+
+        .badge-APPROVED {
+            background: #dbeafe;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+        }
+
+        .badge-REJECTED {
+            background: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+        }
 
         /* Specific to Approver UI adjustments */
-        body.role-approver .scheduler-only { display: none !important; }
-        body:not(.role-approver) .approver-only { display: none !important; }
+        body.role-approver .scheduler-only {
+            display: none !important;
+        }
+
+        body:not(.role-approver) .approver-only {
+            display: none !important;
+        }
 
         /* ProgressBar overrides */
         .progress-bar-fill {
             background-color: var(--bnp-emerald);
-            background-image: linear-gradient(45deg, rgba(255,255,255,.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.15) 50%, rgba(255,255,255,.15) 75%, transparent 75%, transparent);
+            background-image: linear-gradient(45deg, rgba(255, 255, 255, .15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, .15) 50%, rgba(255, 255, 255, .15) 75%, transparent 75%, transparent);
             background-size: 1rem 1rem;
             transition: width 0.4s ease;
         }
+
         .progress-bar-fill.active {
             animation: progress-stripes 1s linear infinite;
         }
+
         @keyframes progress-stripes {
-            from { background-position: 1rem 0; }
-            to { background-position: 0 0; }
+            from {
+                background-position: 1rem 0;
+            }
+
+            to {
+                background-position: 0 0;
+            }
         }
     </style>
 </head>
+
 <body>
 
     <header>
         <div class="flex items-center">
             <a href="/index.html" class="logo-link mr-6" id="logoLink">
-                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo"
+                    class="bnp-logo">
             </a>
             <div class="hidden md:block border-l border-gray-300 pl-6">
                 <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
@@ -76,9 +194,12 @@
             <ul>
                 <li><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
                 <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
-                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
-                <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
-                <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> User Management</a></li>
+                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i
+                            class="fas fa-database mr-1.5"></i> DB Admin</a></li>
+                <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i
+                            class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
+                <li id="userManagementLink" style="display: none;"><a href="/users.html"><i
+                            class="fas fa-users mr-1.5"></i> User Management</a></li>
                 <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
             </ul>
         </nav>
@@ -91,7 +212,8 @@
                 <p class="text-sm text-gray-500 mt-2">Track, review, and manage database masking requests.</p>
             </div>
             <div class="flex space-x-3 scheduler-only">
-                <a href="/select-db.html" class="bg-bnp-emerald text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-md hover:bg-[#007a4c] transition flex items-center">
+                <a href="/select-db.html"
+                    class="bg-bnp-emerald text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-md hover:bg-[#007a4c] transition flex items-center">
                     <i class="fas fa-plus mr-2"></i> New Migration
                 </a>
             </div>
@@ -100,7 +222,8 @@
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col mb-8">
             <div class="overflow-x-auto flex-1">
                 <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider sticky top-0 shadow-sm z-10">
+                    <thead
+                        class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider sticky top-0 shadow-sm z-10">
                         <tr>
                             <th class="px-6 py-4 font-bold">Migration details</th>
                             <th class="px-6 py-4 font-bold">Department</th>
@@ -122,12 +245,14 @@
     <div id="reviewModal" class="modal">
         <div class="modal-content flex flex-col h-[85vh]">
             <!-- Header -->
-            <div class="px-8 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0 rounded-t-xl">
+            <div
+                class="px-8 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0 rounded-t-xl">
                 <div>
                     <h2 class="text-xl font-bold text-gray-800" id="modalJobName">Review Job Details</h2>
                     <p class="text-xs text-gray-500 mt-1 font-mono" id="modalJobId"></p>
                 </div>
-                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 focus:outline-none"><i class="fas fa-times text-xl"></i></button>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 focus:outline-none"><i
+                        class="fas fa-times text-xl"></i></button>
             </div>
 
             <!-- Body -->
@@ -136,20 +261,73 @@
             <!-- Approver Comments Section -->
             <div id="commentsSection" class="px-8 py-4 border-t border-gray-100 bg-gray-50 shrink-0">
                 <label class="block text-xs font-bold text-gray-600 uppercase mb-2">Approver Comments</label>
-                <textarea id="approverComments" class="w-full p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-bnp-emerald focus:ring-1 focus:ring-bnp-emerald" rows="3" placeholder="Enter comments (required for rejection)..."></textarea>
+                <textarea id="approverComments"
+                    class="w-full p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-bnp-emerald focus:ring-1 focus:ring-bnp-emerald"
+                    rows="3" placeholder="Enter comments (required for rejection)..."></textarea>
             </div>
 
             <!-- Footer / Actions -->
-            <div class="px-8 py-5 border-t border-gray-200 bg-white shrink-0 rounded-b-xl flex justify-between items-center">
-                <button onclick="closeModal()" class="text-sm font-bold text-gray-500 hover:text-gray-700">CANCEL</button>
+            <div
+                class="px-8 py-5 border-t border-gray-200 bg-white shrink-0 rounded-b-xl flex justify-between items-center">
+                <button onclick="closeModal()"
+                    class="text-sm font-bold text-gray-500 hover:text-gray-700">CANCEL</button>
 
                 <div id="approverActions" class="space-x-3 hidden">
-                    <button onclick="rejectJob()" class="px-6 py-2 border-2 border-red-200 text-red-600 font-bold rounded-lg hover:bg-red-50 transition-colors"><i class="fas fa-times mr-1.5"></i> REJECT</button>
-                    <button onclick="approveJob()" class="px-6 py-2 bg-bnp-emerald text-white font-bold rounded-lg shadow-md hover:bg-[#007a4c] transition-colors"><i class="fas fa-check mr-1.5"></i> APPROVE</button>
+                    <button onclick="rejectJob()"
+                        class="px-6 py-2 border-2 border-red-200 text-red-600 font-bold rounded-lg hover:bg-red-50 transition-colors"><i
+                            class="fas fa-times mr-1.5"></i> REJECT</button>
+                    <button onclick="approveJob()"
+                        class="px-6 py-2 bg-bnp-emerald text-white font-bold rounded-lg shadow-md hover:bg-[#007a4c] transition-colors"><i
+                            class="fas fa-check mr-1.5"></i> APPROVE</button>
                 </div>
 
                 <div id="schedulerActions" class="space-x-3 hidden">
-                    <button id="btnRun" onclick="runJob()" class="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors">RUN MIGRATION <i class="fas fa-play ml-2"></i></button>
+                    <button id="btnRun" onclick="runJob()"
+                        class="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors">RUN
+                        MIGRATION <i class="fas fa-play ml-2"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Secret Key Modal for Secure Import -->
+    <div id="secretKeyModal" class="modal">
+        <div class="modal-content max-w-md p-6 my-auto">
+            <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-100">
+                <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                    <div class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center mr-2.5 text-purple-700">
+                        <i class="fas fa-key text-sm"></i>
+                    </div>
+                    Decryption Secret Key
+                </h3>
+                <button onclick="closeSecretKeyModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="space-y-4">
+                <p class="text-xs text-gray-600">
+                    This file is encrypted with AES-256. Enter the secret key configured during export to decrypt and restore data.
+                </p>
+
+                <div id="keyErrorBanner" class="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg hidden flex items-start gap-2">
+                    <i class="fas fa-exclamation-circle mt-0.5 shrink-0"></i>
+                    <span id="keyErrorMessage">Invalid secret key.</span>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Secret Key / Salt Key</label>
+                    <div class="relative">
+                        <input type="password" id="secretKeyInput" class="w-full p-2.5 pr-10 border border-gray-300 rounded-lg text-sm font-mono focus:border-bnp-emerald focus:ring-1 focus:ring-bnp-emerald" placeholder="Enter secret key...">
+                        <button type="button" onclick="toggleSecretKeyVisibility()" class="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
+                            <i id="secretKeyEye" class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-2">
+                    <button type="button" onclick="closeSecretKeyModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50">CANCEL</button>
+                    <button type="button" id="btnSubmitSecretKey" onclick="executeSecureImport()" class="px-5 py-2 bg-bnp-emerald text-white rounded-lg text-xs font-bold hover:bg-[#007a4c] transition flex items-center shadow-md">
+                        <i class="fas fa-unlock-alt mr-1.5"></i> DECRYPT & MIGRATE
+                    </button>
                 </div>
             </div>
         </div>
@@ -170,7 +348,7 @@
         let activeJobConfig = null;
 
         fetch('/api/auth/check').then(r => r.json()).then(data => {
-            if(!data.authenticated) window.location.href = '/login.html';
+            if (!data.authenticated) window.location.href = '/login.html';
             currentUserRole = data.role.toUpperCase();
             userDepartments = data.departments;
 
@@ -185,15 +363,12 @@
         });
 
         async function logout() {
-            await fetch('/api/auth/logout', {method: 'POST'});
+            await fetch('/api/auth/logout', { method: 'POST' });
             window.location.href = '/login.html';
         }
 
         async function fetchJobs() {
             let url = '/api/jobs';
-            if (currentUserRole === 'MANAGER') {
-                url += `?department=${userDepartments.map(d => d.name).join(',')}`;
-            }
             const res = await fetch(url);
             const jobs = await res.json();
             const tbody = document.getElementById('jobsTable');
@@ -220,10 +395,42 @@
                     actionBtn = `<button onclick="openReview('${job.id}')" class="text-gray-500 font-bold text-sm hover:underline">View Details</button>`;
                 }
 
+                // Format destination subtext if available
+                let destSubtext = '';
+                const cfg = job.configDetails || {};
+                const jType = (job.jobType || '').toLowerCase().replace(/[_\s]/g, '-');
+                if (jType === 'secure-export' || jType === 'secureexport') {
+                    const st = cfg.storage || {};
+                    const dst = cfg.dest || {};
+                    const pathVal = st.path || st.name || dst.dest_dir || dst.path || (st.id ? ('COS #' + st.id) : '');
+                    if (pathVal) {
+                        destSubtext = `<div class="text-[11px] text-gray-500 mt-1 flex items-center gap-1 font-mono truncate max-w-xs" title="Destination: ${pathVal}">
+                            <i class="fas fa-folder-open text-amber-500 text-[10px]"></i> <span>${pathVal}</span>
+                        </div>`;
+                    }
+                } else if (jType === 'secure-import' || jType === 'secureimport') {
+                    const st = cfg.storage || {};
+                    const dst = cfg.dest || {};
+                    const srcPath = st.path || st.fileName || (st.id ? ('COS #' + st.id) : 'Export Package');
+                    const dstSchema = dst.schema || 'public';
+                    destSubtext = `<div class="text-[11px] text-gray-500 mt-1 flex items-center gap-1 font-mono truncate max-w-xs" title="Source: ${srcPath} -> Schema: ${dstSchema}">
+                        <i class="fas fa-file-import text-blue-500 text-[10px]"></i> <span>${srcPath} &rarr; ${dstSchema}</span>
+                    </div>`;
+                } else if (jType === 'json') {
+                    const dst = cfg.dest || {};
+                    const pathVal = dst.dest_dir || dst.path || dst.url || '';
+                    if (pathVal) {
+                        destSubtext = `<div class="text-[11px] text-gray-500 mt-1 flex items-center gap-1 font-mono truncate max-w-xs" title="Destination: ${pathVal}">
+                            <i class="fas fa-folder-open text-amber-500 text-[10px]"></i> <span>${pathVal}</span>
+                        </div>`;
+                    }
+                }
+
                 tr.innerHTML = `
                     <td class="px-6 py-4">
                         <div class="font-bold text-bnp-dark-grey tracking-wide mb-1 text-sm">${job.migrationName || 'Untitled Job'}</div>
                         <div class="text-[10px] uppercase font-bold text-gray-400 bg-gray-100 border inline-block px-1.5 rounded">${job.jobType}</div>
+                        ${destSubtext}
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-600">${job.department || 'N/A'}</td>
                     <td class="px-6 py-4 text-sm text-gray-600">${job.submittedBy}</td>
@@ -240,7 +447,7 @@
             const job = await res.json();
             activeJobId = job.id;
             activeJobType = job.jobType;
-            activeJobConfig = job.configDetails;
+            activeJobConfig = job.configDetails || {};
 
             document.getElementById('modalJobName').innerText = job.migrationName || 'Review Job Details';
             document.getElementById('modalJobId').innerText = 'ID: ' + job.id;
@@ -248,67 +455,119 @@
             const container = document.getElementById('jobDetailsContainer');
             let html = '';
 
-            const src = job.configDetails.source || {};
-            const dest = job.configDetails.dest || {};
-            const storage = job.configDetails.storage || {};
+            const config = job.configDetails || {};
+            const src = config.source || {};
+            const dest = config.dest || {};
+            const storage = config.storage || {};
+            const rawType = (job.jobType || '').toLowerCase().replace(/[_\s]/g, '-');
+            const isSecureExport = rawType === 'secure-export' || rawType === 'secureexport';
+            const isSecureImport = rawType === 'secure-import' || rawType === 'secureimport';
+            const isJson = rawType === 'json';
 
-            html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Connections</h3>`;
+            html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Environment Scope</h3>`;
             html += `<div class="grid grid-cols-2 gap-4">`;
-            html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
-                        <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Source</h4>
-                        <p class="text-sm mb-1 truncate" title="${src.url}"><strong class="text-[10px] uppercase text-gray-400 mr-1">URL:</strong> <span class="font-mono">${src.url || 'N/A'}</span></p>
-                        <p class="text-sm mb-1"><strong class="text-[10px] uppercase text-gray-400 mr-1">Schema:</strong> <span class="font-mono">${src.schema || 'N/A'}</span></p>
-                     </div>`;
 
-            if (job.jobType === 'secure-export') {
-                 html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
-                            <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Storage</h4>
-                            <p class="text-sm mb-1"><strong class="text-[10px] uppercase text-gray-400 mr-1">Type:</strong> <span class="font-mono">${storage.type || 'N/A'}</span></p>
-                            <p class="text-sm mb-1 truncate" title="${storage.path}"><strong class="text-[10px] uppercase text-gray-400 mr-1">Path:</strong> <span class="font-mono">${storage.path || 'N/A'}</span></p>
+            // Source block
+            if (isSecureImport) {
+                const isCos = (storage.type || '').toLowerCase() === 'cos' || (storage.id && !storage.path);
+                const storageTypeLabel = isCos ? 'Cloud Object Storage (COS)' : 'Local Storage';
+                const srcPath = storage.path || storage.fileName || (storage.id ? ('COS Connection #' + storage.id) : 'N/A');
+                html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Source Storage Package</h4>
+                            <p class="text-sm mb-1"><strong class="text-[10px] uppercase text-gray-400 mr-1">Type:</strong> <span class="font-mono">${storageTypeLabel}</span></p>
+                            <p class="text-sm mb-1 truncate" title="${srcPath}"><strong class="text-[10px] uppercase text-gray-400 mr-1">File / Path:</strong> <span class="font-mono">${srcPath}</span></p>
+                         </div>`;
+            } else if (isJson) {
+                const srcType = src.storageType || 'Local';
+                const srcPath = src.source_dir || src.url || 'N/A';
+                html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Source</h4>
+                            <p class="text-sm mb-1"><strong class="text-[10px] uppercase text-gray-400 mr-1">Type:</strong> <span class="font-mono">${srcType}</span></p>
+                            <p class="text-sm mb-1 truncate" title="${srcPath}"><strong class="text-[10px] uppercase text-gray-400 mr-1">Path:</strong> <span class="font-mono">${srcPath}</span></p>
                          </div>`;
             } else {
-                 html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
+                html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Source</h4>
+                            <p class="text-sm mb-1 truncate" title="${src.url || ''}"><strong class="text-[10px] uppercase text-gray-400 mr-1">URL:</strong> <span class="font-mono">${src.url || 'N/A'}</span></p>
+                            <p class="text-sm mb-1"><strong class="text-[10px] uppercase text-gray-400 mr-1">Schema:</strong> <span class="font-mono">${src.schema || 'N/A'}</span></p>
+                         </div>`;
+            }
+
+            // Destination / Storage block
+            if (isSecureExport) {
+                const isCos = (storage.type || '').toLowerCase() === 'cos' || (storage.id && !storage.path);
+                const storageTypeLabel = isCos ? 'Cloud Object Storage (COS)' : 'Local Storage';
+                const destPath = storage.path || storage.name || dest.dest_dir || dest.path || (storage.id ? ('COS Connection #' + storage.id) : 'N/A');
+                html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Destination / Storage</h4>
+                            <p class="text-sm mb-1"><strong class="text-[10px] uppercase text-gray-400 mr-1">Type:</strong> <span class="font-mono">${storageTypeLabel}</span></p>
+                            <p class="text-sm mb-1 truncate" title="${destPath}"><strong class="text-[10px] uppercase text-gray-400 mr-1">${isCos ? 'Target / Connection:' : 'Destination Path:'}</strong> <span class="font-mono">${destPath}</span></p>
+                         </div>`;
+            } else if (isJson) {
+                const destType = dest.storageType || 'Local';
+                const destPath = dest.dest_dir || dest.path || dest.url || 'N/A';
+                html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
                             <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Destination</h4>
-                            <p class="text-sm mb-1 truncate" title="${dest.url}"><strong class="text-[10px] uppercase text-gray-400 mr-1">URL:</strong> <span class="font-mono">${dest.url || 'N/A'}</span></p>
+                            <p class="text-sm mb-1"><strong class="text-[10px] uppercase text-gray-400 mr-1">Type:</strong> <span class="font-mono">${destType}</span></p>
+                            <p class="text-sm mb-1 truncate" title="${destPath}"><strong class="text-[10px] uppercase text-gray-400 mr-1">Path:</strong> <span class="font-mono">${destPath}</span></p>
+                         </div>`;
+            } else {
+                html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Destination Database</h4>
+                            <p class="text-sm mb-1 truncate" title="${dest.url || ''}"><strong class="text-[10px] uppercase text-gray-400 mr-1">URL:</strong> <span class="font-mono">${dest.url || 'N/A'}</span></p>
                             <p class="text-sm mb-1"><strong class="text-[10px] uppercase text-gray-400 mr-1">Schema:</strong> <span class="font-mono">${dest.schema || 'N/A'}</span></p>
                          </div>`;
             }
             html += `</div></div>`;
 
-            const rules = job.configDetails.rules || {};
-            const targetTables = rules.targetTables || [];
-
-            html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Selected Tables</h3>`;
-            if (targetTables.length > 0) {
-                html += `<div class="flex flex-wrap gap-2">${targetTables.map(t => `<span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-mono border border-gray-200">${t}</span>`).join('')}</div>`;
+            if (isSecureImport) {
+                html += `<div class="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                            <h4 class="text-xs font-bold text-purple-900 uppercase mb-1 flex items-center"><i class="fas fa-shield-alt mr-1.5"></i> Secure Decryption & Database Restore</h4>
+                            <p class="text-xs text-purple-700">This job restores tables, views, sequences, constraints, and data from the encrypted secure export package into the target schema.</p>
+                         </div>`;
             } else {
-                html += `<p class="text-sm text-gray-400 italic">No tables selected.</p>`;
+                const rules = config.rules || {};
+                const targetTables = rules.targetTables || [];
+
+                html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Selected Tables</h3>`;
+                if (targetTables.length > 0) {
+                    html += `<div class="flex flex-wrap gap-2">${targetTables.map(t => `<span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-mono border border-gray-200">${t}</span>`).join('')}</div>`;
+                } else {
+                    html += `<p class="text-sm text-gray-400 italic">No tables selected.</p>`;
+                }
+                html += `</div>`;
+
+                html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Masking Rules Applied</h3>`;
+
+                const renderRules = (title, rulesList, colorClass) => {
+                    if (!rulesList || rulesList.length === 0) return '';
+                    return `<div class="mb-4">
+                                <h4 class="text-[10px] font-bold text-gray-500 uppercase mb-2">${title}</h4>
+                                <div class="flex flex-wrap gap-1.5">
+                                    ${rulesList.map(r => `<span class="text-[10px] font-bold px-2 py-1 rounded-md ${colorClass} shadow-sm">${r}</span>`).join('')}
+                                </div>
+                            </div>`;
+                };
+
+                const sfdHtml = renderRules('SFD (Standard Faker Data)', rules.maskingColumns, 'bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20');
+                const pmdHtml = renderRules('PMD (Partial Masking Data)', rules.partialMaskingColumns, 'bg-orange-100 text-orange-700 border border-orange-200');
+                const fphRules = rules.constraintColumns || rules.constraintFields || [];
+                const fphHtml = renderRules('FPH (Format Preserving Hashing)', fphRules, 'bg-purple-100 text-purple-700 border border-purple-200');
+
+                if (!sfdHtml && !pmdHtml && !fphHtml) {
+                    html += `<p class="text-sm text-gray-400 italic">No masking rules applied.</p>`;
+                } else {
+                    html += sfdHtml + pmdHtml + fphHtml;
+                }
+
+                if (rules.maskingKey) {
+                    html += `<div class="mt-3 pt-3 border-t border-gray-100">
+                                <h4 class="text-[10px] font-bold text-purple-800 uppercase mb-1 flex items-center"><i class="fas fa-lock mr-1"></i> Salt & File Encryption Key</h4>
+                                <span class="text-xs font-mono text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-1 rounded-md inline-block shadow-sm">AES-256 (.sql.enc) & FPH Active (${rules.maskingKey.length} chars)</span>
+                             </div>`;
+                }
+                html += `</div>`;
             }
-            html += `</div>`;
-
-            html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Masking Rules Applied</h3>`;
-
-            const renderRules = (title, rulesList, colorClass) => {
-                if (!rulesList || rulesList.length === 0) return '';
-                return `<div class="mb-4">
-                            <h4 class="text-[10px] font-bold text-gray-500 uppercase mb-2">${title}</h4>
-                            <div class="flex flex-wrap gap-1.5">
-                                ${rulesList.map(r => `<span class="text-[10px] font-bold px-2 py-1 rounded-md ${colorClass} shadow-sm">${r}</span>`).join('')}
-                            </div>
-                        </div>`;
-            };
-
-            const sfdHtml = renderRules('SFD (Standard Faker Data)', rules.maskingColumns, 'bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20');
-            const pmdHtml = renderRules('PMD (Partial Masking Data)', rules.partialMaskingColumns, 'bg-orange-100 text-orange-700 border border-orange-200');
-            const fphRules = rules.constraintColumns || [];
-            const fphHtml = renderRules('FPH (Format Preserving Hashing)', fphRules, 'bg-purple-100 text-purple-700 border border-purple-200');
-
-            if (!sfdHtml && !pmdHtml && !fphHtml) {
-                html += `<p class="text-sm text-gray-400 italic">No masking rules applied.</p>`;
-            } else {
-                html += sfdHtml + pmdHtml + fphHtml;
-            }
-            html += `</div>`;
 
             container.innerHTML = html;
 
@@ -354,8 +613,8 @@
             const comments = document.getElementById('approverComments').value;
             await fetch(`/api/jobs/${activeJobId}/approve`, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({comments})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ comments })
             });
             closeModal();
             fetchJobs();
@@ -369,8 +628,8 @@
             }
             await fetch(`/api/jobs/${activeJobId}/reject`, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({comments})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ comments })
             });
             closeModal();
             fetchJobs();
@@ -382,12 +641,18 @@
                 return;
             }
 
+            const normalizedJobType = (activeJobType || '').toLowerCase().replace(/[_\s]/g, '-');
+            if (normalizedJobType === 'secure-import' || normalizedJobType === 'secureimport') {
+                openSecretKeyModal();
+                return;
+            }
+
             let url = '';
-            if (activeJobType === 'postgres' || activeJobType === 'secure-export') {
+            if (normalizedJobType === 'postgres' || normalizedJobType === 'secure-export' || normalizedJobType === 'secureexport') {
                 url = `/api/migration/start/${activeJobId}`;
-            } else if (activeJobType === 'json') {
+            } else if (normalizedJobType === 'json') {
                 url = `/api/migration/json/start/${activeJobId}`;
-            } else if (activeJobType === 'mongo') {
+            } else if (normalizedJobType === 'mongo') {
                 url = `/api/migration/mongo/start/${activeJobId}`;
             }
 
@@ -399,7 +664,7 @@
             try {
                 const res = await fetch(url, { method: 'POST' });
                 if (res.ok) {
-                    if (activeJobType === 'postgres' || activeJobType === 'secure-export') {
+                    if (normalizedJobType === 'postgres' || normalizedJobType === 'secure-export' || normalizedJobType === 'secureexport') {
                         // This endpoint redirects, so we just follow it.
                         window.location.href = res.url;
                     } else {
@@ -416,7 +681,71 @@
                 alert(`An error occurred: ${e.message}`);
             }
         }
+
+        function openSecretKeyModal() {
+            document.getElementById('secretKeyInput').value = '';
+            document.getElementById('keyErrorBanner').classList.add('hidden');
+            document.getElementById('secretKeyModal').style.display = 'block';
+        }
+
+        function closeSecretKeyModal() {
+            document.getElementById('secretKeyModal').style.display = 'none';
+        }
+
+        function toggleSecretKeyVisibility() {
+            const input = document.getElementById('secretKeyInput');
+            const eye = document.getElementById('secretKeyEye');
+            if (input.type === 'password') {
+                input.type = 'text';
+                eye.classList.remove('fa-eye');
+                eye.classList.add('fa-eye-slash');
+            } else {
+                input.type = 'password';
+                eye.classList.remove('fa-eye-slash');
+                eye.classList.add('fa-eye');
+            }
+        }
+
+        async function executeSecureImport() {
+            const secretKey = document.getElementById('secretKeyInput').value;
+            const btn = document.getElementById('btnSubmitSecretKey');
+            const errBanner = document.getElementById('keyErrorBanner');
+            const errMsg = document.getElementById('keyErrorMessage');
+
+            errBanner.classList.add('hidden');
+            const origHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i> Validating & Starting...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`/api/migration/secure-import/start/${activeJobId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ secretKey: secretKey })
+                });
+
+                const data = await res.json();
+
+                if (res.ok && data.status === 'SUCCESS') {
+                    closeSecretKeyModal();
+                    closeModal();
+                    // Redirect to dashboard with executionId
+                    window.location.href = `/index.html?executionId=${data.executionId}`;
+                } else {
+                    // Invalid key or execution error
+                    errMsg.innerText = data.message || 'Invalid secret key. Decryption failed.';
+                    errBanner.classList.remove('hidden');
+                }
+            } catch (e) {
+                errMsg.innerText = 'Error starting migration: ' + e.message;
+                errBanner.classList.remove('hidden');
+            } finally {
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+            }
+        }
     </script>
 
 </body>
+
 </html>

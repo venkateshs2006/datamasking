@@ -121,8 +121,11 @@ public class DynamicDataSourceService {
                 .type(HikariDataSource.class)
                 .build();
 
-        newDataSource.setMaximumPoolSize(10);
-        newDataSource.setMinimumIdle(2);
+        newDataSource.setMaximumPoolSize(15);
+        newDataSource.setMinimumIdle(3);
+        newDataSource.setConnectionTimeout(20000);
+        newDataSource.addDataSourceProperty("reWriteBatchedInserts", "true");
+        newDataSource.addDataSourceProperty("defaultRowFetchSize", "2500");
 
         if ("source".equalsIgnoreCase(request.getType())) {
             sourceDataSource.setTargetDataSource(newDataSource);

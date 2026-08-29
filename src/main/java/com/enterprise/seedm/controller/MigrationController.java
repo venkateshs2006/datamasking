@@ -5,6 +5,7 @@ import com.enterprise.seedm.model.DbConnection;
 import com.enterprise.seedm.model.DbConnectionRequest;
 import com.enterprise.seedm.model.JsonMigrationConfig;
 import com.enterprise.seedm.model.SecureExportConfig;
+import com.enterprise.seedm.model.SecureImportConfig;
 import com.enterprise.seedm.service.*;
 import com.enterprise.seedm.model.JobRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +32,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -78,6 +80,9 @@ public class MigrationController {
     private SecureExportService secureExportService;
 
     @Autowired
+    private SecureImportService secureImportService;
+
+    @Autowired
     private JobApprovalService jobApprovalService;
 
     @Autowired
@@ -100,6 +105,7 @@ public class MigrationController {
     private static final AtomicLong jsonSequence = new AtomicLong(1);
     private static final AtomicLong mongoSequence = new AtomicLong(1);
     private static final AtomicLong secureExportSequence = new AtomicLong(1);
+    private static final AtomicLong secureImportSequence = new AtomicLong(1);
 
 
     /**
@@ -192,8 +198,58 @@ public class MigrationController {
 
             Map<String, Object> configDetailsMap = objectMapper.convertValue(jobRequest.getConfigDetails(), Map.class);
 
-            if (jobRequest.getJobType().equalsIgnoreCase("SECURE_EXPORT")) {
-                SecureExportConfig config = objectMapper.convertValue(jobRequest.getConfigDetails(), SecureExportConfig.class);
+            if (jobRequest.getJobType().equalsIgnoreCase("SECURE_EXPORT") || jobRequest.getJobType().equalsIgnoreCase("secure-export") || jobRequest.getJobType().equalsIgnoreCase("secure_export")) {
+                SecureExportConfig config = new SecureExportConfig();
+                config.setJobName(jobRequest.getMigrationName());
+
+                if (configDetailsMap.containsKey("source")) {
+                    Map<String, Object> sourceMap = (Map<String, Object>) configDetailsMap.get("source");
+                    if (sourceMap.containsKey("id") && sourceMap.get("id") != null) {
+                        DbConnection sourceConnection = dbConnectionService.getConnection(Long.valueOf(sourceMap.get("id").toString()));
+                        if (sourceConnection != null) {
+                            SecureExportConfig.SourceConfig srcConfig = new SecureExportConfig.SourceConfig();
+                            srcConfig.setUrl(sourceConnection.getUrl());
+                            srcConfig.setUsername(sourceConnection.getUsername());
+                            srcConfig.setPassword(sourceConnection.getPassword());
+                            if (sourceMap.containsKey("schema") && sourceMap.get("schema") != null) {
+                                srcConfig.setSchema(sourceMap.get("schema").toString());
+                            }
+                            config.setSource(srcConfig);
+                        }
+                    }
+                }
+
+                if (config.getSource() == null && configDetailsMap.containsKey("source")) {
+                    SecureExportConfig.SourceConfig srcConfig = objectMapper.convertValue(configDetailsMap.get("source"), SecureExportConfig.SourceConfig.class);
+                    config.setSource(srcConfig);
+                }
+
+                String destDir = null;
+                if (configDetailsMap.containsKey("storage")) {
+                    Map<String, Object> storageMap = (Map<String, Object>) configDetailsMap.get("storage");
+                    if (storageMap.get("path") != null) {
+                        destDir = storageMap.get("path").toString();
+                    }
+                }
+                if (destDir == null && configDetailsMap.containsKey("dest")) {
+                    Map<String, Object> destMap = (Map<String, Object>) configDetailsMap.get("dest");
+                    if (destMap.get("destDir") != null) {
+                        destDir = destMap.get("destDir").toString();
+                    } else if (destMap.get("dest_dir") != null) {
+                        destDir = destMap.get("dest_dir").toString();
+                    } else if (destMap.get("path") != null) {
+                        destDir = destMap.get("path").toString();
+                    }
+                }
+                SecureExportConfig.DestinationConfig destConfig = new SecureExportConfig.DestinationConfig();
+                destConfig.setDestDir(destDir != null && !destDir.trim().isEmpty() ? destDir : "secure-export");
+                config.setDest(destConfig);
+
+                if (configDetailsMap.containsKey("rules")) {
+                    SecureExportConfig.RulesConfig rulesConfig = objectMapper.convertValue(configDetailsMap.get("rules"), SecureExportConfig.RulesConfig.class);
+                    config.setRules(rulesConfig);
+                }
+
                 String executionId = "secure-export-" + secureExportSequence.getAndIncrement();
                 taskExecutor.execute(() -> {
                     try {
@@ -382,6 +438,49 @@ public class MigrationController {
         return ResponseEntity.ok(getJobStatus(executionId)); // Route to standard status since it's a Batch job now!
     }
 
+    @PostMapping("/secure-import/start/{id}")
+    public ResponseEntity<?> startSecureImportMigration(@PathVariable Long id, @RequestBody(required = false) Map<String, String> payload) {
+        try {
+            log.info("Starting Secure Import job manually with ID: {}", id);
+            JobRequest jobRequest = jobApprovalService.getJob(id);
+            if (jobRequest == null) {
+                return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "message", "Job not found"));
+            }
+
+            String secretKey = (payload != null) ? payload.get("secretKey") : null;
+
+            Map<String, Object> configDetailsMap = objectMapper.convertValue(jobRequest.getConfigDetails(), Map.class);
+            SecureImportConfig config = objectMapper.convertValue(configDetailsMap, SecureImportConfig.class);
+            if (config == null) {
+                config = new SecureImportConfig();
+            }
+            config.setJobName(jobRequest.getMigrationName());
+
+            // Validate secret key first - throws IllegalArgumentException on invalid key
+            secureImportService.validateSecretKey(config, secretKey);
+
+            String executionId = "secure-import-" + secureImportSequence.getAndIncrement();
+            final SecureImportConfig finalConfig = config;
+            taskExecutor.execute(() -> {
+                try {
+                    secureImportService.processSecureImport(executionId, finalConfig, secretKey);
+                } catch (Exception e) {
+                    log.error("Secure Import failed in background task", e);
+                }
+            });
+
+            log.info("Secure Import task launched with id: {}", executionId);
+            return ResponseEntity.ok(Map.of("status", "SUCCESS", "executionId", executionId, "message", "Secure Import started"));
+
+        } catch (IllegalArgumentException e) {
+            log.warn("Secure Import key validation failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to start Secure Import", e);
+            return ResponseEntity.internalServerError().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        }
+    }
+
     /**
      * Get a list of all recent job executions for the dropdown
      */
@@ -405,9 +504,10 @@ public class MigrationController {
                 }
             }
 
-            // Add JSON executions
+            // Add JSON, Secure Export, and Secure Import executions
             result.addAll(jsonMigrationService.getAllExecutions());
             result.addAll(secureExportService.getAllExecutions());
+            result.addAll(secureImportService.getAllExecutions());
 
 
             // Sort descending by ID (using string comparison for mixed types)
@@ -442,6 +542,8 @@ public class MigrationController {
             return jsonMigrationService.getProgress(executionId);
         } else if (executionId.startsWith("secure-export-")) {
             return secureExportService.getProgress(executionId);
+        } else if (executionId.startsWith("secure-import-")) {
+            return secureImportService.getProgress(executionId);
         }
 
 

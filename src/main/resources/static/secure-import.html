@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNP Paribas - SeEDM Secure Import</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
+
+        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
+        .bnp-logo { height: 48px; display: block; }
+        nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
+        nav ul li { margin-left: 25px; }
+        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
+        nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+
+        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; z-index: 20; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
+        .tagline { font-weight: 300; letter-spacing: 1px; }
+
+        .step-container { display: none !important; }
+        .step-container.active {
+            display: flex !important;
+            flex-direction: column;
+            animation: fadeIn 0.3s ease-out;
+            flex: 1;
+            min-height: 0;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Stepper Styles */
+        .stepper-item { flex: 1; text-align: center; position: relative; }
+        .stepper-item::after { content: ''; position: absolute; top: 16px; left: 50%; width: 100%; height: 2px; background-color: #e2e8f0; z-index: 1; transition: background-color 0.3s; }
+        .stepper-item:last-child::after { display: none; }
+        .stepper-item.completed::after { background-color: var(--bnp-emerald); }
+        .stepper-circle { width: 34px; height: 34px; border-radius: 50%; background-color: #fff; border: 2px solid #cbd5e1; color: #94a3b8; display: flex; align-items: center; justify-content: center; font-weight: 600; margin: 0 auto; position: relative; z-index: 2; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+
+        .stepper-item.active .stepper-circle { border-color: var(--bnp-emerald); color: var(--bnp-emerald); background-color: #fff; box-shadow: 0 0 0 4px rgba(0, 150, 94, 0.1); }
+        .stepper-item.completed .stepper-circle { background-color: var(--bnp-emerald); border-color: var(--bnp-emerald); color: white; }
+
+        .stepper-label { font-size: 0.7rem; font-weight: 600; color: #64748b; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em; transition: color 0.3s; }
+        .stepper-item.active .stepper-label { color: var(--bnp-dark-grey); font-weight: 700; }
+        .stepper-item.completed .stepper-label { color: var(--bnp-emerald); }
+
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #f1f5f9; }
+
+        .input-field { width: 100%; padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.875rem; transition: all 0.2s; background-color: #f8fafc; color: #334155; }
+        .input-field:focus { outline: none; border-color: var(--bnp-emerald); box-shadow: 0 0 0 3px rgba(0, 150, 94, 0.15); background-color: #fff; }
+        .input-field:disabled { background-color: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+
+        .btn { padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 600; font-size: 0.875rem; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+        .btn-primary { background-color: var(--bnp-emerald); color: white; border: 1px solid transparent; }
+        .btn-primary:hover:not(:disabled) { background-color: #007a4c; box-shadow: 0 4px 6px rgba(0, 150, 94, 0.2); transform: translateY(-1px); }
+        .btn-secondary { background-color: #fff; color: #475569; border: 1px solid #cbd5e1; }
+        .btn-secondary:hover:not(:disabled) { background-color: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
+        .btn-success { background-color: #10b981; color: white; border: 1px solid transparent; }
+        .btn-success:hover:not(:disabled) { background-color: #059669; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2); transform: translateY(-1px); }
+
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; backdrop-filter: blur(4px); }
+        .modal-content { background: white; margin: 10% auto; border-radius: 12px; width: 90%; max-width: 480px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="flex items-center">
+            <a href="/index.html" class="logo-link mr-6">
+                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+            </a>
+            <div class="hidden md:block border-l border-gray-300 pl-6">
+                <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
+                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Secure Data Import</p>
+            </div>
+        </div>
+        <nav>
+            <ul>
+                <li><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+                <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+                <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="flex-1 flex flex-col overflow-hidden bg-transparent">
+        <div class="w-full max-w-5xl mx-auto px-6 py-8 flex flex-col h-full">
+
+            <div class="mb-8 shrink-0 text-center">
+                <h2 class="text-3xl font-bold text-gray-900">Configure Secure Import</h2>
+                <p class="text-sm text-gray-500 mt-2">Restore and import encrypted secure export files into target database schemas.</p>
+            </div>
+
+            <!-- Stepper -->
+            <div class="flex items-start mb-8 px-4 w-[70%] mx-auto shrink-0">
+                <div class="stepper-item active" id="step1-indicator"><div class="stepper-circle"><i class="fas fa-archive text-sm"></i></div><div class="stepper-label">Source File</div></div>
+                <div class="stepper-item" id="step2-indicator"><div class="stepper-circle"><i class="fas fa-database text-sm"></i></div><div class="stepper-label">Target Database</div></div>
+                <div class="stepper-item" id="step3-indicator"><div class="stepper-circle"><i class="fas fa-flag-checkered text-sm"></i></div><div class="stepper-label">Review</div></div>
+            </div>
+
+            <!-- Main Card -->
+            <div class="card flex-1 flex flex-col overflow-hidden relative shadow-md bg-white rounded-xl">
+
+                <!-- STEP 1: SOURCE STORAGE & FILE -->
+                <div id="step1" class="step-container active p-8">
+                    <div class="max-w-2xl mx-auto w-full space-y-6">
+                        <div class="flex items-center pb-4 border-b border-gray-100">
+                            <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 mr-4 border border-emerald-100">
+                                <i class="fas fa-archive text-lg"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Source Location</h3>
+                                <p class="text-xs text-gray-500">Select where the encrypted export file is located</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2 block">Storage Type</label>
+                            <div class="flex gap-6">
+                                <label class="flex items-center text-sm font-semibold cursor-pointer">
+                                    <input type="radio" name="storageType" value="local" class="mr-2 text-bnp-emerald" checked onchange="toggleStorageType()">
+                                    <i class="fas fa-folder text-amber-500 mr-1.5"></i> Local Storage / Folder
+                                </label>
+                                <label class="flex items-center text-sm font-semibold cursor-pointer">
+                                    <input type="radio" name="storageType" value="cos" class="mr-2 text-bnp-emerald" onchange="toggleStorageType()">
+                                    <i class="fas fa-cloud text-blue-500 mr-1.5"></i> IBM Cloud Object Storage (COS)
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Local storage options -->
+                        <div id="local-storage-container" class="space-y-4">
+                            <div>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Folder Path</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="localPath" class="input-field font-mono text-sm" placeholder="e.g., secure-export or /path/to/backup" value="secure-export" oninput="validateStep1()">
+                                    <button type="button" onclick="scanSourceFiles()" class="btn btn-secondary text-xs px-4 whitespace-nowrap">
+                                        <i class="fas fa-search mr-1.5"></i> Scan Files
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- COS options -->
+                        <div id="cos-storage-container" class="space-y-4" style="display: none;">
+                            <div>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">COS Connection</label>
+                                <div class="flex gap-2">
+                                    <select id="cosConnectionId" class="input-field cursor-pointer bg-white" onchange="validateStep1()">
+                                        <option value="">Loading COS connections...</option>
+                                    </select>
+                                    <button type="button" onclick="scanSourceFiles()" class="btn btn-secondary text-xs px-4 whitespace-nowrap">
+                                        <i class="fas fa-search mr-1.5"></i> Scan Bucket
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scanned Files List -->
+                        <div class="pt-2">
+                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2 block flex justify-between items-center">
+                                Available Export Files
+                                <span id="fileCountBadge" class="text-[10px] font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">0 files</span>
+                            </label>
+                            <div id="filesListContainer" class="border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2 bg-gray-50/50">
+                                <div class="text-xs text-gray-400 text-center py-4 italic">Click "Scan Files" to discover export packages.</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- STEP 2: TARGET DATABASE & SCHEMA -->
+                <div id="step2" class="step-container p-8">
+                    <div class="max-w-2xl mx-auto w-full space-y-6">
+                        <div class="flex items-center pb-4 border-b border-gray-100">
+                            <div class="w-10 h-10 rounded-lg bg-bnp-emerald/10 flex items-center justify-center text-bnp-emerald mr-4 border border-bnp-emerald/20">
+                                <i class="fas fa-database text-lg"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Target Database</h3>
+                                <p class="text-xs text-gray-500">Choose the destination database and schema where data will be restored</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Target Database Connection</label>
+                            <select id="destId" class="input-field cursor-pointer bg-white" required onchange="onDestDbChanged()">
+                                <option value="">Loading databases...</option>
+                            </select>
+                        </div>
+
+                        <div class="pt-2">
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide block">Target Schema</label>
+                                <div class="space-x-3">
+                                    <button type="button" id="btnFetchSchemas" onclick="fetchSchemas()" class="text-xs text-bnp-emerald hover:underline font-bold disabled:opacity-50" disabled>
+                                        <i class="fas fa-sync-alt mr-1"></i> Refresh
+                                    </button>
+                                    <button type="button" id="btnCreateSchema" onclick="openCreateSchemaModal()" class="text-xs text-blue-600 hover:underline font-bold disabled:opacity-50" disabled>
+                                        <i class="fas fa-plus-circle mr-1"></i> Create Schema
+                                    </button>
+                                </div>
+                            </div>
+                            <select id="destSchema" class="input-field cursor-pointer bg-white" required disabled onchange="validateStep2()">
+                                <option value="">Select connection first...</option>
+                            </select>
+                            <p class="text-[10px] text-gray-400 mt-1">If the schema does not exist, you can create it directly using the "Create Schema" button above.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 3: REVIEW & SUBMIT -->
+                <div id="step3" class="step-container p-8 overflow-y-auto">
+                    <div class="max-w-2xl mx-auto w-full space-y-6">
+                        <div class="text-center mb-6 shrink-0">
+                            <div class="w-14 h-14 bg-bnp-emerald/10 text-bnp-emerald rounded-full flex items-center justify-center text-2xl mx-auto mb-3 shadow-sm ring-4 ring-bnp-emerald/5">
+                                <i class="fas fa-check"></i>
+                            </div>
+                            <h3 class="text-2xl font-bold text-gray-900">Ready to Submit</h3>
+                            <p class="text-sm text-gray-500 mt-1">Review the details and submit for approval.</p>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Import Job Name</label>
+                                <input type="text" id="migrationName" class="input-field" placeholder="e.g. Q3 Finance Import" required oninput="validateStep3()">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department</label>
+                                <select id="department" class="input-field cursor-pointer bg-white" required onchange="validateStep3()">
+                                    <option value="">Loading departments...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Source File</span>
+                                <div class="font-mono text-xs font-bold text-gray-800 break-all" id="reviewSourceFile">-</div>
+                                <div class="text-[11px] text-gray-500 mt-1" id="reviewStorageType">-</div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Destination Database</span>
+                                <div class="font-mono text-xs font-bold text-gray-800 break-all" id="reviewDestDb">-</div>
+                                <div class="text-[11px] text-bnp-emerald font-semibold mt-1" id="reviewDestSchema">-</div>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-start">
+                            <i class="fas fa-lock text-amber-600 text-base mr-3 mt-0.5"></i>
+                            <div>
+                                <strong>Decryption Key Prompt on Execution:</strong>
+                                <p class="mt-0.5 text-amber-700">Once this job is approved by the designated reviewer, you will be prompted to enter the secret key to decrypt and migrate data directly to the database.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Footer -->
+                <div class="mt-auto border-t border-gray-200 px-8 py-4 bg-gray-50 flex justify-between items-center shrink-0 rounded-b-xl z-10 relative">
+                    <button id="btnPrev" onclick="prevStep()" class="btn btn-secondary text-sm font-bold tracking-wide"><i class="fas fa-chevron-left mr-2 text-xs"></i> BACK</button>
+                    <div class="flex-1"></div>
+                    <button id="btnNext" onclick="nextStep()" class="btn btn-primary px-8 text-sm font-bold tracking-wide shadow-md hover:shadow-lg">CONTINUE <i class="fas fa-chevron-right ml-2 text-xs"></i></button>
+                    <button id="btnStart" onclick="submitWorkflow()" class="btn btn-success px-10 py-3 text-base font-bold tracking-wide shadow-lg hover:shadow-xl hidden animate-pulse bg-bnp-emerald hover:bg-[#007a4c]">
+                        SUBMIT FOR APPROVAL <i class="fas fa-paper-plane ml-2"></i>
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Create Schema Modal -->
+    <div id="createSchemaModal" class="modal">
+        <div class="modal-content p-6">
+            <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-100">
+                <h3 class="text-base font-bold text-gray-800"><i class="fas fa-plus-circle text-bnp-emerald mr-2"></i> Create New Schema</h3>
+                <button onclick="closeCreateSchemaModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Schema Name</label>
+                    <input type="text" id="newSchemaInput" class="input-field font-mono" placeholder="e.g. customer_masked">
+                </div>
+                <div class="flex justify-end space-x-3 pt-2">
+                    <button type="button" onclick="closeCreateSchemaModal()" class="btn btn-secondary text-xs">Cancel</button>
+                    <button type="button" id="btnSubmitCreateSchema" onclick="executeCreateSchema()" class="btn btn-primary text-xs">Create Schema</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="footer-content">
+            <p>© BNP Paribas - 2026</p>
+            <p class="tagline">The bank for a changing world</p>
+        </div>
+    </footer>
+
+    <script>
+        let currentStep = 1;
+        const totalSteps = 3;
+        let userDepartments = [];
+        let discoveredFiles = [];
+        let selectedFileName = '';
+
+        fetch('/api/auth/check').then(r => r.json()).then(data => {
+            if (!data.authenticated) {
+                window.location.href = '/login.html';
+            } else if (data.role === 'APPROVER') {
+                window.location.href = '/jobs.html';
+            } else {
+                userDepartments = data.departments || [];
+                const deptSelect = document.getElementById('department');
+                deptSelect.innerHTML = '<option value="">Select a department...</option>';
+                userDepartments.forEach(d => deptSelect.add(new Option(d.name, d.name)));
+
+                initStep1();
+                fetchDestConnections();
+            }
+        });
+
+        async function logout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/login.html';
+        }
+
+        async function initStep1() {
+            // Load COS connections for dropdown
+            const resCos = await fetch('/api/cos-connections');
+            if (resCos.ok) {
+                const cosConns = await resCos.json();
+                const cosSelect = document.getElementById('cosConnectionId');
+                cosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
+                cosConns.forEach(c => cosSelect.add(new Option(c.connectionName + ' (' + (c.bucketName || 'Bucket') + ')', c.id)));
+            }
+            // Auto scan default local path
+            scanSourceFiles();
+        }
+
+        function toggleStorageType() {
+            const type = document.querySelector('input[name="storageType"]:checked').value;
+            document.getElementById('local-storage-container').style.display = (type === 'local') ? 'block' : 'none';
+            document.getElementById('cos-storage-container').style.display = (type === 'cos') ? 'block' : 'none';
+            scanSourceFiles();
+        }
+
+        async function scanSourceFiles() {
+            const type = document.querySelector('input[name="storageType"]:checked').value;
+            const container = document.getElementById('filesListContainer');
+            const countBadge = document.getElementById('fileCountBadge');
+
+            container.innerHTML = '<div class="text-xs text-gray-500 text-center py-4"><i class="fas fa-spinner fa-spin mr-1"></i> Scanning files...</div>';
+
+            const payload = { type: type };
+            if (type === 'local') {
+                payload.path = document.getElementById('localPath').value.trim() || 'secure-export';
+            } else {
+                payload.cosId = document.getElementById('cosConnectionId').value;
+            }
+
+            try {
+                const res = await fetch('/api/secure-import/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                discoveredFiles = data.files || [];
+                countBadge.innerText = `${discoveredFiles.length} file(s)`;
+
+                if (discoveredFiles.length === 0) {
+                    container.innerHTML = `<div class="text-xs text-amber-600 text-center py-4"><i class="fas fa-exclamation-circle mr-1"></i> No export SQL or encrypted .sql.enc files found in this location.</div>`;
+                    selectedFileName = '';
+                } else {
+                    container.innerHTML = '';
+                    discoveredFiles.forEach((file, idx) => {
+                        const isSelected = idx === 0 || file.name === selectedFileName;
+                        if (isSelected && !selectedFileName) selectedFileName = file.name;
+
+                        const sizeKb = (file.sizeBytes / 1024).toFixed(1);
+                        const isEnc = file.encrypted || file.name.endsWith('.enc');
+
+                        const div = document.createElement('label');
+                        div.className = 'flex items-center justify-between p-2.5 bg-white rounded-lg border border-gray-200 hover:border-bnp-emerald cursor-pointer transition shadow-sm';
+                        div.innerHTML = `
+                            <div class="flex items-center space-x-3">
+                                <input type="radio" name="selectedFileRadio" value="${file.name}" ${isSelected ? 'checked' : ''} onchange="onFileSelected('${file.name}')" class="text-bnp-emerald">
+                                <div>
+                                    <div class="text-xs font-mono font-bold text-gray-800 flex items-center gap-1.5">
+                                        <i class="fas fa-file-code text-gray-400"></i> ${file.name}
+                                    </div>
+                                    <div class="text-[10px] text-gray-400">${sizeKb} KB</div>
+                                </div>
+                            </div>
+                            <div>
+                                ${isEnc ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-700 border border-purple-200"><i class="fas fa-lock mr-1"></i>AES-256</span>' : '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">Plain SQL</span>'}
+                            </div>
+                        `;
+                        container.appendChild(div);
+                    });
+                }
+            } catch (e) {
+                container.innerHTML = `<div class="text-xs text-red-500 text-center py-4">Error scanning location: ${e.message}</div>`;
+                discoveredFiles = [];
+            }
+            validateStep1();
+        }
+
+        function onFileSelected(name) {
+            selectedFileName = name;
+            validateStep1();
+        }
+
+        async function fetchDestConnections() {
+            const res = await fetch('/api/connections?envType=destination');
+            if (res.ok) {
+                const conns = await res.json();
+                const select = document.getElementById('destId');
+                select.innerHTML = '<option value="">Select a destination database...</option>';
+                conns.forEach(c => select.add(new Option(c.name + ' (' + c.url + ')', c.id)));
+            }
+        }
+
+        async function onDestDbChanged() {
+            const destId = document.getElementById('destId').value;
+            const btnFetch = document.getElementById('btnFetchSchemas');
+            const btnCreate = document.getElementById('btnCreateSchema');
+            const schemaSelect = document.getElementById('destSchema');
+
+            if (destId) {
+                btnFetch.disabled = false;
+                btnCreate.disabled = false;
+                schemaSelect.disabled = false;
+                await fetchSchemas();
+            } else {
+                btnFetch.disabled = true;
+                btnCreate.disabled = true;
+                schemaSelect.disabled = true;
+                schemaSelect.innerHTML = '<option value="">Select connection first...</option>';
+            }
+            validateStep2();
+        }
+
+        async function fetchSchemas() {
+            const destId = document.getElementById('destId').value;
+            if (!destId) return;
+
+            const schemaSelect = document.getElementById('destSchema');
+            schemaSelect.innerHTML = '<option value="">Loading schemas...</option>';
+
+            try {
+                const res = await fetch(`/api/connections/${destId}/schemas`);
+                if (res.ok) {
+                    const schemas = await res.json();
+                    schemaSelect.innerHTML = '<option value="">Select a target schema...</option>';
+                    schemas.forEach(s => schemaSelect.add(new Option(s, s)));
+                    if (schemas.includes('public')) schemaSelect.value = 'public';
+                } else {
+                    schemaSelect.innerHTML = '<option value="public">public</option>';
+                }
+            } catch (e) {
+                schemaSelect.innerHTML = '<option value="public">public</option>';
+            }
+            validateStep2();
+        }
+
+        function openCreateSchemaModal() {
+            document.getElementById('newSchemaInput').value = '';
+            document.getElementById('createSchemaModal').style.display = 'block';
+        }
+
+        function closeCreateSchemaModal() {
+            document.getElementById('createSchemaModal').style.display = 'none';
+        }
+
+        async function executeCreateSchema() {
+            const destId = document.getElementById('destId').value;
+            const newSchema = document.getElementById('newSchemaInput').value.trim();
+            if (!newSchema) {
+                alert("Please enter a valid schema name.");
+                return;
+            }
+
+            const btn = document.getElementById('btnSubmitCreateSchema');
+            const origHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Creating...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/connections/create-schema', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: destId, type: 'destination', schema: newSchema })
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'SUCCESS') {
+                    alert(data.message || "Schema created successfully!");
+                    closeCreateSchemaModal();
+                    await fetchSchemas();
+                    document.getElementById('destSchema').value = newSchema;
+                    validateStep2();
+                } else {
+                    alert("Failed to create schema: " + (data.message || "Unknown error"));
+                }
+            } catch (e) {
+                alert("Error creating schema: " + e.message);
+            } finally {
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+            }
+        }
+
+        function validateStep1() {
+            const btnNext = document.getElementById('btnNext');
+            const hasFile = selectedFileName || (discoveredFiles && discoveredFiles.length > 0);
+            btnNext.disabled = !hasFile;
+        }
+
+        function validateStep2() {
+            const destId = document.getElementById('destId').value;
+            const destSchema = document.getElementById('destSchema').value;
+            const btnNext = document.getElementById('btnNext');
+            btnNext.disabled = !(destId && destSchema);
+        }
+
+        function validateStep3() {
+            const mName = document.getElementById('migrationName').value.trim();
+            const dept = document.getElementById('department').value;
+            const btnStart = document.getElementById('btnStart');
+            btnStart.disabled = !(mName && dept);
+        }
+
+        function updateUI() {
+            for (let i = 1; i <= totalSteps; i++) {
+                const stepEl = document.getElementById(`step${i}`);
+                const indicator = document.getElementById(`step${i}-indicator`);
+                if (stepEl) stepEl.classList.remove('active');
+                if (indicator) {
+                    indicator.classList.remove('active', 'completed');
+                    if (i < currentStep) indicator.classList.add('completed');
+                    else if (i === currentStep) indicator.classList.add('active');
+                }
+            }
+
+            const currentStepEl = document.getElementById(`step${currentStep}`);
+            if (currentStepEl) currentStepEl.classList.add('active');
+
+            const btnPrev = document.getElementById('btnPrev');
+            const btnNext = document.getElementById('btnNext');
+            const btnStart = document.getElementById('btnStart');
+
+            btnPrev.style.visibility = (currentStep === 1) ? 'hidden' : 'visible';
+
+            if (currentStep === totalSteps) {
+                btnNext.classList.add('hidden');
+                btnStart.classList.remove('hidden');
+                populateReview();
+                validateStep3();
+            } else {
+                btnNext.classList.remove('hidden');
+                btnStart.classList.add('hidden');
+                if (currentStep === 1) validateStep1();
+                else if (currentStep === 2) validateStep2();
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateUI();
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                updateUI();
+            }
+        }
+
+        function populateReview() {
+            const type = document.querySelector('input[name="storageType"]:checked').value;
+            const destSelect = document.getElementById('destId');
+            const destText = destSelect.options[destSelect.selectedIndex]?.text || '-';
+            const schema = document.getElementById('destSchema').value || 'public';
+
+            document.getElementById('reviewSourceFile').innerText = selectedFileName || 'secure-export.sql.enc';
+            document.getElementById('reviewStorageType').innerText = (type === 'cos') ? 'IBM Cloud Object Storage' : 'Local Storage Directory';
+            document.getElementById('reviewDestDb').innerText = destText;
+            document.getElementById('reviewDestSchema').innerText = 'Schema: ' + schema;
+        }
+
+        async function submitWorkflow() {
+            const btn = document.getElementById('btnStart');
+            const migrationName = document.getElementById('migrationName').value.trim();
+            const department = document.getElementById('department').value;
+            const type = document.querySelector('input[name="storageType"]:checked').value;
+            const destSelect = document.getElementById('destId');
+            const destId = destSelect.value;
+            const schema = document.getElementById('destSchema').value;
+
+            if (!migrationName) {
+                alert("Please enter an Import Name");
+                return;
+            }
+            if (!department) {
+                alert("Please select a Department");
+                return;
+            }
+
+            const origHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Submitting...';
+            btn.disabled = true;
+
+            const storageConfig = {
+                type: type,
+                fileName: selectedFileName
+            };
+
+            if (type === 'local') {
+                storageConfig.path = document.getElementById('localPath').value.trim() || 'secure-export';
+            } else {
+                storageConfig.id = document.getElementById('cosConnectionId').value;
+            }
+
+            const payload = {
+                migrationName: migrationName,
+                department: department,
+                jobType: 'SECURE_IMPORT',
+                configDetails: {
+                    storage: storageConfig,
+                    dest: {
+                        id: destId,
+                        url: destSelect.options[destSelect.selectedIndex]?.text,
+                        schema: schema
+                    }
+                }
+            };
+
+            try {
+                const res = await fetch('/api/jobs/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    alert('Secure Import job submitted for approval successfully!');
+                    window.location.href = '/jobs.html';
+                } else {
+                    const err = await res.json();
+                    throw new Error(err.message || 'Failed to submit job.');
+                }
+            } catch (e) {
+                alert('Submission failed: ' + e.message);
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+            }
+        }
+
+        updateUI();
+    </script>
+</body>
+</html>

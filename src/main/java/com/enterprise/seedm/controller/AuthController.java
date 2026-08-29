@@ -1,8 +1,11 @@
 package com.enterprise.seedm.controller;
 
 import com.enterprise.seedm.model.AppUser;
+import com.enterprise.seedm.model.Department;
 import com.enterprise.seedm.model.LoginRequest;
+import com.enterprise.seedm.repository.UserRepository;
 import com.enterprise.seedm.service.AuthService;
+import com.enterprise.seedm.service.DepartmentService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -19,6 +23,8 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final DepartmentService departmentService;
+    private final UserRepository userRepository;
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest, HttpServletRequest request) {
@@ -30,18 +36,25 @@ public class AuthController {
         if (user != null) {
             HttpSession session = request.getSession(true);
             
-            // Just picking the first role/department for session context if they have multiple, 
-            // or we could store the full lists in session.
-            // For existing UI which expects a single role/department string, we'll store the primary one
-            // but also provide the lists if needed.
-            String primaryRole = user.getRole()==null ? "VIEWER" : user.getRole().getName();
-            String primaryDepartment = user.getDepartments().isEmpty() ? "NONE" : user.getDepartments().iterator().next().getName();
+            String primaryRole = user.getRole() == null ? "VIEWER" : user.getRole().getName();
+            boolean isAdmin = "ADMIN".equalsIgnoreCase(primaryRole);
+
+            List<Department> accessibleDepartments;
+            String primaryDepartment;
+
+            if (isAdmin) {
+                accessibleDepartments = departmentService.getAllDepartments();
+                primaryDepartment = "ALL";
+            } else {
+                accessibleDepartments = new ArrayList<>(user.getDepartments());
+                primaryDepartment = accessibleDepartments.isEmpty() ? "NONE" : accessibleDepartments.get(0).getName();
+            }
             
             session.setAttribute("user", user.getUsername());
-            session.setAttribute("role", primaryRole);
+            session.setAttribute("role", primaryRole.toUpperCase());
             session.setAttribute("roles", user.getRole());
             session.setAttribute("department", primaryDepartment);
-            session.setAttribute("departments", new ArrayList<>(user.getDepartments()));
+            session.setAttribute("departments", accessibleDepartments);
             
             return ResponseEntity.ok(Map.of(
                     "status", "SUCCESS", 
@@ -49,7 +62,7 @@ public class AuthController {
                     "role", primaryRole.toUpperCase(),
                     "department", primaryDepartment,
                     "roles", user.getRole(),
-                    "departments", user.getDepartments()
+                    "departments", accessibleDepartments
             ));
         }
 
@@ -69,13 +82,38 @@ public class AuthController {
     public ResponseEntity<?> checkAuth(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         if (session != null && session.getAttribute("user") != null) {
+            String username = (String) session.getAttribute("user");
+            String role = (String) session.getAttribute("role");
+            boolean isAdmin = role != null && "ADMIN".equalsIgnoreCase(role);
+
+            List<Department> accessibleDepartments;
+            String primaryDepartment;
+
+            if (isAdmin) {
+                accessibleDepartments = departmentService.getAllDepartments();
+                primaryDepartment = "ALL";
+                session.setAttribute("departments", accessibleDepartments);
+                session.setAttribute("department", primaryDepartment);
+            } else {
+                AppUser user = userRepository.findByUsername(username);
+                if (user != null) {
+                    accessibleDepartments = new ArrayList<>(user.getDepartments());
+                    primaryDepartment = accessibleDepartments.isEmpty() ? "NONE" : accessibleDepartments.get(0).getName();
+                    session.setAttribute("departments", accessibleDepartments);
+                    session.setAttribute("department", primaryDepartment);
+                } else {
+                    accessibleDepartments = (List<Department>) session.getAttribute("departments");
+                    primaryDepartment = (String) session.getAttribute("department");
+                }
+            }
+
             return ResponseEntity.ok(Map.of(
                     "authenticated", true, 
-                    "user", session.getAttribute("user"), 
-                    "role", session.getAttribute("role"),
+                    "user", username, 
+                    "role", role != null ? role.toUpperCase() : "VIEWER",
                     "roles", session.getAttribute("roles") != null ? session.getAttribute("roles") : new ArrayList<>(),
-                    "department", session.getAttribute("department"),
-                    "departments", session.getAttribute("departments") != null ? session.getAttribute("departments") : new ArrayList<>()
+                    "department", primaryDepartment != null ? primaryDepartment : "NONE",
+                    "departments", accessibleDepartments != null ? accessibleDepartments : new ArrayList<>()
             ));
         }
         return ResponseEntity.ok(Map.of("authenticated", false));

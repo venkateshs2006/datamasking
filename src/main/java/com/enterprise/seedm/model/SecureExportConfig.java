@@ -16,6 +16,7 @@ public class SecureExportConfig {
         private String url;
         private String username;
         private String password;
+        private String schema;
         private String driverClassName;
     }
 
@@ -29,6 +30,8 @@ public class SecureExportConfig {
         private List<String> maskingColumns;
         private List<String> partialMaskingColumns;
         private List<String> constraintFields;
+        private List<String> constraintColumns;
         private List<String> targetTables;
+        private String maskingKey;
     }
 }

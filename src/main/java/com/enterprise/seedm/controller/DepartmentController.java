@@ -34,14 +34,14 @@ public class DepartmentController {
         }
         String user = (String) session.getAttribute("user");
         String role =(String) session.getAttribute("role");
-        if (user != null && role.equalsIgnoreCase("Admin")) {
+        if (user != null && role != null && role.equalsIgnoreCase("Admin")) {
             return ResponseEntity.ok(departmentService.getAllDepartments());
         } else if (user != null) {
             AppUser appUser = userRepository.findByUsername(user);
-            if (appUser != null) {
+            if (appUser != null && appUser.getDepartments() != null) {
                 return ResponseEntity.ok(appUser.getDepartments().stream().collect(Collectors.toList()));
             } else {
-                return null;
+                return ResponseEntity.ok(List.of());
             }
         }
 

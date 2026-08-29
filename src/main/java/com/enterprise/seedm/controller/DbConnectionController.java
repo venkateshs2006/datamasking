@@ -46,50 +46,64 @@ public class DbConnectionController {
             @RequestParam(required = false) String dbType,
             @RequestParam(required = false) String envType,
             HttpServletRequest request) {
-        
+
         try {
             HttpSession session = request.getSession(false);
-            
+            if (session == null || session.getAttribute("user") == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            String role = (String) session.getAttribute("role");
+            boolean isAdmin = role != null && "ADMIN".equalsIgnoreCase(role);
+
             List<String> allowedDepartments = new ArrayList<>();
-            
-            if (department != null && !department.isEmpty()) {
-                if (session == null || !"ADMIN".equals(session.getAttribute("role"))) {
-                    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Only Admins can filter by department explicitly"));
+
+            if (isAdmin) {
+                if (department != null && !department.trim().isEmpty() && !"ALL".equalsIgnoreCase(department.trim())) {
+                    allowedDepartments.add(department.trim());
+                } else {
+                    allowedDepartments.add("ALL");
                 }
-                allowedDepartments.add(department);
             } else {
-                if (session == null) {
-                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-                }
-                
+                List<String> userDepts = new ArrayList<>();
                 Object deptsObj = session.getAttribute("departments");
                 if (deptsObj instanceof List) {
-                    List<?> deptsList = (List<?>) deptsObj;
-                    if (!deptsList.isEmpty() && deptsList.get(0) instanceof Department) {
-                        allowedDepartments.addAll(deptsList.stream().map(d -> ((Department) d).getName()).collect(Collectors.toList()));
-                    } else if (!deptsList.isEmpty() && deptsList.get(0) instanceof String) {
-                        allowedDepartments.addAll((List<String>) deptsList);
+                    for (Object d : (List<?>) deptsObj) {
+                        if (d instanceof Department) {
+                            userDepts.add(((Department) d).getName());
+                        } else if (d instanceof String) {
+                            userDepts.add((String) d);
+                        }
                     }
                 }
-                
-                if (allowedDepartments.isEmpty() && session.getAttribute("department") != null) {
-                    allowedDepartments.add((String) session.getAttribute("department"));
+                if (userDepts.isEmpty() && session.getAttribute("department") != null) {
+                    userDepts.add((String) session.getAttribute("department"));
                 }
-                
-                if (allowedDepartments.isEmpty()) {
-                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+
+                if (department != null && !department.trim().isEmpty() && !"ALL".equalsIgnoreCase(department.trim())) {
+                    if (!userDepts.contains(department.trim())) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body(Map.of("message", "You do not have access to department: " + department));
+                    }
+                    allowedDepartments.add(department.trim());
+                } else {
+                    if (userDepts.isEmpty()) {
+                        return ResponseEntity.ok(List.of());
+                    }
+                    allowedDepartments.addAll(userDepts);
                 }
             }
 
             List<DbConnection> connections = connectionService.getConnectionsByFilters(allowedDepartments, dbType, envType);
-            
+
             // Scrub passwords before sending to frontend
             connections.forEach(c -> c.setPassword("********"));
-            
+
             return ResponseEntity.ok(connections);
         } catch (Exception e) {
             log.error("Failed to fetch DB connections", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Internal error fetching connections: " + e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Internal error fetching connections: " + e.getMessage()));
         }
     }
 
@@ -101,24 +115,28 @@ public class DbConnectionController {
         }
 
         String role = (String) session.getAttribute("role");
-        if ("ADMIN".equals(role)) {
+        System.out.println("Role  :" + role + " Condition  :" + "ADMIN".equalsIgnoreCase(role));
+        if ("ADMIN".equalsIgnoreCase(role)) {
             DbConnection saved = connectionService.saveConnection(connection);
             return ResponseEntity.ok(saved);
         }
 
-        if ("MANAGER".equals(role)) {
+        if ("MANAGER".equalsIgnoreCase(role)) {
             List<Department> departments = (List<Department>) session.getAttribute("departments");
-            if (departments != null && departments.stream().anyMatch(d -> d.getName().equals(connection.getDepartment()))) {
+            if (departments != null
+                    && departments.stream().anyMatch(d -> d.getName().equalsIgnoreCase(connection.getDepartment()))) {
                 DbConnection saved = connectionService.saveConnection(connection);
                 return ResponseEntity.ok(saved);
             } else {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "You are not authorized to add a connection for this department."));
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("message", "You are not authorized to add a connection for this department."));
             }
         }
 
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "You are not authorized to perform this action."));
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("message", "You are not authorized to perform this action."));
     }
-    
+
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteConnection(@PathVariable Long id, HttpServletRequest request) {
         HttpSession session = request.getSession(false);
@@ -127,24 +145,28 @@ public class DbConnectionController {
         }
 
         String role = (String) session.getAttribute("role");
-        if ("ADMIN".equals(role)) {
+        if ("ADMIN".equalsIgnoreCase(role)) {
             connectionService.deleteConnection(id);
             return ResponseEntity.ok(Map.of("status", "SUCCESS"));
         }
 
-        if ("MANAGER".equals(role)) {
+        if ("MANAGER".equalsIgnoreCase(role)) {
             DbConnection connection = connectionService.getConnection(id);
             if (connection != null) {
                 List<Department> departments = (List<Department>) session.getAttribute("departments");
-                if (departments != null && departments.stream().anyMatch(d -> d.getName().equals(connection.getDepartment()))) {
+                if (departments != null
+                        && departments.stream()
+                                .anyMatch(d -> d.getName().equalsIgnoreCase(connection.getDepartment()))) {
                     connectionService.deleteConnection(id);
                     return ResponseEntity.ok(Map.of("status", "SUCCESS"));
                 }
             }
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "You are not authorized to delete this connection."));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("message", "You are not authorized to delete this connection."));
         }
 
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "You are not authorized to perform this action."));
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("message", "You are not authorized to perform this action."));
     }
 
     @PostMapping("/schemas")
@@ -168,7 +190,8 @@ public class DbConnectionController {
         try {
             resolveConnection(request);
             dynamicDataSourceService.createSchema(request);
-            return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "Schema '" + request.getSchema() + "' created successfully."));
+            return ResponseEntity.ok(Map.of("status", "SUCCESS", "message",
+                    "Schema '" + request.getSchema() + "' created successfully."));
         } catch (Exception e) {
             log.error("Failed to create schema", e);
             return ResponseEntity.internalServerError().body(Map.of("status", "ERROR", "message", e.getMessage()));

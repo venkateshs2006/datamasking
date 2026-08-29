@@ -14,6 +14,7 @@ import java.util.UUID;
  * Format Preserving Encryption Service
  * Encrypts data while preserving its format (length and character set)
  * Ensures referential integrity across tables
+ * Optimized with ThreadLocal digest caching and high-throughput bit operations.
  */
 @Service
 @Slf4j
@@ -21,6 +22,16 @@ import java.util.UUID;
 public class FormatPreservingEncryptionService {
 
     private final MaskingConfigService maskingConfigService;
+
+    private static final ThreadLocal<MessageDigest> SHA256_HOLDER = ThreadLocal.withInitial(() -> {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 algorithm not available", e);
+        }
+    });
+
+    private static final char[] HEX_CHARS = "0123456789abcdef".toCharArray();
 
     private String getSalt() {
         return maskingConfigService.getConfig().getMaskingKey();
@@ -30,56 +41,59 @@ public class FormatPreservingEncryptionService {
      * Encrypts a value based on its data type while preserving format and referential integrity.
      */
     public Object encrypt(Object value, String dataType) {
+        return encrypt(value, dataType, null);
+    }
+
+    /**
+     * Encrypts a value with an explicit custom salt key.
+     */
+    public Object encrypt(Object value, String dataType, String customSalt) {
         if (value == null) {
             return null;
         }
 
+        String salt = (customSalt != null && !customSalt.trim().isEmpty()) ? customSalt.trim() : getSalt();
         String type = dataType.toLowerCase();
-        System.out.println("Name :"+value+"   "+"Type :"+dataType);
         try {
             switch (type) {
                 case "integer":
                 case "int":
-                    return encryptInt((Integer) value, DataTypeConstrants.INT_MIN_VALUE, DataTypeConstrants.INT_MAX_VALUE);
+                    return encryptInt((Integer) value, DataTypeConstrants.INT_MIN_VALUE, DataTypeConstrants.INT_MAX_VALUE, salt);
                 case "long":
-                    return encryptLong((Long) value, DataTypeConstrants.LONG_MIN_VALUE, DataTypeConstrants.LONG_MAX_VALUE);
+                    return encryptLong((Long) value, DataTypeConstrants.LONG_MIN_VALUE, DataTypeConstrants.LONG_MAX_VALUE, salt);
                 case "short":
                 case "smallint":
                 case "int2":
-                    // Handle Short/Integer input for smallint
                     int shortVal = (value instanceof Short) ? (Short) value : (Integer) value;
-                    return encryptInt(shortVal, DataTypeConstrants.SHORT_MIN_VALUE, DataTypeConstrants.SHORT_MAX_VALUE);
+                    return encryptInt(shortVal, DataTypeConstrants.SHORT_MIN_VALUE, DataTypeConstrants.SHORT_MAX_VALUE, salt);
                 case "byte":
-                    // Handle Byte/Integer input for byte
                     int byteVal = (value instanceof Byte) ? (Byte) value : (Integer) value;
-                    return encryptInt(byteVal, DataTypeConstrants.BYTE_MIN_VALUE, DataTypeConstrants.BYTE_MAX_VALUE);
+                    return encryptInt(byteVal, DataTypeConstrants.BYTE_MIN_VALUE, DataTypeConstrants.BYTE_MAX_VALUE, salt);
                 case "bigint":
                 case "int8":
-                    return encryptLong((Long) value, DataTypeConstrants.INT8_MIN_VALUE, DataTypeConstrants.INT8_MAX_VALUE);
+                    return encryptLong((Long) value, DataTypeConstrants.INT8_MIN_VALUE, DataTypeConstrants.INT8_MAX_VALUE, salt);
                 case "int4":
-                    return encryptInt((Integer) value, DataTypeConstrants.INT4_MIN_VALUE, DataTypeConstrants.INT4_MAX_VALUE);
+                    return encryptInt((Integer) value, DataTypeConstrants.INT4_MIN_VALUE, DataTypeConstrants.INT4_MAX_VALUE, salt);
                 case "float":
                 case "real":
                 case "float4":
-                    return encryptFloat((Float) value);
+                    return encryptFloat((Float) value, salt);
                 case "double":
                 case "float8":
                 case "double precision":
-                    return encryptDouble((Double) value);
+                    return encryptDouble((Double) value, salt);
                 case "uuid":
-                    return encryptUUID(value.toString());
+                    return encryptUUID(value.toString(), salt);
                 case "string":
                 case "varchar":
                 case "text":
                 case "character varying":
-                    return encryptString(value.toString());
                 case "char":
                 case "character":
-                    return encryptString(value.toString()); // Simple string encryption for char
+                    return encryptString(value.toString(), salt);
                 case "boolean":
                 case "bool":
-                    // Deterministic boolean flip based on hash
-                    return encryptBoolean((Boolean) value);
+                    return encryptBoolean((Boolean) value, salt);
                 default:
                     log.warn("Unsupported data type for FPE: {}. Returning original value.", dataType);
                     return value;
@@ -92,96 +106,82 @@ public class FormatPreservingEncryptionService {
 
     // --- Deterministic Encryption Logic ---
 
-    private int encryptInt(int value, int min, int max) throws NoSuchAlgorithmException {
+    private int encryptInt(int value, int min, int max, String salt) {
         long range = (long) max - min + 1;
-        long hash = getHash(value);
-        // Map hash to range [0, range-1]
+        long hash = getHash(value, salt);
         long offset = Math.abs(hash % range);
-        // Add offset to min to get result in [min, max]
         return (int) (min + offset);
     }
 
-    private long encryptLong(long value, long min, long max) throws NoSuchAlgorithmException {
-        // For large ranges, we can't easily do simple modulo arithmetic without BigInteger if range > Long.MAX_VALUE
-        // But here min/max are Long constants.
-        // We'll use a simple deterministic mapping: hash(value)
-        // Note: This doesn't guarantee 1-to-1 mapping (collisions possible), but for masking it's usually acceptable
-        // if we just need deterministic output.
-        // To strictly preserve range, we map the hash.
-        
-        // Using BigInteger for safety with full Long range
+    private long encryptLong(long value, long min, long max, String salt) {
         java.math.BigInteger range = java.math.BigInteger.valueOf(max).subtract(java.math.BigInteger.valueOf(min)).add(java.math.BigInteger.ONE);
-        java.math.BigInteger hashVal = new java.math.BigInteger(1, getHashBytes(String.valueOf(value)));
-        
+        java.math.BigInteger hashVal = new java.math.BigInteger(1, getHashBytes(String.valueOf(value), salt));
         java.math.BigInteger offset = hashVal.mod(range);
         return java.math.BigInteger.valueOf(min).add(offset).longValue();
     }
 
-    private float encryptFloat(float value) throws NoSuchAlgorithmException {
-        // Encrypt the bits
+    private float encryptFloat(float value, String salt) {
         int bits = Float.floatToIntBits(value);
-        int encryptedBits = encryptInt(bits, Integer.MIN_VALUE, Integer.MAX_VALUE);
+        int encryptedBits = encryptInt(bits, Integer.MIN_VALUE, Integer.MAX_VALUE, salt);
         return Float.intBitsToFloat(encryptedBits);
     }
 
-    private double encryptDouble(double value) throws NoSuchAlgorithmException {
-        // Encrypt the bits
+    private double encryptDouble(double value, String salt) {
         long bits = Double.doubleToLongBits(value);
-        long encryptedBits = encryptLong(bits, Long.MIN_VALUE, Long.MAX_VALUE);
+        long encryptedBits = encryptLong(bits, Long.MIN_VALUE, Long.MAX_VALUE, salt);
         return Double.longBitsToDouble(encryptedBits);
     }
 
-    private String encryptUUID(String uuidStr) throws NoSuchAlgorithmException {
-        // Deterministic UUID generation from hash
-        byte[] hash = getHashBytes(uuidStr);
+    private String encryptUUID(String uuidStr, String salt) {
+        byte[] hash = getHashBytes(uuidStr, salt);
         return UUID.nameUUIDFromBytes(hash).toString();
     }
 
-    private String encryptString(String value) throws NoSuchAlgorithmException {
+    private String encryptString(String value, String salt) {
         if (value == null || value.isEmpty()) {
             return value;
         }
         
         int targetLength = value.length();
-        StringBuilder hexString = new StringBuilder();
+        StringBuilder hexString = new StringBuilder(targetLength + 64);
         String currentInput = value;
         
         while (hexString.length() < targetLength) {
-            byte[] hash = getHashBytes(currentInput);
+            byte[] hash = getHashBytes(currentInput, salt);
             for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
+                hexString.append(HEX_CHARS[(b >> 4) & 0x0F]);
+                hexString.append(HEX_CHARS[b & 0x0F]);
             }
-            currentInput = hexString.toString(); // chain the hash
+            currentInput = hexString.toString();
         }
         
-        // Truncate to exactly the length of the original string
         return hexString.substring(0, targetLength);
     }
     
-    private boolean encryptBoolean(boolean value) throws NoSuchAlgorithmException {
-        // Hash the boolean value + salt. Even/Odd hash determines true/false.
-        long hash = getHash(value ? 1 : 0);
+    private boolean encryptBoolean(boolean value, String salt) {
+        long hash = getHash(value ? 1 : 0, salt);
         return hash % 2 == 0;
     }
 
-    // --- Helper Methods ---
+    // --- High-Performance Helper Methods ---
 
-    private long getHash(long value) throws NoSuchAlgorithmException {
-        byte[] hashBytes = getHashBytes(String.valueOf(value));
-        // Convert first 8 bytes to long
+    private long getHash(long value, String salt) {
+        byte[] hashBytes = getHashBytes(String.valueOf(value), salt);
         long result = 0;
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < 8 && i < hashBytes.length; i++) {
             result <<= 8;
             result |= (hashBytes[i] & 0xFF);
         }
         return result;
     }
 
-    private byte[] getHashBytes(String input) throws NoSuchAlgorithmException {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        String inputWithSalt = input + getSalt();
-        return digest.digest(inputWithSalt.getBytes(StandardCharsets.UTF_8));
+    private byte[] getHashBytes(String input, String salt) {
+        MessageDigest digest = SHA256_HOLDER.get();
+        digest.reset();
+        digest.update(input.getBytes(StandardCharsets.UTF_8));
+        if (salt != null && !salt.isEmpty()) {
+            digest.update(salt.getBytes(StandardCharsets.UTF_8));
+        }
+        return digest.digest();
     }
 }

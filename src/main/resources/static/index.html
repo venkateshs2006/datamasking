@@ -265,7 +265,8 @@
             window.location.href = '/login.html';
         } else if (data.role === 'APPROVER') {
             document.body.classList.add('role-approver');
-            document.getElementById('approv erLogoLink').style.display = 'block';
+            const appLogo = document.getElementById('approverLogoLink');
+            if (appLogo) appLogo.style.display = 'block';
         } else if (data.role === 'ADMIN') {
             document.getElementById('adminDbLink').style.display = 'block';
             document.getElementById('adminCosLink').style.display = 'block';
@@ -334,21 +335,27 @@
             const selector = document.getElementById('executionIdSelector');
             selector.innerHTML = '';
 
-            if (executions.length === 0) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const currentId = urlParams.get('executionId');
+
+            if (currentId && !executions.some(e => String(e.id) === String(currentId))) {
+                const option = new Option(`ID: ${currentId} - Current`, currentId);
+                selector.add(option);
+            }
+
+            if (executions.length === 0 && !currentId) {
                 selector.innerHTML = '<option value="">No executions found</option>';
                 return;
             }
 
             executions.forEach(ex => {
-                const date = new Date(ex.startTime).toLocaleString();
-                const option = new Option(`ID: ${ex.id} - ${ex.status} (${date})`, ex.id);
+                const date = ex.startTime ? new Date(ex.startTime).toLocaleString() : '';
+                const dateStr = date ? ` (${date})` : '';
+                const option = new Option(`ID: ${ex.id} - ${ex.status}${dateStr}`, ex.id);
                 selector.add(option);
             });
 
-            const urlParams = new URLSearchParams(window.location.search);
-            const currentId = urlParams.get('executionId');
-
-            if (currentId && executions.some(e => e.id == currentId)) {
+            if (currentId) {
                 selector.value = currentId;
             } else if (executions.length > 0) {
                 selector.value = executions[0].id;
@@ -388,11 +395,17 @@
         currentExecutionId = executionId;
         pollStatus(executionId);
         pollingInterval = setInterval(() => {
-            if (currentExecutionId === executionId) {
+            if (currentExecutionId === executionId && document.visibilityState === 'visible') {
                 pollStatus(executionId);
             }
-        }, 1500); // Poll faster to see live updates better
+        }, 1500); // Live updates during active visibility
     }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && currentExecutionId) {
+            pollStatus(currentExecutionId);
+        }
+    });
 
     async function pollStatus(id) {
         try {
@@ -437,6 +450,8 @@
 
         const isMongo = activeId && activeId.startsWith('mongo-');
         const isJson = activeId && activeId.startsWith('json-');
+        const isSecureExport = activeId && activeId.startsWith('secure-export-');
+        const isSecureImport = activeId && activeId.startsWith('secure-import-');
 
         let totalEntities = 0;
         let completedEntities = 0;
@@ -453,6 +468,22 @@
             totalWrites = data.processedFiles || 0;
             document.getElementById('tableHeaderTitle').innerText = 'JSON Files Log';
             document.getElementById('thEntityName').innerText = 'Entity / File';
+        } else if (isSecureExport) {
+            totalEntities = data.totalTables != null ? data.totalTables : (data.tableProgress ? data.tableProgress.length : 0);
+            completedEntities = data.processedTables != null ? data.processedTables : (data.completedTables ? data.completedTables.length : 0);
+            if (data.status === 'COMPLETED' && totalEntities > 0 && completedEntities === 0) {
+                completedEntities = totalEntities;
+            }
+            document.getElementById('tableHeaderTitle').innerText = 'Secure Export Tables Log';
+            document.getElementById('thEntityName').innerText = 'Table Name';
+        } else if (isSecureImport) {
+            totalEntities = data.totalTables != null ? data.totalTables : (data.tableProgress ? data.tableProgress.length : 0);
+            completedEntities = data.processedTables != null ? data.processedTables : (data.completedTables ? data.completedTables.length : 0);
+            if (data.status === 'COMPLETED' && totalEntities > 0 && completedEntities === 0) {
+                completedEntities = totalEntities;
+            }
+            document.getElementById('tableHeaderTitle').innerText = 'Secure Import Tables Log';
+            document.getElementById('thEntityName').innerText = 'Table Name';
         } else {
             totalEntities = data.tableProgress ? data.tableProgress.length : 0;
             completedEntities = data.completedTables ? data.completedTables.length : 0;
@@ -460,8 +491,10 @@
             document.getElementById('thEntityName').innerText = 'Table Name';
         }
 
-        if (data.tableProgress) {
-            totalWrites = data.tableProgress.reduce((acc, curr) => acc + curr.writeCount, 0);
+        if (data.totalRecords != null) {
+            totalWrites = data.totalRecords;
+        } else if (data.tableProgress) {
+            totalWrites = data.tableProgress.reduce((acc, curr) => acc + (curr.writeCount || 0), 0);
         }
 
         document.getElementById('completedCount').textContent = completedEntities;

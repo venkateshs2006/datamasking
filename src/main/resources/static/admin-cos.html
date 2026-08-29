@@ -238,24 +238,15 @@
         function setupDepartmentDropdown() {
             const departmentDropdown = document.getElementById('department');
             departmentDropdown.innerHTML = '';
-            if (userRole === 'ADMIN') {
-                // Assuming admin gets a list of department objects
-                fetch('/api/departments').then(r => r.json()).then(departments => {
-                    departments.forEach(dept => {
-                        const option = document.createElement('option');
-                        option.value = dept.name;
-                        option.textContent = dept.name;
-                        departmentDropdown.appendChild(option);
-                    });
-                });
-            } else if (userRole === 'MANAGER') {
-                userDepartments.forEach(dept => {
+            fetch('/api/departments').then(r => r.json()).then(departments => {
+                departments.forEach(dept => {
                     const option = document.createElement('option');
-                    option.value = dept.name;
-                    option.textContent = dept.name;
+                    const name = typeof dept === 'object' ? dept.name : dept;
+                    option.value = name;
+                    option.textContent = name;
                     departmentDropdown.appendChild(option);
                 });
-            }
+            });
         }
 
         function toggleStorageFields() {
