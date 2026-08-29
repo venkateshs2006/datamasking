@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BNP Paribas - SeEDM Secure Export</title>
+    <title>BNP Paribas - SeEDM MongoDB Secure Export</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -99,7 +99,7 @@
             </a>
             <div class="hidden md:block border-l border-gray-300 pl-6">
                 <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
-                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Secure Data Export</p>
+                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">MongoDB Secure Export</p>
             </div>
         </div>
         <nav>
@@ -119,14 +119,14 @@
         <div class="w-full max-w-6xl mx-auto px-6 py-8 flex flex-col h-full">
 
             <div class="mb-8 shrink-0 text-center">
-                <h2 class="text-3xl font-bold text-gray-900">Configure Secure Export</h2>
-                <p class="text-sm text-gray-500 mt-2">Define your source, storage, and masking rules in 4 simple steps.</p>
+                <h2 class="text-3xl font-bold text-gray-900">Configure MongoDB Secure Export</h2>
+                <p class="text-sm text-gray-500 mt-2">Define your source MongoDB cluster, storage destination, and masking rules in 4 simple steps.</p>
             </div>
 
             <!-- Stepper -->
             <div class="flex items-start mb-8 px-4 w-[80%] mx-auto shrink-0">
                 <div class="stepper-item active" id="step1-indicator"><div class="stepper-circle"><i class="fas fa-plug text-sm"></i></div><div class="stepper-label">Connection</div></div>
-                <div class="stepper-item" id="step2-indicator"><div class="stepper-circle"><i class="fas fa-table text-sm"></i></div><div class="stepper-label">Tables</div></div>
+                <div class="stepper-item" id="step2-indicator"><div class="stepper-circle"><i class="fas fa-layer-group text-sm"></i></div><div class="stepper-label">Collections</div></div>
                 <div class="stepper-item" id="step3-indicator"><div class="stepper-circle"><i class="fas fa-mask text-sm"></i></div><div class="stepper-label">Rules</div></div>
                 <div class="stepper-item" id="step4-indicator"><div class="stepper-circle"><i class="fas fa-flag-checkered text-sm"></i></div><div class="stepper-label">Review</div></div>
             </div>
@@ -142,25 +142,25 @@
                             <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
                                 <div class="w-10 h-10 rounded-lg bg-bnp-emerald/10 flex items-center justify-center text-bnp-emerald mr-4 border border-bnp-emerald/20"><i class="fas fa-database text-lg"></i></div>
                                 <div>
-                                    <h3 class="text-lg font-bold text-gray-800 leading-tight">Source Environment</h3>
-                                    <p class="text-xs text-gray-500">Database to read data from</p>
+                                    <h3 class="text-lg font-bold text-gray-800 leading-tight">Source Cluster</h3>
+                                    <p class="text-xs text-gray-500">MongoDB to read data from</p>
                                 </div>
                             </div>
                             <form id="sourceForm" class="space-y-5 flex-1 flex flex-col">
                                 <input type="hidden" name="type" value="source">
                                 <div>
                                     <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Connection Endpoint</label>
-                                    <select name="id" id="sourceId" class="input-field cursor-pointer bg-white" required onchange="validateStep1()">
+                                    <select name="id" id="sourceId" class="input-field cursor-pointer bg-white" required onchange="onSourceChanged()">
                                         <option value="">Loading connections...</option>
                                     </select>
                                 </div>
                                 <div class="mt-auto pt-6 border-t border-gray-50">
                                     <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
-                                        Target Schema
-                                        <button type="button" id="btnFetchSrc" onclick="fetchSchemas('source')" class="text-xs text-bnp-emerald hover:text-[#007a4c] normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch</button>
+                                        Target Database
+                                        <button type="button" id="btnFetchSrc" onclick="fetchDatabases()" class="text-xs text-bnp-emerald hover:text-[#007a4c] normal-case font-bold flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-sync-alt mr-1"></i>Fetch</button>
                                     </label>
                                     <select name="schema" id="sourceSchema" class="input-field cursor-pointer bg-gray-50" required disabled onchange="validateStep1()">
-                                        <option value="">Fetch schemas first...</option>
+                                        <option value="">Fetch databases first...</option>
                                     </select>
                                 </div>
                             </form>
@@ -175,7 +175,7 @@
                                 <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 mr-4 border border-emerald-100"><i class="fas fa-archive text-lg"></i></div>
                                 <div>
                                     <h3 class="text-lg font-bold text-gray-800 leading-tight">Storage Environment</h3>
-                                    <p class="text-xs text-gray-500">Where to save the exported data</p>
+                                    <p class="text-xs text-gray-500">Where to save the exported BSON data</p>
                                 </div>
                             </div>
                             <form id="storageForm" class="space-y-5 flex-1 flex flex-col">
@@ -196,19 +196,19 @@
 
                                 <div id="local-storage-option" class="mt-4" style="display: none;">
                                     <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Path</label>
-                                    <input type="text" id="local-path" name="local-path" class="input-field" placeholder="e.g., /path/to/backups" oninput="validateStep1()">
+                                    <input type="text" id="local-path" name="local-path" class="input-field" placeholder="e.g., secure-export" value="secure-export" oninput="validateStep1()">
                                 </div>
                             </form>
                         </div>
                     </div>
                 </div>
 
-                <!-- STEP 2: TABLES -->
+                <!-- STEP 2: COLLECTIONS -->
                 <div id="step2" class="step-container p-8 flex flex-col">
                     <div class="mb-6 flex justify-between items-end">
                         <div>
-                            <h3 class="text-xl font-bold text-gray-800">Select Tables</h3>
-                            <p class="text-sm text-gray-500 mt-1">Choose the tables you want to include in this export.</p>
+                            <h3 class="text-xl font-bold text-gray-800">Select Collections</h3>
+                            <p class="text-sm text-gray-500 mt-1">Choose the MongoDB collections you want to include in this secure export.</p>
                         </div>
                         <button onclick="selectAllTables()" class="text-sm font-semibold text-bnp-emerald hover:text-[#007a4c] transition flex items-center bg-bnp-emerald/10 px-3 py-1.5 rounded-lg border border-bnp-emerald/20 shadow-sm hover:shadow">
                             <i class="fas fa-check-double mr-2"></i> Select All
@@ -245,27 +245,27 @@
                     <div class="flex justify-between items-start mb-6 shrink-0">
                         <div>
                             <h3 class="text-xl font-bold text-gray-800">Assign Masking Rules</h3>
-                            <p class="text-sm text-gray-500 mt-1">Configure how sensitive columns should be transformed.</p>
+                            <p class="text-sm text-gray-500 mt-1">Configure how sensitive fields should be transformed.</p>
                         </div>
                     </div>
 
                     <div class="flex flex-1 gap-6 min-h-0">
-                        <!-- Tables List -->
+                        <!-- Collections List -->
                         <div class="list-container w-1/4 bg-white shadow-sm border-gray-200 flex flex-col overflow-hidden">
-                            <div class="list-header bg-gray-50 py-3 shrink-0"><span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Tables</span></div>
+                            <div class="list-header bg-gray-50 py-3 shrink-0"><span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Collections</span></div>
                             <div id="ruleTablesList" class="list-body p-2 overflow-y-auto flex-1"></div>
                         </div>
 
-                        <!-- Columns List -->
+                        <!-- Fields List -->
                         <div class="list-container w-1/3 bg-white shadow-sm border-gray-200 flex flex-col overflow-hidden">
                             <div class="list-header bg-gray-50 py-3 flex justify-between shrink-0">
-                                <span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Columns</span>
+                                <span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Fields</span>
                                 <span id="activeTableName" class="text-[10px] font-mono text-bnp-emerald bg-bnp-emerald/10 px-2 py-0.5 rounded border border-bnp-emerald/20 hidden"></span>
                             </div>
                             <div id="ruleColumnsList" class="list-body p-2 overflow-y-auto flex-1 relative">
                                 <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 text-sm bg-white z-10" id="columnsPlaceholder">
                                     <i class="fas fa-arrow-left text-2xl mb-2 opacity-50"></i>
-                                    Select a table to view columns
+                                    Select a collection to view fields
                                 </div>
                             </div>
                         </div>
@@ -278,7 +278,7 @@
                             <div class="p-5 space-y-5 flex-1 overflow-y-auto relative">
                                 <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 text-sm bg-gray-50 z-10 hidden" id="rulesPlaceholder">
                                     <i class="fas fa-info-circle text-2xl mb-2 opacity-50"></i>
-                                    Select a table to view its rules
+                                    Select a collection to view its rules
                                 </div>
                                 <!-- Standard -->
                                 <div>
@@ -311,7 +311,7 @@
                                         <input type="text" id="saltPrefix" class="w-full p-2 text-sm font-mono border border-purple-200 bg-purple-50 text-purple-800 rounded focus:outline-none cursor-not-allowed text-center tracking-widest" readonly title="Generated by backend">
                                         <input type="text" id="userSalt" class="w-1/2 p-2 text-sm font-mono border border-purple-200 rounded-r focus:border-purple-500 focus:ring-purple-200 outline-none transition text-center tracking-widest" placeholder="Enter 8 chars" maxlength="8" oninput="validateStep3()" style="display: none;">
                                     </div>
-                                    <p class="text-[10px] text-gray-400 mt-2" id="keyHintText">This 16-character salt key will be used for FPH hashing and to encrypt the export file (.sql.enc) with AES-256.</p>
+                                    <p class="text-[10px] text-gray-400 mt-2" id="keyHintText">This 16-character salt key will be used for FPH hashing and to encrypt the export file (.bson.enc) with AES-256.</p>
                                 </div>
                             </div>
                         </div>
@@ -332,7 +332,7 @@
                         <div class="mb-6 max-w-lg mx-auto w-full space-y-4">
                             <div>
                                 <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Export Name</label>
-                                <input type="text" id="migrationName" class="input-field" placeholder="e.g. Q3 Finance Export" required>
+                                <input type="text" id="migrationName" class="input-field" placeholder="e.g. Q3 Mongo Finance Export" required>
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department</label>
@@ -348,11 +348,11 @@
                                 <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">Environment Targets</h4>
                                 <div class="space-y-4">
                                     <div>
-                                        <span class="text-[10px] font-bold text-bnp-emerald uppercase flex items-center"><i class="fas fa-database mr-1.5"></i> Source</span>
+                                        <span class="text-[10px] font-bold text-bnp-emerald uppercase flex items-center"><i class="fas fa-database mr-1.5"></i> Source Mongo</span>
                                         <div id="previewSrc" class="text-xs font-mono text-gray-700 mt-1 truncate" title=""></div>
                                     </div>
                                     <div>
-                                        <span class="text-[10px] font-bold text-emerald-600 uppercase flex items-center"><i class="fas fa-archive mr-1.5"></i> Storage</span>
+                                        <span class="text-[10px] font-bold text-emerald-600 uppercase flex items-center"><i class="fas fa-archive mr-1.5"></i> Storage Destination</span>
                                         <div id="previewDest" class="text-xs font-mono text-gray-700 mt-1 truncate" title=""></div>
                                     </div>
                                 </div>
@@ -361,7 +361,7 @@
                                 <div class="absolute top-0 right-0 p-4 opacity-5 text-4xl"><i class="fas fa-chart-pie"></i></div>
                                 <div class="text-center">
                                     <span class="block text-5xl font-black text-bnp-emerald" id="previewTableCount">0</span>
-                                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2 block">Tables</span>
+                                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2 block">Collections</span>
                                 </div>
                                 <div class="w-px h-20 bg-gray-100"></div>
                                 <div class="text-center">
@@ -379,7 +379,7 @@
                                 <table class="w-full text-sm text-left">
                                     <thead class="bg-white sticky top-0 border-b border-gray-100 shadow-sm z-10">
                                         <tr>
-                                            <th class="p-4 pl-6 font-semibold text-gray-500 text-xs uppercase w-1/3">Table</th>
+                                            <th class="p-4 pl-6 font-semibold text-gray-500 text-xs uppercase w-1/3">Collection</th>
                                             <th class="p-4 font-semibold text-gray-500 text-xs uppercase w-2/3">Transformations</th>
                                         </tr>
                                     </thead>
@@ -414,7 +414,6 @@
 <script>
     let userDepartments = [];
     async function loadRandomSalt() {
-        // Initial setup for the automatic generation
         toggleAutoGenerateKey();
     }
 
@@ -510,13 +509,16 @@
     };
 
     async function fetchConnections() {
-        // Fetch source connections for postgres
-        const resSrc = await fetch('/api/connections?dbType=postgres&envType=source');
+        // Fetch source connections for MongoDB
+        const resSrc = await fetch('/api/connections?dbType=mongo&envType=source');
         if (resSrc.ok) {
             const srcConns = await resSrc.json();
             const srcSelect = document.getElementById('sourceId');
-            srcSelect.innerHTML = '<option value="">Select a source database...</option>';
-            srcConns.forEach(c => srcSelect.add(new Option(c.name + ' (' + c.url + ')', c.id)));
+            srcSelect.innerHTML = '<option value="">Select a source MongoDB...</option>';
+            srcConns.forEach(c => {
+                const label = (c.name || c.connectionName) + ' (' + (c.department || 'Default') + ')';
+                srcSelect.add(new Option(label, c.id));
+            });
         }
 
         // Fetch destination COS connections
@@ -525,9 +527,44 @@
             const cosConns = await resCos.json();
             const cosSelect = document.getElementById('cos-connection');
             cosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
-            cosConns.forEach(c => cosSelect.add(new Option(c.cosName, c.id)));
+            cosConns.forEach(c => cosSelect.add(new Option(c.cosName + ' (' + (c.department || '') + ')', c.id)));
         }
 
+        validateStep1();
+    }
+
+    function onSourceChanged() {
+        const sourceId = document.getElementById('sourceId').value;
+        const btnFetch = document.getElementById('btnFetchSrc');
+        const schemaSelect = document.getElementById('sourceSchema');
+        btnFetch.disabled = !sourceId;
+        schemaSelect.innerHTML = '<option value="">Fetch databases first...</option>';
+        schemaSelect.disabled = true;
+        validateStep1();
+    }
+
+    async function fetchDatabases() {
+        const sourceId = document.getElementById('sourceId').value;
+        if (!sourceId) return;
+
+        const select = document.getElementById('sourceSchema');
+        select.innerHTML = '<option value="">Loading databases...</option>';
+        select.disabled = true;
+
+        try {
+            const res = await fetch(`/api/mongo/databases/${sourceId}`);
+            if (res.ok) {
+                const dbs = await res.json();
+                select.innerHTML = '<option value="">Select Database</option>';
+                dbs.forEach(d => select.add(new Option(d, d)));
+                select.disabled = false;
+            } else {
+                select.innerHTML = '<option value="">Failed to fetch databases</option>';
+            }
+        } catch (e) {
+            console.error("Error fetching databases:", e);
+            select.innerHTML = '<option value="">Error loading databases</option>';
+        }
         validateStep1();
     }
 
@@ -546,9 +583,8 @@
     }
 
     function validateStep1() {
-        const sourceForm = document.getElementById('sourceForm');
-        const sourceId = sourceForm.querySelector('#sourceId').value;
-        const sourceSchema = sourceForm.querySelector('select[name="schema"]').value;
+        const sourceId = document.getElementById('sourceId').value;
+        const sourceSchema = document.getElementById('sourceSchema').value;
         document.getElementById('btnFetchSrc').disabled = !sourceId;
 
         let sourceValid = sourceId && sourceSchema;
@@ -601,7 +637,7 @@
                 if(i < currentStep) {
                     iconWrap.innerHTML = '<i class="fas fa-check"></i>';
                 } else {
-                    const icons = ['plug', 'table', 'mask', 'flag-checkered'];
+                    const icons = ['plug', 'layer-group', 'mask', 'flag-checkered'];
                     iconWrap.innerHTML = `<i class="fas fa-${icons[i-1]} text-sm"></i>`;
                 }
             }
@@ -622,10 +658,11 @@
         const origHtml = btn.innerHTML;
 
         if (currentStep === 1) {
-            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Connecting...';
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Loading Collections...';
             btn.disabled = true;
             try {
-                const srcData = Object.fromEntries(new FormData(document.getElementById('sourceForm')).entries());
+                const sourceId = document.getElementById('sourceId').value;
+                const sourceSchema = document.getElementById('sourceSchema').value;
 
                 // Store storage config
                 const storageType = document.querySelector('input[name="storage-type"]:checked').value;
@@ -635,19 +672,15 @@
                     state.storage.id = cosSelect.value;
                     state.storage.name = cosSelect.options[cosSelect.selectedIndex]?.text;
                 } else {
-                    state.storage.path = document.getElementById('local-path').value;
+                    state.storage.path = document.getElementById('local-path').value.trim() || 'secure-export';
                 }
 
-                await Promise.all([
-                    fetch('/api/connections/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(srcData) }),
-                    fetch('/api/config/target-tables', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify([]) })
-                ]);
-
-                const res = await fetch('/api/config/tables');
+                const res = await fetch(`/api/mongo/collections/${sourceId}/${sourceSchema}`);
+                if (!res.ok) throw new Error("Failed to fetch collections");
                 state.tables = await res.json();
                 renderAvailableTables();
             } catch (e) {
-                alert("Connection failed.");
+                alert("Failed to retrieve collections from MongoDB.");
                 btn.innerHTML = origHtml;
                 btn.disabled = false;
                 return;
@@ -663,38 +696,13 @@
 
     function prevStep() { if (currentStep > 1) { currentStep--; updateUI(); } }
 
-    // --- STEP LOGIC ---
-
-    async function fetchSchemas(type) {
-        const formId = type === 'source' ? 'sourceForm' : 'destForm';
-        const selectId = type === 'source' ? 'sourceSchema' : 'destSchema';
-        const form = document.getElementById(formId);
-        const select = document.getElementById(selectId);
-
-        select.innerHTML = '<option value="">Loading...</option>';
-        try {
-            const res = await fetch('/api/connections/schemas', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(Object.fromEntries(new FormData(form).entries()))
-            });
-            const schemas = await res.json();
-            select.innerHTML = '<option value="">Select Schema</option>';
-            schemas.forEach(s => select.add(new Option(s, s)));
-            select.disabled = false;
-        } catch (e) {
-            select.innerHTML = '<option value="">Error</option>';
-        }
-        validateStep1();
-    }
-
     function renderAvailableTables() {
         const container = document.getElementById('availableTables');
         container.innerHTML = '';
         const filtered = state.tables.filter(t => !state.selectedTables.includes(t));
 
         if(filtered.length === 0) {
-            container.innerHTML = '<div class="text-center text-gray-400 text-xs py-4 italic">No tables left</div>';
+            container.innerHTML = '<div class="text-center text-gray-400 text-xs py-4 italic">No collections left</div>';
             return;
         }
 
@@ -713,7 +721,7 @@
         document.getElementById('selectedTableCount').innerText = state.selectedTables.length;
 
         if(state.selectedTables.length === 0) {
-            container.innerHTML = '<div class="text-center text-gray-400 text-xs py-8 italic flex flex-col items-center"><i class="fas fa-hand-pointer text-2xl mb-2 opacity-50"></i>Select tables</div>';
+            container.innerHTML = '<div class="text-center text-gray-400 text-xs py-8 italic flex flex-col items-center"><i class="fas fa-hand-pointer text-2xl mb-2 opacity-50"></i>Select collections</div>';
             return;
         }
 
@@ -760,9 +768,16 @@
 
         const colList = document.getElementById('ruleColumnsList');
         if(!state.columnsCache[table]) {
-            colList.innerHTML = '<div class="text-center text-gray-400 mt-10 text-xs"><i class="fas fa-circle-notch fa-spin mb-2 text-lg"></i><br>Loading columns...</div>';
-            const res = await fetch(`/api/config/columns/${table}`);
-            state.columnsCache[table] = await res.json();
+            colList.innerHTML = '<div class="text-center text-gray-400 mt-10 text-xs"><i class="fas fa-circle-notch fa-spin mb-2 text-lg"></i><br>Loading fields...</div>';
+            const sourceId = document.getElementById('sourceId').value;
+            const sourceSchema = document.getElementById('sourceSchema').value;
+            try {
+                const res = await fetch(`/api/mongo/fields/${sourceId}/${sourceSchema}/${table}`);
+                state.columnsCache[table] = await res.json();
+            } catch (e) {
+                console.error("Failed to load fields for " + table, e);
+                state.columnsCache[table] = [];
+            }
         }
         renderColumnList(table, state.columnsCache[table]);
         renderTags(table);
@@ -771,6 +786,10 @@
     function renderColumnList(table, columns) {
         const container = document.getElementById('ruleColumnsList');
         container.innerHTML = '';
+        if (!columns || columns.length === 0) {
+            container.innerHTML = '<div class="text-center text-gray-400 mt-10 text-xs italic">No fields discovered in collection sample</div>';
+            return;
+        }
         columns.forEach(col => {
             const full = `${table}.${col}`;
             const d = document.createElement('div');
@@ -818,7 +837,7 @@
             c.innerHTML = '';
             const rules = state.rules[type].filter(x => x.startsWith(table+'.'));
             if(rules.length === 0) {
-                c.innerHTML = '<span class="text-[10px] text-gray-400 italic py-0.5">No columns assigned</span>';
+                c.innerHTML = '<span class="text-[10px] text-gray-400 italic py-0.5">No fields assigned</span>';
                 return;
             }
             rules.forEach(full => {
@@ -835,7 +854,8 @@
 
     function populatePreview() {
         const srcSelect = document.getElementById('sourceId');
-        document.getElementById('previewSrc').innerText = srcSelect.options[srcSelect.selectedIndex]?.text || '';
+        const srcSchema = document.getElementById('sourceSchema').value;
+        document.getElementById('previewSrc').innerText = (srcSelect.options[srcSelect.selectedIndex]?.text || '') + ' / ' + srcSchema;
 
         const destPreview = document.getElementById('previewDest');
         if (state.storage.type === 'cos') {
@@ -891,16 +911,18 @@
             state.rules.maskingKey = prefix + suffix;
 
             const srcSelect = document.getElementById('sourceId');
+            const srcDatabase = document.getElementById('sourceSchema').value;
 
             const payload = {
                 migrationName: migrationName,
                 department: department,
-                jobType: 'SECURE_EXPORT',
+                jobType: 'MONGO_SECURE_EXPORT',
                 configDetails: {
                     source: {
                         id: srcSelect.value,
                         url: srcSelect.options[srcSelect.selectedIndex]?.text,
-                        schema: document.getElementById('sourceSchema').value
+                        database: srcDatabase,
+                        schema: srcDatabase
                     },
                     storage: {
                         type: state.storage.type,
@@ -909,10 +931,19 @@
                         path: state.storage.type === 'local' ? state.storage.path : null
                     },
                     dest: {
-                        dest_dir: state.storage.type === 'local' ? state.storage.path : null,
-                        path: state.storage.type === 'local' ? state.storage.path : null
+                        type: state.storage.type,
+                        destDir: state.storage.type === 'local' ? state.storage.path : null,
+                        path: state.storage.type === 'local' ? state.storage.path : null,
+                        cosId: state.storage.type === 'cos' ? state.storage.id : null
                     },
-                    rules: state.rules
+                    rules: {
+                        targetCollections: state.selectedTables,
+                        targetTables: state.selectedTables,
+                        maskingColumns: state.rules.maskingColumns,
+                        partialMaskingColumns: state.rules.partialMaskingColumns,
+                        constraintColumns: state.rules.constraintColumns,
+                        maskingKey: state.rules.maskingKey
+                    }
                 }
             };
 
@@ -923,13 +954,13 @@
             });
 
             if (res.ok) {
-                alert('Job submitted for approval successfully!');
+                alert('MongoDB Secure Export job submitted for approval successfully!');
                 window.location.href = '/jobs.html';
             } else {
                 throw new Error('Failed to submit job.');
             }
         } catch (e) {
-            alert('Failed to submit export job.');
+            alert('Failed to submit export job: ' + e.message);
             btn.innerHTML = origHtml;
             btn.disabled = false;
         }

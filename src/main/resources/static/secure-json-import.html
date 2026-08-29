@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNP Paribas - JSON Secure Import</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4', greenDark: '#007a4d' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--bnp-dark-grey); min-height: 100vh; display: flex; flex-direction: column; }
+        .bnp-logo { height: 44px; display: block; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 20px -2px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        .step-panel { display: none; }
+        .step-panel.active { display: block; animation: fadeIn 0.25s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        .stepper-item.active .stepper-circle { border-color: var(--bnp-emerald); color: var(--bnp-emerald); background-color: white; box-shadow: 0 0 0 4px rgba(0, 150, 94, 0.15); font-weight: 700; }
+        .stepper-item.completed .stepper-circle { background-color: var(--bnp-emerald); border-color: var(--bnp-emerald); color: white; }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+<!-- Header -->
+<header class="border-t-4 border-bnp-emerald bg-white shadow-sm sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+            <div class="flex items-center">
+                <a href="/index.html" class="mr-4">
+                    <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+                </a>
+                <div class="hidden md:block border-l border-gray-300 pl-4">
+                    <h1 class="text-lg font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
+                    <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">JSON Secure Import</p>
+                </div>
+            </div>
+            <nav>
+                <ul class="flex items-center space-x-6 text-xs font-semibold uppercase tracking-wider">
+                    <li id="navNewMigration"><a href="/select-db.html" class="text-bnp-emerald border-b-2 border-bnp-emerald pb-1 font-bold"><i class="fas fa-plus mr-1"></i> New Migration</a></li>
+                    <li id="navDashboard"><a href="/index.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-desktop mr-1"></i> Dashboard</a></li>
+                    <li id="navJobs"><a href="/jobs.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-tasks mr-1"></i> Jobs</a></li>
+                    <li id="adminDbLink" style="display: none;"><a href="/admin-db.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-database mr-1"></i> DB Admin</a></li>
+                    <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-cloud mr-1"></i> COS Admin</a></li>
+                    <li id="userManagementLink" style="display: none;"><a href="/users.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-users mr-1"></i> Users</a></li>
+                    <li><button onclick="logout()" class="text-gray-600 hover:text-rose-600 transition"><i class="fas fa-sign-out-alt mr-1"></i> Sign Out</button></li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</header>
+
+<!-- Main Container -->
+<main class="flex-1 max-w-4xl w-full mx-auto py-8 px-4 sm:px-6 lg:px-8">
+
+    <!-- Stepper Navigation Header -->
+    <div class="card p-4 mb-6">
+        <div class="flex items-center justify-between relative">
+            <div class="stepper-item active flex-1 text-center" id="step-nav-1">
+                <div class="stepper-circle w-8 h-8 rounded-full border-2 border-gray-300 text-gray-400 flex items-center justify-center text-xs font-bold mx-auto mb-1">1</div>
+                <span class="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Source Package</span>
+            </div>
+            <div class="w-12 h-0.5 bg-gray-200"></div>
+            <div class="stepper-item flex-1 text-center" id="step-nav-2">
+                <div class="stepper-circle w-8 h-8 rounded-full border-2 border-gray-300 text-gray-400 flex items-center justify-center text-xs font-bold mx-auto mb-1">2</div>
+                <span class="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Destination</span>
+            </div>
+            <div class="w-12 h-0.5 bg-gray-200"></div>
+            <div class="stepper-item flex-1 text-center" id="step-nav-3">
+                <div class="stepper-circle w-8 h-8 rounded-full border-2 border-gray-300 text-gray-400 flex items-center justify-center text-xs font-bold mx-auto mb-1">3</div>
+                <span class="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Review & Submit</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 1: Source Location & Scan -->
+    <div id="step-1" class="step-panel active">
+        <div class="card p-6">
+            <h2 class="text-lg font-bold text-gray-800 mb-1 flex items-center">
+                <i class="fas fa-file-archive mr-2 text-bnp-emerald"></i> Step 1: Select Source Backup Package
+            </h2>
+            <p class="text-xs text-gray-500 mb-6">Specify the local folder or IBM Cloud Object Storage location containing the exported JSON package (`.json.enc`).</p>
+
+            <div class="space-y-4 max-w-lg">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Job Name <span class="text-rose-500">*</span></label>
+                    <input type="text" id="jobName" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-1 focus:ring-bnp-emerald focus:border-bnp-emerald font-medium" placeholder="e.g. JSON Restore QA">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Storage Source Type</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition border-bnp-emerald bg-emerald-50/20" id="srcTypeLocalLabel">
+                            <input type="radio" name="srcType" value="local" checked onchange="onSrcTypeChanged()" class="text-bnp-emerald focus:ring-bnp-emerald mr-2.5">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">Local Directory</div>
+                                <div class="text-[10px] text-gray-500">Read from server disk</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition" id="srcTypeCosLabel">
+                            <input type="radio" name="srcType" value="cos" onchange="onSrcTypeChanged()" class="text-bnp-emerald focus:ring-bnp-emerald mr-2.5">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">IBM Cloud Storage</div>
+                                <div class="text-[10px] text-gray-500">Scan COS bucket</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="srcLocalContainer">
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Directory / File Path <span class="text-rose-500">*</span></label>
+                    <div class="flex gap-2">
+                        <input type="text" id="srcDirPath" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono" value="/home/sv/data" placeholder="e.g. /home/sv/data">
+                        <button type="button" onclick="scanStorage()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg transition shrink-0">
+                            <i class="fas fa-search mr-1"></i> Scan
+                        </button>
+                    </div>
+                </div>
+
+                <div id="srcCosContainer" class="hidden space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">IBM COS Connection <span class="text-rose-500">*</span></label>
+                        <select id="srcCosSelect" onchange="scanStorage()" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs bg-white">
+                            <option value="" disabled selected>Loading COS connections...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Detected Backup Files List -->
+                <div class="mt-4">
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Available JSON Backup Packages</label>
+                    <div id="scannedFilesContainer" class="border border-gray-200 rounded-lg p-2 max-h-40 overflow-y-auto space-y-1.5 bg-gray-50/50">
+                        <div class="text-center py-4 text-gray-400 text-xs italic">Click Scan to detect backup packages.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end mt-8 pt-4 border-t border-gray-100">
+                <button onclick="goToStep(2)" class="px-6 py-2.5 bg-bnp-emerald text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-bnp-greenDark transition flex items-center shadow-sm">
+                    Next: Destination <i class="fas fa-arrow-right ml-2"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Destination Storage -->
+    <div id="step-2" class="step-panel">
+        <div class="card p-6">
+            <h2 class="text-lg font-bold text-gray-800 mb-1 flex items-center">
+                <i class="fas fa-hdd mr-2 text-bnp-emerald"></i> Step 2: Select Target Storage Destination
+            </h2>
+            <p class="text-xs text-gray-500 mb-6">Choose where the extracted and decrypted JSON files will be restored.</p>
+
+            <div class="space-y-4 max-w-lg">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Destination Storage Type</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition border-bnp-emerald bg-emerald-50/20" id="dstTypeLocalLabel">
+                            <input type="radio" name="dstType" value="local" checked onchange="onDstTypeChanged()" class="text-bnp-emerald focus:ring-bnp-emerald mr-2.5">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">Local Directory</div>
+                                <div class="text-[10px] text-gray-500">Save to server disk</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition" id="dstTypeCosLabel">
+                            <input type="radio" name="dstType" value="cos" onchange="onDstTypeChanged()" class="text-bnp-emerald focus:ring-bnp-emerald mr-2.5">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">IBM Cloud Storage</div>
+                                <div class="text-[10px] text-gray-500">Upload to COS bucket</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="dstLocalContainer">
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Target Directory Path <span class="text-rose-500">*</span></label>
+                    <input type="text" id="destDirPath" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono" value="/home/sv/data-restored" placeholder="e.g. /home/sv/data-restored">
+                </div>
+
+                <div id="dstCosContainer" class="hidden space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">IBM COS Connection <span class="text-rose-500">*</span></label>
+                        <select id="destCosSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs bg-white">
+                            <option value="" disabled selected>Loading COS connections...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <label class="flex items-center space-x-2 text-xs font-medium text-gray-700 cursor-pointer">
+                        <input type="checkbox" id="overwriteChk" checked class="text-bnp-emerald focus:ring-bnp-emerald rounded">
+                        <span>Overwrite existing JSON files with same names</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex justify-between mt-8 pt-4 border-t border-gray-100">
+                <button onclick="goToStep(1)" class="px-5 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50">
+                    <i class="fas fa-arrow-left mr-1"></i> Back
+                </button>
+                <button onclick="goToStep(3)" class="px-6 py-2.5 bg-bnp-emerald text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-bnp-greenDark transition flex items-center shadow-sm">
+                    Next: Review & Submit <i class="fas fa-arrow-right ml-2"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Review & Submit -->
+    <div id="step-3" class="step-panel">
+        <div class="card p-6">
+            <h2 class="text-lg font-bold text-gray-800 mb-1 flex items-center">
+                <i class="fas fa-clipboard-check mr-2 text-bnp-emerald"></i> Step 3: Review & Submit for Approval
+            </h2>
+            <p class="text-xs text-gray-500 mb-6">Review your JSON import configuration before submitting to the governance workflow.</p>
+
+            <div class="bg-gray-50 rounded-xl p-5 border border-gray-200 space-y-4 text-xs mb-6">
+                <div class="grid grid-cols-2 gap-4 border-b border-gray-200 pb-3">
+                    <div>
+                        <span class="text-gray-400 font-bold uppercase text-[10px]">Job Name</span>
+                        <div class="font-bold text-gray-800 mt-0.5" id="revJobName">-</div>
+                    </div>
+                    <div>
+                        <span class="text-gray-400 font-bold uppercase text-[10px]">Backup Package File</span>
+                        <div class="font-bold text-gray-800 mt-0.5 font-mono" id="revBackupFile">-</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4 border-b border-gray-200 pb-3">
+                    <div>
+                        <span class="text-gray-400 font-bold uppercase text-[10px]">Source Storage</span>
+                        <div class="font-bold text-gray-800 mt-0.5" id="revSrcStorage">-</div>
+                    </div>
+                    <div>
+                        <span class="text-gray-400 font-bold uppercase text-[10px]">Destination Storage</span>
+                        <div class="font-bold text-gray-800 mt-0.5" id="revDestStorage">-</div>
+                    </div>
+                </div>
+                <div>
+                    <span class="text-gray-400 font-bold uppercase text-[10px]">File Overwrite Policy</span>
+                    <div class="font-bold text-gray-800 mt-0.5" id="revOverwritePolicy">Overwrite Existing Files</div>
+                </div>
+            </div>
+
+            <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800 mb-6 flex items-start gap-2">
+                <i class="fas fa-shield-alt mt-0.5 shrink-0 text-blue-600"></i>
+                <span><strong>Security Note:</strong> Once approved, the scheduler will be prompted for the <strong>Secret Decryption Key</strong> via a secure pop-up to decrypt and restore JSON files with live progress.</span>
+            </div>
+
+            <div class="flex justify-between mt-8 pt-4 border-t border-gray-100">
+                <button onclick="goToStep(2)" class="px-5 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50">
+                    <i class="fas fa-arrow-left mr-1"></i> Back
+                </button>
+                <button id="btnSubmitImport" onclick="submitJsonImportJob()" class="px-6 py-2.5 bg-bnp-emerald text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-bnp-greenDark transition flex items-center shadow-md">
+                    <i class="fas fa-paper-plane mr-2"></i> Submit for Approval
+                </button>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Footer -->
+<footer class="bg-bnp-dark-grey text-white p-8 text-xs mt-auto">
+    <div class="max-w-7xl mx-auto flex justify-between items-center opacity-80">
+        <p>© BNP Paribas - 2026</p>
+        <p class="font-light tracking-wide">The bank for a changing world</p>
+    </div>
+</footer>
+
+<script>
+    let currentStep = 1;
+    let cosConnections = [];
+    let detectedFiles = [];
+    let selectedFileName = null;
+
+    // Auth check
+    fetch('/api/auth/check').then(r => r.json()).then(data => {
+        if (!data.authenticated) {
+            window.location.href = '/login.html';
+            return;
+        }
+        const role = (data.role || '').toUpperCase();
+        if (role === 'APPROVER') {
+            window.location.href = '/jobs.html';
+            return;
+        }
+        if (role === 'ADMIN' || role === 'MANAGER') {
+            const dbLink = document.getElementById('adminDbLink');
+            const cosLink = document.getElementById('adminCosLink');
+            if (dbLink) dbLink.style.display = 'block';
+            if (cosLink) cosLink.style.display = 'block';
+        }
+        if (role === 'ADMIN') {
+            const userLink = document.getElementById('userManagementLink');
+            if (userLink) userLink.style.display = 'block';
+        }
+        initPage();
+    });
+
+    async function logout() {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        window.location.href = '/login.html';
+    }
+
+    async function initPage() {
+        await loadCosConnections();
+        scanStorage();
+    }
+
+    async function loadCosConnections() {
+        try {
+            const res = await fetch('/api/cos-connections');
+            if (res.ok) {
+                cosConnections = await res.json();
+                const srcSelect = document.getElementById('srcCosSelect');
+                const dstSelect = document.getElementById('destCosSelect');
+                srcSelect.innerHTML = '<option value="" disabled selected>Select Source COS Bucket...</option>';
+                dstSelect.innerHTML = '<option value="" disabled selected>Select Dest COS Bucket...</option>';
+                cosConnections.forEach(c => {
+                    const opt = `<option value="${c.id}">${c.cosName} - ${c.bucketName || 'Bucket'} (${c.departmentId})</option>`;
+                    srcSelect.innerHTML += opt;
+                    dstSelect.innerHTML += opt;
+                });
+            }
+        } catch (e) {}
+    }
+
+    function onSrcTypeChanged() {
+        const val = document.querySelector('input[name="srcType"]:checked').value;
+        if (val === 'local') {
+            document.getElementById('srcLocalContainer').classList.remove('hidden');
+            document.getElementById('srcCosContainer').classList.add('hidden');
+            document.getElementById('srcTypeLocalLabel').classList.add('border-bnp-emerald', 'bg-emerald-50/20');
+            document.getElementById('srcTypeCosLabel').classList.remove('border-bnp-emerald', 'bg-emerald-50/20');
+        } else {
+            document.getElementById('srcLocalContainer').classList.add('hidden');
+            document.getElementById('srcCosContainer').classList.remove('hidden');
+            document.getElementById('srcTypeCosLabel').classList.add('border-bnp-emerald', 'bg-emerald-50/20');
+            document.getElementById('srcTypeLocalLabel').classList.remove('border-bnp-emerald', 'bg-emerald-50/20');
+        }
+        scanStorage();
+    }
+
+    function onDstTypeChanged() {
+        const val = document.querySelector('input[name="dstType"]:checked').value;
+        if (val === 'local') {
+            document.getElementById('dstLocalContainer').classList.remove('hidden');
+            document.getElementById('dstCosContainer').classList.add('hidden');
+            document.getElementById('dstTypeLocalLabel').classList.add('border-bnp-emerald', 'bg-emerald-50/20');
+            document.getElementById('dstTypeCosLabel').classList.remove('border-bnp-emerald', 'bg-emerald-50/20');
+        } else {
+            document.getElementById('dstLocalContainer').classList.add('hidden');
+            document.getElementById('dstCosContainer').classList.remove('hidden');
+            document.getElementById('dstTypeCosLabel').classList.add('border-bnp-emerald', 'bg-emerald-50/20');
+            document.getElementById('dstTypeLocalLabel').classList.remove('border-bnp-emerald', 'bg-emerald-50/20');
+        }
+    }
+
+    async function scanStorage() {
+        const srcType = document.querySelector('input[name="srcType"]:checked').value;
+        const container = document.getElementById('scannedFilesContainer');
+        container.innerHTML = '<div class="text-center py-4 text-gray-400 text-xs"><i class="fas fa-spinner fa-spin mr-1"></i> Scanning storage...</div>';
+
+        const payload = { type: srcType };
+        if (srcType === 'local') {
+            payload.path = document.getElementById('srcDirPath').value.trim();
+        } else {
+            const cosId = document.getElementById('srcCosSelect').value;
+            if (!cosId) {
+                container.innerHTML = '<div class="text-center py-4 text-gray-400 text-xs italic">Select a COS connection to scan.</div>';
+                return;
+            }
+            payload.id = Number(cosId);
+        }
+
+        try {
+            const res = await fetch('/api/json-secure-import/scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (res.ok && data.status === 'SUCCESS') {
+                detectedFiles = data.files || [];
+                renderScannedFiles(detectedFiles);
+            } else {
+                container.innerHTML = `<div class="text-center py-4 text-rose-500 text-xs">Scan failed: ${data.message || 'Error'}</div>`;
+            }
+        } catch (e) {
+            container.innerHTML = `<div class="text-center py-4 text-rose-500 text-xs">Error scanning: ${e.message}</div>`;
+        }
+    }
+
+    function renderScannedFiles(files) {
+        const container = document.getElementById('scannedFilesContainer');
+        container.innerHTML = '';
+        if (files.length === 0) {
+            container.innerHTML = '<div class="text-center py-4 text-gray-400 text-xs italic">No .json or .json.enc files detected in this path.</div>';
+            return;
+        }
+
+        files.forEach((f, idx) => {
+            const id = `pkg_radio_${idx}`;
+            const isDefault = idx === 0;
+            if (isDefault) selectedFileName = f.name;
+
+            container.innerHTML += `
+                <label for="${id}" class="p-2 bg-white border border-gray-200 rounded-md flex items-center justify-between text-xs cursor-pointer hover:bg-emerald-50/20 hover:border-bnp-emerald transition select-none">
+                    <div class="flex items-center space-x-2 truncate">
+                        <input type="radio" name="selectedPackageRadio" id="${id}" value="${f.name}" ${isDefault ? 'checked' : ''} onchange="selectedFileName = this.value" class="text-bnp-emerald focus:ring-bnp-emerald">
+                        <i class="fas fa-file-archive ${f.encrypted ? 'text-amber-500' : 'text-blue-500'}"></i>
+                        <span class="font-mono font-medium text-gray-800 truncate">${f.name}</span>
+                    </div>
+                    <div class="flex items-center space-x-2 shrink-0">
+                        <span class="text-[10px] text-gray-400 font-mono">${formatBytes(f.sizeBytes)}</span>
+                        ${f.encrypted ? '<span class="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-bold uppercase"><i class="fas fa-lock text-[8px] mr-0.5"></i> AES-256</span>' : ''}
+                    </div>
+                </label>
+            `;
+        });
+    }
+
+    function formatBytes(bytes) {
+        if (!bytes || bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function goToStep(step) {
+        if (step === 2 && currentStep === 1) {
+            const jobName = document.getElementById('jobName').value.trim();
+            if (!jobName) {
+                alert('Please enter a job name.');
+                return;
+            }
+            if (!selectedFileName) {
+                alert('Please select a JSON backup package from the scanned list.');
+                return;
+            }
+        } else if (step === 3 && currentStep === 2) {
+            const dstType = document.querySelector('input[name="dstType"]:checked').value;
+            if (dstType === 'local') {
+                const path = document.getElementById('destDirPath').value.trim();
+                if (!path) {
+                    alert('Please enter a destination directory path.');
+                    return;
+                }
+            } else {
+                const cosId = document.getElementById('destCosSelect').value;
+                if (!cosId) {
+                    alert('Please select a destination COS connection.');
+                    return;
+                }
+            }
+            buildReviewSummary();
+        }
+
+        // Switch panels
+        document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+        document.getElementById(`step-${step}`).classList.add('active');
+
+        // Update stepper nav
+        for (let i = 1; i <= 3; i++) {
+            const nav = document.getElementById(`step-nav-${i}`);
+            nav.classList.remove('active', 'completed');
+            if (i === step) nav.classList.add('active');
+            else if (i < step) nav.classList.add('completed');
+        }
+
+        currentStep = step;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function buildReviewSummary() {
+        document.getElementById('revJobName').textContent = document.getElementById('jobName').value;
+        document.getElementById('revBackupFile').textContent = selectedFileName || 'secure-json-export.json.enc';
+
+        const srcType = document.querySelector('input[name="srcType"]:checked').value;
+        if (srcType === 'local') {
+            document.getElementById('revSrcStorage').textContent = `Local: ${document.getElementById('srcDirPath').value}`;
+        } else {
+            const srcCosSelect = document.getElementById('srcCosSelect');
+            document.getElementById('revSrcStorage').textContent = `IBM COS: ${srcCosSelect.options[srcCosSelect.selectedIndex].text}`;
+        }
+
+        const dstType = document.querySelector('input[name="dstType"]:checked').value;
+        if (dstType === 'local') {
+            document.getElementById('revDestStorage').textContent = `Local Path: ${document.getElementById('destDirPath').value}`;
+        } else {
+            const dstCosSelect = document.getElementById('destCosSelect');
+            document.getElementById('revDestStorage').textContent = `IBM COS: ${dstCosSelect.options[dstCosSelect.selectedIndex].text}`;
+        }
+
+        const isOverwrite = document.getElementById('overwriteChk').checked;
+        document.getElementById('revOverwritePolicy').textContent = isOverwrite ? 'Overwrite Existing JSON Files' : 'Skip Existing Files';
+    }
+
+    async function submitJsonImportJob() {
+        const btn = document.getElementById('btnSubmitImport');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Submitting...';
+
+        const jobName = document.getElementById('jobName').value.trim();
+        const srcType = document.querySelector('input[name="srcType"]:checked').value;
+        const dstType = document.querySelector('input[name="dstType"]:checked').value;
+        const isOverwrite = document.getElementById('overwriteChk').checked;
+
+        const storageConfig = {
+            type: srcType,
+            fileName: selectedFileName
+        };
+        if (srcType === 'local') {
+            storageConfig.path = document.getElementById('srcDirPath').value.trim();
+        } else {
+            storageConfig.id = Number(document.getElementById('srcCosSelect').value);
+        }
+
+        const destConfig = {
+            type: dstType,
+            overwrite: isOverwrite
+        };
+        if (dstType === 'local') {
+            destConfig.path = document.getElementById('destDirPath').value.trim();
+        } else {
+            destConfig.cosId = Number(document.getElementById('destCosSelect').value);
+        }
+
+        const payload = {
+            jobType: 'JSON_SECURE_IMPORT',
+            migrationName: jobName,
+            configDetails: {
+                jobName: jobName,
+                storage: storageConfig,
+                dest: destConfig
+            }
+        };
+
+        try {
+            const res = await fetch('/api/jobs/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                alert('JSON Secure Import job successfully submitted for approval!');
+                window.location.href = '/jobs.html';
+            } else {
+                const err = await res.json();
+                alert('Failed to submit job: ' + (err.message || 'Unknown error'));
+            }
+        } catch (e) {
+            alert('Error submitting job: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i> Submit for Approval';
+        }
+    }
+</script>
+</body>
+</html>

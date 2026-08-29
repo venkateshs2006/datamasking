@@ -58,11 +58,12 @@
     </div>
     <nav>
         <ul>
-            <li class="nav-scheduler-only"><a href="/select-db.html"><i class="fas fa-plus mr-1.5"></i> New Migration</a></li>
-            <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+            <li id="navNewMigration" style="display: none;"><a href="/select-db.html"><i class="fas fa-plus mr-1.5"></i> New Migration</a></li>
+            <li id="navDashboard"><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+            <li id="navJobs"><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
             <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
             <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
-            <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> User Management</a></li>
+            <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> Users</a></li>
             <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
         </ul>
     </nav>
@@ -93,13 +94,22 @@
     fetch('/api/auth/check').then(r => r.json()).then(data => {
         if(!data.authenticated) {
             window.location.href = '/login.html';
-        } else if (data.role === 'APPROVER') {
-            document.body.classList.add('role-approver');
-            document.getElementById('approverLogoLink').style.display = 'block';
-        } else if (data.role === 'ADMIN') {
-            document.getElementById('adminDbLink').style.display = 'block';
-            document.getElementById('adminCosLink').style.display = 'block';
-            document.getElementById('userManagementLink').style.display = 'block';
+            return;
+        }
+        const role = (data.role || '').toUpperCase();
+        if (role !== 'APPROVER') {
+            const newMig = document.getElementById('navNewMigration');
+            if (newMig) newMig.style.display = 'block';
+        }
+        if (role === 'ADMIN' || role === 'MANAGER') {
+            const dbLink = document.getElementById('adminDbLink');
+            const cosLink = document.getElementById('adminCosLink');
+            if (dbLink) dbLink.style.display = 'block';
+            if (cosLink) cosLink.style.display = 'block';
+        }
+        if (role === 'ADMIN') {
+            const userLink = document.getElementById('userManagementLink');
+            if (userLink) userLink.style.display = 'block';
         }
     });
 

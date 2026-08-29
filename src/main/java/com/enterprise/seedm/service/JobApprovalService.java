@@ -22,9 +22,31 @@ public class JobApprovalService {
 
     public List<JobRequest> getAllJobs(List<String> departments) {
         if (!CollectionUtils.isEmpty(departments)) {
-               return jobRequestRepository.findByDepartmentInOrderByCreatedAtDesc(departments);
+            List<String> lowerDepts = departments.stream()
+                    .filter(d -> d != null && !d.trim().isEmpty())
+                    .map(d -> d.trim().toLowerCase())
+                    .toList();
+            return jobRequestRepository.findByDepartmentInIgnoreCaseOrderByCreatedAtDesc(lowerDepts);
         }
         return jobRequestRepository.findAllByOrderByCreatedAtDesc();
+    }
+
+    public List<JobRequest> getAllJobsForUser(List<String> departments, String username) {
+        String cleanUser = username != null ? username.trim().toLowerCase() : null;
+        if (!CollectionUtils.isEmpty(departments)) {
+            List<String> lowerDepts = departments.stream()
+                    .filter(d -> d != null && !d.trim().isEmpty())
+                    .map(d -> d.trim().toLowerCase())
+                    .toList();
+            if (cleanUser != null && !cleanUser.isEmpty()) {
+                return jobRequestRepository.findByDepartmentsOrSubmittedBy(lowerDepts, cleanUser);
+            }
+            return jobRequestRepository.findByDepartmentInIgnoreCaseOrderByCreatedAtDesc(lowerDepts);
+        }
+        if (cleanUser != null && !cleanUser.isEmpty()) {
+            return jobRequestRepository.findBySubmittedByIgnoreCaseOrderByCreatedAtDesc(cleanUser);
+        }
+        return List.of();
     }
 
     public JobRequest getJob(Long id) {

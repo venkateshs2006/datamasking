@@ -48,11 +48,12 @@
             </div>
             <nav>
                 <ul class="flex items-center space-x-6 text-xs font-semibold uppercase tracking-wider">
-                    <li><a href="/index.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-desktop mr-1"></i> Dashboard</a></li>
-                    <li><a href="/jobs.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-tasks mr-1"></i> Jobs</a></li>
-                    <li><a href="/admin-db.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-database mr-1"></i> DB Admin</a></li>
-                    <li><a href="/admin-cos.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-cloud mr-1"></i> COS Admin</a></li>
-                    <li><a href="/users.html" class="text-bnp-emerald border-b-2 border-bnp-emerald pb-1"><i class="fas fa-users-cog mr-1"></i> Users</a></li>
+                    <li id="navNewMigration"><a href="/select-db.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-plus mr-1"></i> New Migration</a></li>
+                    <li id="navDashboard"><a href="/index.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-desktop mr-1"></i> Dashboard</a></li>
+                    <li id="navJobs"><a href="/jobs.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-tasks mr-1"></i> Jobs</a></li>
+                    <li id="adminDbLink"><a href="/admin-db.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-database mr-1"></i> DB Admin</a></li>
+                    <li id="adminCosLink"><a href="/admin-cos.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-cloud mr-1"></i> COS Admin</a></li>
+                    <li id="userManagementLink"><a href="/users.html" class="text-bnp-emerald border-b-2 border-bnp-emerald pb-1 font-bold"><i class="fas fa-users mr-1"></i> Users</a></li>
                     <li><button onclick="logout()" class="text-gray-600 hover:text-rose-600 transition"><i class="fas fa-sign-out-alt mr-1"></i> Sign Out</button></li>
                 </ul>
             </nav>

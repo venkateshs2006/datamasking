@@ -80,6 +80,13 @@
             color: var(--bnp-emerald);
         }
 
+        nav ul li a.active {
+            color: var(--bnp-emerald);
+            border-bottom: 2px solid var(--bnp-emerald);
+            padding-bottom: 4px;
+            font-weight: 700;
+        }
+
         footer {
             background: var(--bnp-dark-grey);
             color: #ffffff;
@@ -192,14 +199,12 @@
         </div>
         <nav>
             <ul>
-                <li><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
-                <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
-                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i
-                            class="fas fa-database mr-1.5"></i> DB Admin</a></li>
-                <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i
-                            class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
-                <li id="userManagementLink" style="display: none;"><a href="/users.html"><i
-                            class="fas fa-users mr-1.5"></i> User Management</a></li>
+                <li id="navNewMigration" style="display: none;"><a href="/select-db.html"><i class="fas fa-plus mr-1.5"></i> New Migration</a></li>
+                <li id="navDashboard"><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+                <li id="navJobs"><a href="/jobs.html" class="active"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
+                <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
+                <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> Users</a></li>
                 <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
             </ul>
         </nav>
@@ -348,16 +353,26 @@
         let activeJobConfig = null;
 
         fetch('/api/auth/check').then(r => r.json()).then(data => {
-            if (!data.authenticated) window.location.href = '/login.html';
-            currentUserRole = data.role.toUpperCase();
-            userDepartments = data.departments;
+            if (!data.authenticated) {
+                window.location.href = '/login.html';
+                return;
+            }
+            currentUserRole = (data.role || '').toUpperCase();
+            userDepartments = data.departments || [];
 
-            if (currentUserRole === 'APPROVER') {
-                document.body.classList.add('role-approver');
-            } else if (currentUserRole === 'ADMIN' || currentUserRole === 'MANAGER') {
-                document.getElementById('adminDbLink').style.display = 'block';
-                document.getElementById('adminCosLink').style.display = 'block';
-                document.getElementById('userManagementLink').style.display = 'block';
+            if (currentUserRole !== 'APPROVER') {
+                const newMig = document.getElementById('navNewMigration');
+                if (newMig) newMig.style.display = 'block';
+            }
+            if (currentUserRole === 'ADMIN' || currentUserRole === 'MANAGER') {
+                const dbLink = document.getElementById('adminDbLink');
+                const cosLink = document.getElementById('adminCosLink');
+                if (dbLink) dbLink.style.display = 'block';
+                if (cosLink) cosLink.style.display = 'block';
+            }
+            if (currentUserRole === 'ADMIN') {
+                const userLink = document.getElementById('userManagementLink');
+                if (userLink) userLink.style.display = 'block';
             }
             fetchJobs();
         });
@@ -368,78 +383,94 @@
         }
 
         async function fetchJobs() {
-            let url = '/api/jobs';
-            const res = await fetch(url);
-            const jobs = await res.json();
-            const tbody = document.getElementById('jobsTable');
-            tbody.innerHTML = '';
+            try {
+                let url = '/api/jobs';
+                const res = await fetch(url);
+                if (!res.ok) {
+                    throw new Error("Failed to load jobs: HTTP " + res.status);
+                }
+                const jobs = await res.json();
+                const tbody = document.getElementById('jobsTable');
+                if (!tbody) return;
+                tbody.innerHTML = '';
 
-            if (jobs.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-12 text-center text-gray-400 italic">No migration jobs found.</td></tr>`;
-                return;
+                if (!Array.isArray(jobs) || jobs.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-12 text-center text-gray-400 italic">No migration jobs found for your department.</td></tr>`;
+                    return;
+                }
+
+                jobs.forEach(job => {
+                    try {
+                        const date = job.createdAt ? new Date(Number(job.createdAt)).toLocaleString() : 'N/A';
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-gray-50 transition-colors';
+
+                        let actionBtn = '';
+                        if (job.status === 'WAITING' && (currentUserRole === 'APPROVER' || currentUserRole === 'ADMIN' || currentUserRole === 'MANAGER')) {
+                            actionBtn = `<button onclick="openReview('${job.id}')" class="text-bnp-emerald font-bold text-sm hover:underline">Review</button>`;
+                        } else if (job.status === 'WAITING' && currentUserRole === 'SCHEDULER') {
+                            actionBtn = `<button onclick="openReview('${job.id}')" class="text-gray-500 font-bold text-sm hover:underline">View</button>`;
+                        } else if (job.status === 'APPROVED' && (currentUserRole === 'SCHEDULER' || currentUserRole === 'ADMIN' || currentUserRole === 'MANAGER')) {
+                            actionBtn = `<button onclick="openReview('${job.id}')" class="bg-blue-100 text-blue-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-200 transition-colors">Run Setup</button>`;
+                        } else {
+                            actionBtn = `<button onclick="openReview('${job.id}')" class="text-gray-500 font-bold text-sm hover:underline">View Details</button>`;
+                        }
+
+                        // Format destination subtext if available
+                        let destSubtext = '';
+                        const cfg = job.configDetails || {};
+                        const jType = (job.jobType || '').toLowerCase().replace(/[_\s]/g, '-');
+                        if (jType === 'secure-export' || jType === 'secureexport' || jType === 'mongo-secure-export' || jType === 'json-secure-export') {
+                            const st = cfg.storage || {};
+                            const dst = cfg.dest || {};
+                            const pathVal = st.path || st.name || dst.dest_dir || dst.path || dst.destDir || (st.id ? ('COS #' + st.id) : (dst.cosId ? ('COS #' + dst.cosId) : ''));
+                            if (pathVal) {
+                                destSubtext = `<div class="text-[11px] text-gray-500 mt-1 flex items-center gap-1 font-mono truncate max-w-xs" title="Destination: ${pathVal}">
+                                    <i class="fas fa-folder-open text-amber-500 text-[10px]"></i> <span>${pathVal}</span>
+                                </div>`;
+                            }
+                        } else if (jType === 'secure-import' || jType === 'secureimport' || jType === 'mongo-secure-import' || jType === 'json-secure-import') {
+                            const st = cfg.storage || {};
+                            const dst = cfg.dest || {};
+                            const srcPath = st.path || st.fileName || (st.id ? ('COS #' + st.id) : 'Export Package');
+                            const dstSchema = dst.schema || dst.database || dst.path || 'public';
+                            destSubtext = `<div class="text-[11px] text-gray-500 mt-1 flex items-center gap-1 font-mono truncate max-w-xs" title="Source: ${srcPath} -> Target: ${dstSchema}">
+                                <i class="fas fa-file-import text-blue-500 text-[10px]"></i> <span>${srcPath} &rarr; ${dstSchema}</span>
+                            </div>`;
+                        } else if (jType === 'json') {
+                            const dst = cfg.dest || {};
+                            const pathVal = dst.dest_dir || dst.path || dst.url || '';
+                            if (pathVal) {
+                                destSubtext = `<div class="text-[11px] text-gray-500 mt-1 flex items-center gap-1 font-mono truncate max-w-xs" title="Destination: ${pathVal}">
+                                    <i class="fas fa-folder-open text-amber-500 text-[10px]"></i> <span>${pathVal}</span>
+                                </div>`;
+                            }
+                        }
+
+                        tr.innerHTML = `
+                            <td class="px-6 py-4">
+                                <div class="font-bold text-bnp-dark-grey tracking-wide mb-1 text-sm">${job.migrationName || 'Untitled Job'}</div>
+                                <div class="text-[10px] uppercase font-bold text-gray-400 bg-gray-100 border inline-block px-1.5 rounded">${job.jobType}</div>
+                                ${destSubtext}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-600">${job.department || 'N/A'}</td>
+                            <td class="px-6 py-4 text-sm text-gray-600">${job.submittedBy || 'N/A'}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">${date}</td>
+                            <td class="px-6 py-4"><span class="badge badge-${job.status}">${job.status}</span></td>
+                            <td class="px-6 py-4 text-right">${actionBtn}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    } catch (err) {
+                        console.error("Error rendering job row:", err, job);
+                    }
+                });
+            } catch (e) {
+                console.error("Error fetching jobs:", e);
+                const tbody = document.getElementById('jobsTable');
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-12 text-center text-red-500 italic">Error loading jobs. Please check connection.</td></tr>`;
+                }
             }
-
-            jobs.forEach(job => {
-                const date = new Date(job.createdAt).toLocaleString();
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50 transition-colors';
-
-                let actionBtn = '';
-                if (job.status === 'WAITING' && (currentUserRole === 'APPROVER' || currentUserRole === 'ADMIN' || currentUserRole === 'MANAGER')) {
-                    actionBtn = `<button onclick="openReview('${job.id}')" class="text-bnp-emerald font-bold text-sm hover:underline">Review</button>`;
-                } else if (job.status === 'WAITING' && currentUserRole === 'SCHEDULER') {
-                    actionBtn = `<button onclick="openReview('${job.id}')" class="text-gray-500 font-bold text-sm hover:underline">View</button>`;
-                } else if (job.status === 'APPROVED' && (currentUserRole === 'SCHEDULER' || currentUserRole === 'ADMIN' || currentUserRole === 'MANAGER')) {
-                    actionBtn = `<button onclick="openReview('${job.id}')" class="bg-blue-100 text-blue-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-200 transition-colors">Run Setup</button>`;
-                } else {
-                    actionBtn = `<button onclick="openReview('${job.id}')" class="text-gray-500 font-bold text-sm hover:underline">View Details</button>`;
-                }
-
-                // Format destination subtext if available
-                let destSubtext = '';
-                const cfg = job.configDetails || {};
-                const jType = (job.jobType || '').toLowerCase().replace(/[_\s]/g, '-');
-                if (jType === 'secure-export' || jType === 'secureexport') {
-                    const st = cfg.storage || {};
-                    const dst = cfg.dest || {};
-                    const pathVal = st.path || st.name || dst.dest_dir || dst.path || (st.id ? ('COS #' + st.id) : '');
-                    if (pathVal) {
-                        destSubtext = `<div class="text-[11px] text-gray-500 mt-1 flex items-center gap-1 font-mono truncate max-w-xs" title="Destination: ${pathVal}">
-                            <i class="fas fa-folder-open text-amber-500 text-[10px]"></i> <span>${pathVal}</span>
-                        </div>`;
-                    }
-                } else if (jType === 'secure-import' || jType === 'secureimport') {
-                    const st = cfg.storage || {};
-                    const dst = cfg.dest || {};
-                    const srcPath = st.path || st.fileName || (st.id ? ('COS #' + st.id) : 'Export Package');
-                    const dstSchema = dst.schema || 'public';
-                    destSubtext = `<div class="text-[11px] text-gray-500 mt-1 flex items-center gap-1 font-mono truncate max-w-xs" title="Source: ${srcPath} -> Schema: ${dstSchema}">
-                        <i class="fas fa-file-import text-blue-500 text-[10px]"></i> <span>${srcPath} &rarr; ${dstSchema}</span>
-                    </div>`;
-                } else if (jType === 'json') {
-                    const dst = cfg.dest || {};
-                    const pathVal = dst.dest_dir || dst.path || dst.url || '';
-                    if (pathVal) {
-                        destSubtext = `<div class="text-[11px] text-gray-500 mt-1 flex items-center gap-1 font-mono truncate max-w-xs" title="Destination: ${pathVal}">
-                            <i class="fas fa-folder-open text-amber-500 text-[10px]"></i> <span>${pathVal}</span>
-                        </div>`;
-                    }
-                }
-
-                tr.innerHTML = `
-                    <td class="px-6 py-4">
-                        <div class="font-bold text-bnp-dark-grey tracking-wide mb-1 text-sm">${job.migrationName || 'Untitled Job'}</div>
-                        <div class="text-[10px] uppercase font-bold text-gray-400 bg-gray-100 border inline-block px-1.5 rounded">${job.jobType}</div>
-                        ${destSubtext}
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-600">${job.department || 'N/A'}</td>
-                    <td class="px-6 py-4 text-sm text-gray-600">${job.submittedBy}</td>
-                    <td class="px-6 py-4 text-sm text-gray-500">${date}</td>
-                    <td class="px-6 py-4"><span class="badge badge-${job.status}">${job.status}</span></td>
-                    <td class="px-6 py-4 text-right">${actionBtn}</td>
-                `;
-                tbody.appendChild(tr);
-            });
         }
 
         async function openReview(id) {
@@ -462,13 +493,17 @@
             const rawType = (job.jobType || '').toLowerCase().replace(/[_\s]/g, '-');
             const isSecureExport = rawType === 'secure-export' || rawType === 'secureexport';
             const isSecureImport = rawType === 'secure-import' || rawType === 'secureimport';
+            const isMongoExport = rawType === 'mongo-secure-export';
+            const isMongoImport = rawType === 'mongo-secure-import';
+            const isJsonExport = rawType === 'json-secure-export';
+            const isJsonImport = rawType === 'json-secure-import';
             const isJson = rawType === 'json';
 
             html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Environment Scope</h3>`;
             html += `<div class="grid grid-cols-2 gap-4">`;
 
             // Source block
-            if (isSecureImport) {
+            if (isSecureImport || isMongoImport || isJsonImport) {
                 const isCos = (storage.type || '').toLowerCase() === 'cos' || (storage.id && !storage.path);
                 const storageTypeLabel = isCos ? 'Cloud Object Storage (COS)' : 'Local Storage';
                 const srcPath = storage.path || storage.fileName || (storage.id ? ('COS Connection #' + storage.id) : 'N/A');
@@ -476,6 +511,21 @@
                             <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Source Storage Package</h4>
                             <p class="text-sm mb-1"><strong class="text-[10px] uppercase text-gray-400 mr-1">Type:</strong> <span class="font-mono">${storageTypeLabel}</span></p>
                             <p class="text-sm mb-1 truncate" title="${srcPath}"><strong class="text-[10px] uppercase text-gray-400 mr-1">File / Path:</strong> <span class="font-mono">${srcPath}</span></p>
+                         </div>`;
+            } else if (isMongoExport) {
+                html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Source MongoDB</h4>
+                            <p class="text-sm mb-1"><strong class="text-[10px] uppercase text-gray-400 mr-1">Database:</strong> <span class="font-mono font-bold">${src.database || 'admin'}</span></p>
+                            <p class="text-sm mb-1 truncate" title="${src.url || ''}"><strong class="text-[10px] uppercase text-gray-400 mr-1">Connection:</strong> <span class="font-mono">${src.id ? ('Conn #' + src.id) : (src.url || 'N/A')}</span></p>
+                         </div>`;
+            } else if (isJsonExport) {
+                const isCos = (src.type || '').toLowerCase() === 'cos' || (src.cosId != null);
+                const storageTypeLabel = isCos ? 'Cloud Object Storage (COS)' : 'Local Storage';
+                const srcPath = isCos ? (`COS Connection #${src.cosId}`) : (src.path || 'N/A');
+                html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Source JSON Storage</h4>
+                            <p class="text-sm mb-1"><strong class="text-[10px] uppercase text-gray-400 mr-1">Type:</strong> <span class="font-mono">${storageTypeLabel}</span></p>
+                            <p class="text-sm mb-1 truncate" title="${srcPath}"><strong class="text-[10px] uppercase text-gray-400 mr-1">Path:</strong> <span class="font-mono">${srcPath}</span></p>
                          </div>`;
             } else if (isJson) {
                 const srcType = src.storageType || 'Local';
@@ -494,14 +544,29 @@
             }
 
             // Destination / Storage block
-            if (isSecureExport) {
-                const isCos = (storage.type || '').toLowerCase() === 'cos' || (storage.id && !storage.path);
+            if (isSecureExport || isMongoExport || isJsonExport) {
+                const isCos = (dest.type || '').toLowerCase() === 'cos' || (dest.cosId != null);
                 const storageTypeLabel = isCos ? 'Cloud Object Storage (COS)' : 'Local Storage';
-                const destPath = storage.path || storage.name || dest.dest_dir || dest.path || (storage.id ? ('COS Connection #' + storage.id) : 'N/A');
+                const destPath = isCos ? (`COS Connection #${dest.cosId}`) : (dest.destDir || dest.dest_dir || dest.path || 'secure-export');
                 html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
                             <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Destination / Storage</h4>
                             <p class="text-sm mb-1"><strong class="text-[10px] uppercase text-gray-400 mr-1">Type:</strong> <span class="font-mono">${storageTypeLabel}</span></p>
-                            <p class="text-sm mb-1 truncate" title="${destPath}"><strong class="text-[10px] uppercase text-gray-400 mr-1">${isCos ? 'Target / Connection:' : 'Destination Path:'}</strong> <span class="font-mono">${destPath}</span></p>
+                            <p class="text-sm mb-1 truncate" title="${destPath}"><strong class="text-[10px] uppercase text-gray-400 mr-1">${isCos ? 'Target COS:' : 'Destination Path:'}</strong> <span class="font-mono">${destPath}</span></p>
+                         </div>`;
+            } else if (isMongoImport) {
+                html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Target MongoDB Database</h4>
+                            <p class="text-sm mb-1"><strong class="text-[10px] uppercase text-gray-400 mr-1">Database:</strong> <span class="font-mono font-bold">${dest.database || 'N/A'}</span></p>
+                            <p class="text-sm mb-1"><strong class="text-[10px] uppercase text-gray-400 mr-1">Overwrite:</strong> <span class="font-mono">${dest.dropExisting ? 'Drop Existing' : 'Append'}</span></p>
+                         </div>`;
+            } else if (isJsonImport) {
+                const isCos = (dest.type || '').toLowerCase() === 'cos' || (dest.cosId != null);
+                const storageTypeLabel = isCos ? 'Cloud Object Storage (COS)' : 'Local Storage';
+                const destPath = isCos ? (`COS Connection #${dest.cosId}`) : (dest.path || 'data-imported');
+                html += `<div class="bg-gray-50 p-4 rounded border border-gray-200">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Target Destination Storage</h4>
+                            <p class="text-sm mb-1"><strong class="text-[10px] uppercase text-gray-400 mr-1">Type:</strong> <span class="font-mono">${storageTypeLabel}</span></p>
+                            <p class="text-sm mb-1 truncate" title="${destPath}"><strong class="text-[10px] uppercase text-gray-400 mr-1">Path:</strong> <span class="font-mono">${destPath}</span></p>
                          </div>`;
             } else if (isJson) {
                 const destType = dest.storageType || 'Local';
@@ -520,11 +585,62 @@
             }
             html += `</div></div>`;
 
-            if (isSecureImport) {
+            if (isSecureImport || isMongoImport || isJsonImport) {
                 html += `<div class="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
                             <h4 class="text-xs font-bold text-purple-900 uppercase mb-1 flex items-center"><i class="fas fa-shield-alt mr-1.5"></i> Secure Decryption & Database Restore</h4>
-                            <p class="text-xs text-purple-700">This job restores tables, views, sequences, constraints, and data from the encrypted secure export package into the target schema.</p>
+                            <p class="text-xs text-purple-700">This job decrypts the backup archive and restores data into the destination target with full integrity.</p>
                          </div>`;
+            } else if (isMongoExport || isJsonExport) {
+                const rules = config.rules || {};
+                const targetItems = rules.targetCollections || rules.targetTables || rules.targetFiles || [];
+                html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Selected Files / Collections</h3>`;
+                if (targetItems.length > 0) {
+                    html += `<div class="flex flex-wrap gap-2">${targetItems.map(t => `<span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-mono border border-gray-200">${t}</span>`).join('')}</div>`;
+                } else {
+                    html += `<p class="text-sm text-gray-400 italic">All items included.</p>`;
+                }
+                html += `</div>`;
+
+                const renderRules = (title, rulesList, colorClass) => {
+                    if (!rulesList || rulesList.length === 0) return '';
+                    return `<div class="mb-4">
+                                <h4 class="text-[10px] font-bold text-gray-500 uppercase mb-2">${title}</h4>
+                                <div class="flex flex-wrap gap-1.5">
+                                    ${rulesList.map(r => `<span class="text-[10px] font-bold px-2 py-1 rounded-md ${colorClass} shadow-sm">${r}</span>`).join('')}
+                                </div>
+                            </div>`;
+                };
+
+                const sfdHtml = renderRules('SFD (Standard Faker Data)', rules.maskingColumns, 'bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20');
+                const pmdHtml = renderRules('PMD (Partial Masking Data)', rules.partialMaskingColumns, 'bg-orange-100 text-orange-700 border border-orange-200');
+                const fphRules = rules.constraintColumns || rules.constraintFields || [];
+                const fphHtml = renderRules('FPH (Format Preserving Hashing)', fphRules, 'bg-purple-100 text-purple-700 border border-purple-200');
+
+                const maskingFields = rules.maskingFields || {};
+                let maskFieldsHtml = '';
+                let totalMasked = 0;
+                for (const [entity, fields] of Object.entries(maskingFields)) {
+                    if (fields && fields.length > 0) {
+                        totalMasked += fields.length;
+                        maskFieldsHtml += `<div><strong class="text-xs font-mono text-gray-800">${entity}:</strong> <span class="text-xs font-mono bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-200">${fields.join(', ')}</span></div>`;
+                    }
+                }
+
+                html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Masking Rules Applied</h3>`;
+                if (!sfdHtml && !pmdHtml && !fphHtml && totalMasked === 0) {
+                    html += `<p class="text-sm text-gray-400 italic">No masking rules applied.</p>`;
+                } else {
+                    html += sfdHtml + pmdHtml + fphHtml + maskFieldsHtml;
+                }
+
+                if (rules.maskingKey) {
+                    const encExt = isMongoExport ? '.bson.enc' : '.json.enc';
+                    html += `<div class="mt-3 pt-3 border-t border-gray-100">
+                                <h4 class="text-[10px] font-bold text-purple-800 uppercase mb-1 flex items-center"><i class="fas fa-lock mr-1"></i> Salt & File Encryption Key</h4>
+                                <span class="text-xs font-mono text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-1 rounded-md inline-block shadow-sm">AES-256 (${encExt}) & FPH Active (${rules.maskingKey.length} chars)</span>
+                             </div>`;
+                }
+                html += `</div>`;
             } else {
                 const rules = config.rules || {};
                 const targetTables = rules.targetTables || [];
@@ -642,7 +758,7 @@
             }
 
             const normalizedJobType = (activeJobType || '').toLowerCase().replace(/[_\s]/g, '-');
-            if (normalizedJobType === 'secure-import' || normalizedJobType === 'secureimport') {
+            if (normalizedJobType === 'secure-import' || normalizedJobType === 'secureimport' || normalizedJobType === 'mongo-secure-import' || normalizedJobType === 'json-secure-import') {
                 openSecretKeyModal();
                 return;
             }
@@ -650,6 +766,10 @@
             let url = '';
             if (normalizedJobType === 'postgres' || normalizedJobType === 'secure-export' || normalizedJobType === 'secureexport') {
                 url = `/api/migration/start/${activeJobId}`;
+            } else if (normalizedJobType === 'mongo-secure-export') {
+                url = `/api/migration/mongo-secure-export/start/${activeJobId}`;
+            } else if (normalizedJobType === 'json-secure-export') {
+                url = `/api/migration/json-secure-export/start/${activeJobId}`;
             } else if (normalizedJobType === 'json') {
                 url = `/api/migration/json/start/${activeJobId}`;
             } else if (normalizedJobType === 'mongo') {
@@ -665,8 +785,17 @@
                 const res = await fetch(url, { method: 'POST' });
                 if (res.ok) {
                     if (normalizedJobType === 'postgres' || normalizedJobType === 'secure-export' || normalizedJobType === 'secureexport') {
-                        // This endpoint redirects, so we just follow it.
+                        // Follow redirect
                         window.location.href = res.url;
+                    } else if (normalizedJobType === 'mongo-secure-export' || normalizedJobType === 'json-secure-export') {
+                        const data = await res.json();
+                        if (data.status === 'SUCCESS' && data.executionId) {
+                            window.location.href = `/index.html?executionId=${data.executionId}`;
+                        } else {
+                            alert(data.message || 'Job started');
+                            closeModal();
+                            fetchJobs();
+                        }
                     } else {
                         const data = await res.json();
                         alert(data.message || 'Migration job started successfully!');
@@ -717,8 +846,16 @@
             btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i> Validating & Starting...';
             btn.disabled = true;
 
+            let endpoint = `/api/migration/secure-import/start/${activeJobId}`;
+            const normalized = (activeJobType || '').toLowerCase();
+            if (normalized.includes('mongo')) {
+                endpoint = `/api/migration/mongo-secure-import/start/${activeJobId}`;
+            } else if (normalized.includes('json')) {
+                endpoint = `/api/migration/json-secure-import/start/${activeJobId}`;
+            }
+
             try {
-                const res = await fetch(`/api/migration/secure-import/start/${activeJobId}`, {
+                const res = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ secretKey: secretKey })

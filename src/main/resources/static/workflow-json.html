@@ -29,6 +29,7 @@
         nav ul li { margin-left: 25px; }
         nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
         nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+        nav ul li a.active { color: var(--bnp-emerald); border-bottom: 2px solid var(--bnp-emerald); padding-bottom: 4px; font-weight: 700; }
 
         footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 10px 8%; font-size: 0.75rem; z-index: 20; }
         .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
@@ -120,7 +121,12 @@
     </div>
     <nav>
         <ul>
-            <li><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+            <li id="navNewMigration"><a href="/select-db.html" class="active"><i class="fas fa-plus mr-1.5"></i> New Migration</a></li>
+            <li id="navDashboard"><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+            <li id="navJobs"><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+            <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
+            <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
+            <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> Users</a></li>
             <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
         </ul>
     </nav>
@@ -466,17 +472,34 @@
     fetch('/api/auth/check').then(r => r.json()).then(data => {
         if(!data.authenticated) {
             window.location.href = '/login.html';
-        } else if (data.role === 'APPROVER') {
-            window.location.href = '/jobs.html';
-        } else {
-            userDepartments = data.departments;
-            const deptSelect = document.getElementById('department');
-            deptSelect.innerHTML = '<option value="">Select a department...</option>';
-            userDepartments.forEach(d => deptSelect.add(new Option(d.name, d.name)));
-
-            fetchConnections();
-            fetchCosConnections();
+            return;
         }
+        const role = (data.role || '').toUpperCase();
+        if (role === 'APPROVER') {
+            window.location.href = '/jobs.html';
+            return;
+        }
+        if (role === 'ADMIN' || role === 'MANAGER') {
+            const dbLink = document.getElementById('adminDbLink');
+            const cosLink = document.getElementById('adminCosLink');
+            if (dbLink) dbLink.style.display = 'block';
+            if (cosLink) cosLink.style.display = 'block';
+        }
+        if (role === 'ADMIN') {
+            const userLink = document.getElementById('userManagementLink');
+            if (userLink) userLink.style.display = 'block';
+        }
+
+        userDepartments = data.departments || [];
+        const deptSelect = document.getElementById('department');
+        deptSelect.innerHTML = '<option value="">Select a department...</option>';
+        userDepartments.forEach(d => {
+            const dName = typeof d === 'string' ? d : d.name;
+            deptSelect.add(new Option(dName, dName));
+        });
+
+        fetchConnections();
+        fetchCosConnections();
     });
 
     async function logout() {

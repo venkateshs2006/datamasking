@@ -55,14 +55,18 @@
             </a>
             <div class="hidden md:block border-l border-gray-300 pl-6">
                 <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
+                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Tables Status</p>
             </div>
         </div>
         <nav>
             <ul>
-                <li><a href="index.html" id="navDashboard"><i class="fas fa-tachometer-alt mr-1.5"></i> Dashboard</a></li>
-                <li><a href="#" class="active"><i class="fas fa-table mr-1.5"></i> Tables</a></li>
-                <li><a href="settings.html"><i class="fas fa-cogs mr-1.5"></i> Settings</a></li>
-                <li><button onclick="logout()"><i class="fas fa-sign-out-alt"></i></button></li>
+                <li id="navNewMigration" style="display: none;"><a href="/select-db.html"><i class="fas fa-plus mr-1.5"></i> New Migration</a></li>
+                <li id="navDashboard"><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+                <li id="navJobs"><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
+                <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
+                <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> Users</a></li>
+                <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
             </ul>
         </nav>
     </header>
@@ -307,6 +311,33 @@
                 tbody.appendChild(tr);
             });
         }
+
+        async function logout() {
+            await fetch('/api/auth/logout', {method: 'POST'});
+            window.location.href = '/login.html';
+        }
+
+        fetch('/api/auth/check').then(r => r.json()).then(data => {
+            if(!data.authenticated) {
+                window.location.href = '/login.html';
+                return;
+            }
+            const role = (data.role || '').toUpperCase();
+            if (role !== 'APPROVER') {
+                const newMig = document.getElementById('navNewMigration');
+                if (newMig) newMig.style.display = 'block';
+            }
+            if (role === 'ADMIN' || role === 'MANAGER') {
+                const dbLink = document.getElementById('adminDbLink');
+                const cosLink = document.getElementById('adminCosLink');
+                if (dbLink) dbLink.style.display = 'block';
+                if (cosLink) cosLink.style.display = 'block';
+            }
+            if (role === 'ADMIN') {
+                const userLink = document.getElementById('userManagementLink');
+                if (userLink) userLink.style.display = 'block';
+            }
+        });
 
         init();
     </script>

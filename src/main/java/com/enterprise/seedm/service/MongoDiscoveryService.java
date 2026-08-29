@@ -21,40 +21,47 @@ import java.util.Set;
 public class MongoDiscoveryService {
 
     private final DbConnectionService dbConnectionService;
-
-    private MongoClient getClient(Long connectionId) {
-        DbConnection connection = dbConnectionService.getConnection(connectionId);
-        if (connection == null) {
-            throw new IllegalArgumentException("Connection not found");
-        }
-        return MongoClients.create(connection.getUrl());
-    }
+    private final MongoConnectionHelper mongoConnectionHelper;
 
     public List<String> getDatabases(Long connectionId) {
-        try (MongoClient client = getClient(connectionId)) {
+        DbConnection connection = dbConnectionService.getConnection(connectionId);
+        if (connection == null) {
+            throw new IllegalArgumentException("Connection not found for ID: " + connectionId);
+        }
+        try (MongoClient client = mongoConnectionHelper.createClient(connection)) {
             List<String> databases = new ArrayList<>();
-            client.listDatabaseNames().into(databases);
+            try {
+                client.listDatabaseNames().into(databases);
+            } catch (Exception e) {
+                log.warn("Could not list all databases for connection {}: {}", connectionId, e.getMessage());
+                com.mongodb.ConnectionString connStr = new com.mongodb.ConnectionString(connection.getUrl());
+                if (connStr.getDatabase() != null && !connStr.getDatabase().isEmpty()) {
+                    databases.add(connStr.getDatabase());
+                } else {
+                    throw e;
+                }
+            }
             return databases;
         } catch (Exception e) {
-            log.error("Error getting databases", e);
-            throw new RuntimeException("Error getting databases", e);
+            log.error("Error getting databases for connection ID {}: {}", connectionId, e.getMessage(), e);
+            throw new RuntimeException("Error getting databases: " + e.getMessage(), e);
         }
     }
 
     public List<String> getCollections(Long connectionId, String databaseName) {
-        try (MongoClient client = getClient(connectionId)) {
+        try (MongoClient client = mongoConnectionHelper.createClient(connectionId)) {
             MongoDatabase database = client.getDatabase(databaseName);
             List<String> collections = new ArrayList<>();
             database.listCollectionNames().into(collections);
             return collections;
         } catch (Exception e) {
-            log.error("Error getting collections", e);
-            throw new RuntimeException("Error getting collections", e);
+            log.error("Error getting collections for connection ID {} on db {}: {}", connectionId, databaseName, e.getMessage(), e);
+            throw new RuntimeException("Error getting collections: " + e.getMessage(), e);
         }
     }
 
     public List<String> getFields(Long connectionId, String databaseName, String collectionName) {
-        try (MongoClient client = getClient(connectionId)) {
+        try (MongoClient client = mongoConnectionHelper.createClient(connectionId)) {
             MongoDatabase database = client.getDatabase(databaseName);
             MongoCollection<Document> collection = database.getCollection(collectionName);
             Set<String> fields = new HashSet<>();

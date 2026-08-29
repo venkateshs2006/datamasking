@@ -53,8 +53,7 @@
         .error-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 500px; display: inline-block; vertical-align: middle; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
         .error-full { display: none; white-space: pre-wrap; word-break: break-word; margin-top: 12px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; color: #475569; }
 
-        /* Hide some nav links for approvers */
-        body.role-approver .nav-scheduler-only { display: none !important; }
+        nav ul li a.active { color: var(--bnp-emerald); border-bottom: 2px solid var(--bnp-emerald); padding-bottom: 4px; font-weight: 700; }
 
         .processing-pulse {
             animation: pulse-op 1.5s infinite ease-in-out;
@@ -70,10 +69,7 @@
 
 <header>
     <div class="flex items-center">
-        <a href="/index.html" class="logo-link mr-6 nav-scheduler-only">
-            <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
-        </a>
-        <a href="/jobs.html" class="logo-link mr-6" style="display: none;" id="approverLogoLink">
+        <a href="/index.html" class="logo-link mr-6">
             <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
         </a>
         <div class="hidden md:block border-l border-gray-300 pl-6">
@@ -83,11 +79,12 @@
     </div>
     <nav>
         <ul>
-            <li class="nav-scheduler-only"><a href="/select-db.html"><i class="fas fa-plus mr-1.5"></i> New Migration</a></li>
-            <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+            <li id="navNewMigration" style="display: none;"><a href="/select-db.html"><i class="fas fa-plus mr-1.5"></i> New Migration</a></li>
+            <li id="navDashboard"><a href="/index.html" class="active"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+            <li id="navJobs"><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
             <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
             <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
-            <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> User Management</a></li>
+            <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> Users</a></li>
             <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
         </ul>
     </nav>
@@ -263,14 +260,22 @@
     fetch('/api/auth/check').then(r => r.json()).then(data => {
         if(!data.authenticated) {
             window.location.href = '/login.html';
-        } else if (data.role === 'APPROVER') {
-            document.body.classList.add('role-approver');
-            const appLogo = document.getElementById('approverLogoLink');
-            if (appLogo) appLogo.style.display = 'block';
-        } else if (data.role === 'ADMIN') {
-            document.getElementById('adminDbLink').style.display = 'block';
-            document.getElementById('adminCosLink').style.display = 'block';
-            document.getElementById('userManagementLink').style.display = 'block';
+            return;
+        }
+        const role = (data.role || '').toUpperCase();
+        if (role !== 'APPROVER') {
+            const newMig = document.getElementById('navNewMigration');
+            if (newMig) newMig.style.display = 'block';
+        }
+        if (role === 'ADMIN' || role === 'MANAGER') {
+            const dbLink = document.getElementById('adminDbLink');
+            const cosLink = document.getElementById('adminCosLink');
+            if (dbLink) dbLink.style.display = 'block';
+            if (cosLink) cosLink.style.display = 'block';
+        }
+        if (role === 'ADMIN') {
+            const userLink = document.getElementById('userManagementLink');
+            if (userLink) userLink.style.display = 'block';
         }
     });
 
@@ -458,14 +463,19 @@
         let totalWrites = 0;
 
         if (isMongo) {
-            totalEntities = data.totalCollections || 0;
-            completedEntities = data.processedCollections || 0;
+            totalEntities = data.totalCollections != null ? data.totalCollections : (data.tableProgress ? data.tableProgress.length : 0);
+            completedEntities = data.processedCollections != null ? data.processedCollections : (data.completedTables ? data.completedTables.length : 0);
+            if (data.status === 'COMPLETED' && totalEntities > 0 && completedEntities === 0) {
+                completedEntities = totalEntities;
+            }
             document.getElementById('tableHeaderTitle').innerText = 'MongoDB Collections Log';
             document.getElementById('thEntityName').innerText = 'Collection Name';
         } else if (isJson) {
-            totalEntities = data.totalFiles || 0;
-            completedEntities = data.processedFiles || 0;
-            totalWrites = data.processedFiles || 0;
+            totalEntities = data.totalFiles != null ? data.totalFiles : (data.tableProgress ? data.tableProgress.length : 0);
+            completedEntities = data.processedFiles != null ? data.processedFiles : (data.completedTables ? data.completedTables.length : 0);
+            if (data.status === 'COMPLETED' && totalEntities > 0 && completedEntities === 0) {
+                completedEntities = totalEntities;
+            }
             document.getElementById('tableHeaderTitle').innerText = 'JSON Files Log';
             document.getElementById('thEntityName').innerText = 'Entity / File';
         } else if (isSecureExport) {

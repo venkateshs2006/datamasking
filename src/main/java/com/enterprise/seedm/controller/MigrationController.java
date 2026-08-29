@@ -36,6 +36,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.enterprise.seedm.model.MongoSecureExportConfig;
+import com.enterprise.seedm.model.MongoSecureImportConfig;
+import com.enterprise.seedm.model.JsonSecureExportConfig;
+import com.enterprise.seedm.model.JsonSecureImportConfig;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.security.SecureRandom;
@@ -43,6 +47,7 @@ import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 @RestController
@@ -83,10 +88,27 @@ public class MigrationController {
     private SecureImportService secureImportService;
 
     @Autowired
+    private MongoSecureExportService mongoSecureExportService;
+
+    @Autowired
+    private MongoSecureImportService mongoSecureImportService;
+
+    @Autowired
+    private JsonSecureExportService jsonSecureExportService;
+
+    @Autowired
+    private JsonSecureImportService jsonSecureImportService;
+
+    @Autowired
     private JobApprovalService jobApprovalService;
 
     @Autowired
     private DynamicDataSourceService dynamicDataSourceService;
+
+    private final AtomicInteger mongoSecureExportSequence = new AtomicInteger(1);
+    private final AtomicInteger mongoSecureImportSequence = new AtomicInteger(1);
+    private final AtomicInteger jsonSecureExportSequence = new AtomicInteger(1);
+    private final AtomicInteger jsonSecureImportSequence = new AtomicInteger(1);
 
     @Autowired
     private DbConnectionService dbConnectionService;
@@ -481,6 +503,162 @@ public class MigrationController {
         }
     }
 
+    @PostMapping("/mongo-secure-export/start/{id}")
+    public ResponseEntity<?> startMongoSecureExportMigration(@PathVariable Long id) {
+        try {
+            log.info("Starting Mongo Secure Export job with ID: {}", id);
+            JobRequest jobRequest = jobApprovalService.getJob(id);
+            if (jobRequest == null) {
+                return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "message", "Job not found"));
+            }
+
+            Map<String, Object> configDetailsMap = objectMapper.convertValue(jobRequest.getConfigDetails(), Map.class);
+            MongoSecureExportConfig config = objectMapper.convertValue(configDetailsMap, MongoSecureExportConfig.class);
+            if (config == null) {
+                config = new MongoSecureExportConfig();
+            }
+            config.setJobName(jobRequest.getMigrationName());
+
+            String executionId = "mongo-export-" + mongoSecureExportSequence.getAndIncrement();
+            final MongoSecureExportConfig finalConfig = config;
+            taskExecutor.execute(() -> {
+                try {
+                    mongoSecureExportService.processMongoExport(executionId, finalConfig);
+                } catch (Exception e) {
+                    log.error("Mongo Secure Export failed in background task", e);
+                }
+            });
+
+            log.info("Mongo Secure Export task launched with id: {}", executionId);
+            return ResponseEntity.ok(Map.of("status", "SUCCESS", "executionId", executionId, "message", "Mongo Secure Export started"));
+
+        } catch (Exception e) {
+            log.error("Failed to start Mongo Secure Export", e);
+            return ResponseEntity.internalServerError().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/mongo-secure-import/start/{id}")
+    public ResponseEntity<?> startMongoSecureImportMigration(@PathVariable Long id, @RequestBody(required = false) Map<String, String> payload) {
+        try {
+            log.info("Starting Mongo Secure Import job with ID: {}", id);
+            JobRequest jobRequest = jobApprovalService.getJob(id);
+            if (jobRequest == null) {
+                return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "message", "Job not found"));
+            }
+
+            String secretKey = (payload != null) ? payload.get("secretKey") : null;
+
+            Map<String, Object> configDetailsMap = objectMapper.convertValue(jobRequest.getConfigDetails(), Map.class);
+            MongoSecureImportConfig config = objectMapper.convertValue(configDetailsMap, MongoSecureImportConfig.class);
+            if (config == null) {
+                config = new MongoSecureImportConfig();
+            }
+            config.setJobName(jobRequest.getMigrationName());
+
+            // Validate key
+            mongoSecureImportService.validateSecretKey(config, secretKey);
+
+            String executionId = "mongo-import-" + mongoSecureImportSequence.getAndIncrement();
+            final MongoSecureImportConfig finalConfig = config;
+            taskExecutor.execute(() -> {
+                try {
+                    mongoSecureImportService.processMongoImport(executionId, finalConfig, secretKey);
+                } catch (Exception e) {
+                    log.error("Mongo Secure Import failed in background task", e);
+                }
+            });
+
+            log.info("Mongo Secure Import task launched with id: {}", executionId);
+            return ResponseEntity.ok(Map.of("status", "SUCCESS", "executionId", executionId, "message", "Mongo Secure Import started"));
+
+        } catch (IllegalArgumentException e) {
+            log.warn("Mongo Secure Import key validation failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to start Mongo Secure Import", e);
+            return ResponseEntity.internalServerError().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/json-secure-export/start/{id}")
+    public ResponseEntity<?> startJsonSecureExportMigration(@PathVariable Long id) {
+        try {
+            log.info("Starting JSON Secure Export job with ID: {}", id);
+            JobRequest jobRequest = jobApprovalService.getJob(id);
+            if (jobRequest == null) {
+                return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "message", "Job not found"));
+            }
+
+            Map<String, Object> configDetailsMap = objectMapper.convertValue(jobRequest.getConfigDetails(), Map.class);
+            JsonSecureExportConfig config = objectMapper.convertValue(configDetailsMap, JsonSecureExportConfig.class);
+            if (config == null) {
+                config = new JsonSecureExportConfig();
+            }
+            config.setJobName(jobRequest.getMigrationName());
+
+            String executionId = "json-export-" + jsonSecureExportSequence.getAndIncrement();
+            final JsonSecureExportConfig finalConfig = config;
+            taskExecutor.execute(() -> {
+                try {
+                    jsonSecureExportService.processJsonExport(executionId, finalConfig);
+                } catch (Exception e) {
+                    log.error("JSON Secure Export failed in background task", e);
+                }
+            });
+
+            log.info("JSON Secure Export task launched with id: {}", executionId);
+            return ResponseEntity.ok(Map.of("status", "SUCCESS", "executionId", executionId, "message", "JSON Secure Export started"));
+
+        } catch (Exception e) {
+            log.error("Failed to start JSON Secure Export", e);
+            return ResponseEntity.internalServerError().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/json-secure-import/start/{id}")
+    public ResponseEntity<?> startJsonSecureImportMigration(@PathVariable Long id, @RequestBody(required = false) Map<String, String> payload) {
+        try {
+            log.info("Starting JSON Secure Import job with ID: {}", id);
+            JobRequest jobRequest = jobApprovalService.getJob(id);
+            if (jobRequest == null) {
+                return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "message", "Job not found"));
+            }
+
+            String secretKey = (payload != null) ? payload.get("secretKey") : null;
+
+            Map<String, Object> configDetailsMap = objectMapper.convertValue(jobRequest.getConfigDetails(), Map.class);
+            JsonSecureImportConfig config = objectMapper.convertValue(configDetailsMap, JsonSecureImportConfig.class);
+            if (config == null) {
+                config = new JsonSecureImportConfig();
+            }
+            config.setJobName(jobRequest.getMigrationName());
+
+            // Validate key
+            jsonSecureImportService.validateSecretKey(config, secretKey);
+
+            String executionId = "json-import-" + jsonSecureImportSequence.getAndIncrement();
+            final JsonSecureImportConfig finalConfig = config;
+            taskExecutor.execute(() -> {
+                try {
+                    jsonSecureImportService.processJsonImport(executionId, finalConfig, secretKey);
+                } catch (Exception e) {
+                    log.error("JSON Secure Import failed in background task", e);
+                }
+            });
+
+            log.info("JSON Secure Import task launched with id: {}", executionId);
+            return ResponseEntity.ok(Map.of("status", "SUCCESS", "executionId", executionId, "message", "JSON Secure Import started"));
+
+        } catch (IllegalArgumentException e) {
+            log.warn("JSON Secure Import key validation failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to start JSON Secure Import", e);
+            return ResponseEntity.internalServerError().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        }
+    }
+
     /**
      * Get a list of all recent job executions for the dropdown
      */
@@ -504,24 +682,25 @@ public class MigrationController {
                 }
             }
 
-            // Add JSON, Secure Export, and Secure Import executions
+            // Add executions
             result.addAll(jsonMigrationService.getAllExecutions());
             result.addAll(secureExportService.getAllExecutions());
             result.addAll(secureImportService.getAllExecutions());
-
+            result.addAll(mongoSecureExportService.getAllExecutions());
+            result.addAll(mongoSecureImportService.getAllExecutions());
+            result.addAll(jsonSecureExportService.getAllExecutions());
+            result.addAll(jsonSecureImportService.getAllExecutions());
 
             // Sort descending by ID (using string comparison for mixed types)
             result.sort((m1, m2) -> {
                 String id1 = m1.get("id").toString();
                 String id2 = m2.get("id").toString();
 
-                // Try numeric sort if both are numbers (batch IDs)
                 try {
                     long l1 = Long.parseLong(id1);
                     long l2 = Long.parseLong(id2);
                     return Long.compare(l2, l1);
                 } catch (NumberFormatException e) {
-                    // Fallback to string sort
                     return id2.compareTo(id1);
                 }
             });
@@ -538,12 +717,20 @@ public class MigrationController {
      */
     @GetMapping("/status/{executionId}")
     public Map<String, Object> getJobStatus(@PathVariable String executionId) {
-        if (executionId.startsWith("json-")) {
+        if (executionId.startsWith("json-export-") || executionId.startsWith("json-secure-export-")) {
+            return jsonSecureExportService.getProgress(executionId);
+        } else if (executionId.startsWith("json-import-") || executionId.startsWith("json-secure-import-")) {
+            return jsonSecureImportService.getProgress(executionId);
+        } else if (executionId.startsWith("json-")) {
             return jsonMigrationService.getProgress(executionId);
         } else if (executionId.startsWith("secure-export-")) {
             return secureExportService.getProgress(executionId);
         } else if (executionId.startsWith("secure-import-")) {
             return secureImportService.getProgress(executionId);
+        } else if (executionId.startsWith("mongo-export-") || executionId.startsWith("mongo-secure-export-")) {
+            return mongoSecureExportService.getProgress(executionId);
+        } else if (executionId.startsWith("mongo-import-") || executionId.startsWith("mongo-secure-import-")) {
+            return mongoSecureImportService.getProgress(executionId);
         }
 
 

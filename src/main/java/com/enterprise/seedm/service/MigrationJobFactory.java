@@ -59,6 +59,7 @@ public class MigrationJobFactory {
     private final DataMaskingService dataMaskingService;
     private final SchemaConfig schemaConfig;
     private final DbConnectionService dbConnectionService;
+    private final MongoConnectionHelper mongoConnectionHelper;
 
     @Value("${seedm.migration.chunk-size:1000}")
     private int chunkSize;
@@ -72,7 +73,8 @@ public class MigrationJobFactory {
                                DestinationSchemaService destinationSchemaService,
                                DataMaskingService dataMaskingService,
                                SchemaConfig schemaConfig,
-                               DbConnectionService dbConnectionService) {
+                               DbConnectionService dbConnectionService,
+                               MongoConnectionHelper mongoConnectionHelper) {
         this.sourceDataSource = sourceDataSource;
         this.destinationDataSource = destinationDataSource;
         this.jobRepository = jobRepository;
@@ -83,6 +85,7 @@ public class MigrationJobFactory {
         this.dataMaskingService = dataMaskingService;
         this.schemaConfig = schemaConfig;
         this.dbConnectionService = dbConnectionService;
+        this.mongoConnectionHelper = mongoConnectionHelper;
     }
 
     /**
@@ -165,17 +168,8 @@ public class MigrationJobFactory {
         List<String> collections = (List<String>) rulesConfig.get("targetTables");
         if (collections == null) collections = new ArrayList<>();
 
-        MongoClientSettings sourceSettings = MongoClientSettings.builder()
-                .applyConnectionString(new ConnectionString(dbConnectionService.getConnection(sourceConnectionId).getUrl()))
-                .uuidRepresentation(UuidRepresentation.STANDARD)
-                .build();
-        MongoClient sourceClient = MongoClients.create(sourceSettings);
-
-        MongoClientSettings destSettings = MongoClientSettings.builder()
-                .applyConnectionString(new ConnectionString(dbConnectionService.getConnection(destConnectionId).getUrl()))
-                .uuidRepresentation(UuidRepresentation.STANDARD)
-                .build();
-        MongoClient destClient = MongoClients.create(destSettings);
+        MongoClient sourceClient = mongoConnectionHelper.createClient(sourceConnectionId);
+        MongoClient destClient = mongoConnectionHelper.createClient(destConnectionId);
 
         JobBuilder jobBuilder = new JobBuilder("DBMigrationJob", jobRepository)
                 .incrementer(new RunIdIncrementer());

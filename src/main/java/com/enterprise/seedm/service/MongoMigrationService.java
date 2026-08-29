@@ -30,6 +30,7 @@ public class MongoMigrationService {
 
     private final DbConnectionService dbConnectionService;
     private final MongoDiscoveryService mongoDiscoveryService;
+    private final MongoConnectionHelper mongoConnectionHelper;
     private final Map<String, MongoMigrationProgress> progressMap = new ConcurrentHashMap<>();
     private final MigrationJobRepository migrationJobRepository;
     private final MongoMigrationDetailsRepository mongoDetailsRepository;
@@ -232,7 +233,7 @@ public class MongoMigrationService {
     }
 
     private MongoClient getClient(Long connectionId) {
-        return MongoClients.create(dbConnectionService.getConnection(connectionId).getUrl());
+        return mongoConnectionHelper.createClient(connectionId);
     } 
 
     public String createMongoJob(String projectId) {
