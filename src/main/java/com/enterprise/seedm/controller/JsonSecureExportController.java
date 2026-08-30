@@ -36,9 +36,28 @@ public class JsonSecureExportController {
                 Map<String, Object> srcMap = (Map<String, Object>) payload.get("source");
                 source.setType((String) srcMap.get("type"));
                 if (srcMap.get("cosId") != null) source.setCosId(Long.valueOf(srcMap.get("cosId").toString()));
+                else if (srcMap.get("id") != null) source.setCosId(Long.valueOf(srcMap.get("id").toString()));
                 source.setPath((String) srcMap.get("path"));
             }
             String fileName = (String) payload.get("fileName");
+            Map<String, Object> result = jsonSecureExportService.sampleJsonFields(source, fileName);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("Failed to sample fields", e);
+            return ResponseEntity.internalServerError().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/fields")
+    public ResponseEntity<?> sampleJsonFieldsGet(@RequestParam(required = false, defaultValue = "local") String type,
+                                                @RequestParam(required = false) Long cosId,
+                                                @RequestParam(required = false) String path,
+                                                @RequestParam String fileName) {
+        try {
+            JsonSecureExportConfig.StorageConfig source = new JsonSecureExportConfig.StorageConfig();
+            source.setType(type);
+            source.setCosId(cosId);
+            source.setPath(path);
             Map<String, Object> result = jsonSecureExportService.sampleJsonFields(source, fileName);
             return ResponseEntity.ok(result);
         } catch (Exception e) {

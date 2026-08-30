@@ -147,6 +147,13 @@
 			<version>2.5.3</version>
 		</dependency>
 
+		<!-- AWS S3 / IBM Cloud Object Storage SDK -->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>s3</artifactId>
+			<version>2.25.70</version>
+		</dependency>
+
 		<!-- Testing -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

@@ -13,9 +13,14 @@ public class JsonSecureImportConfig {
     public static class StorageConfig {
         private String type; // "local" or "cos"
         private Long id;     // COS connection ID if applicable
+        private Long cosId;  // Alias for id
         private String name; // Connection name
         private String path; // Directory path or file path
         private String fileName; // e.g. secure-json-export.json.enc
+
+        public Long getCosId() {
+            return cosId != null ? cosId : id;
+        }
     }
 
     @Data

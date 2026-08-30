@@ -9,6 +9,7 @@ public class SecureExportConfig {
     private String jobName;
     private SourceConfig source;
     private DestinationConfig dest;
+    private StorageConfig storage;
     private RulesConfig rules;
 
     @Data
@@ -22,7 +23,21 @@ public class SecureExportConfig {
 
     @Data
     public static class DestinationConfig {
+        private String type; // "local" or "cos"
+        private Long id;
+        private Long cosId;
         private String destDir;
+        private String path;
+        private String bucketName;
+    }
+
+    @Data
+    public static class StorageConfig {
+        private String type;
+        private Long id;
+        private Long cosId;
+        private String name;
+        private String path;
     }
 
     @Data

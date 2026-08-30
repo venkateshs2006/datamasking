@@ -32,6 +32,7 @@ import java.util.stream.Stream;
 public class JsonSecureImportService {
 
     private final CosConnectionService cosConnectionService;
+    private final IbmCosService ibmCosService;
     private final JsonSecureImportJobRepository jobRepository;
     private final ObjectMapper objectMapper;
 
@@ -77,6 +78,28 @@ public class JsonSecureImportService {
     public Map<String, Object> scanStorage(JsonSecureImportConfig.StorageConfig storage) {
         Map<String, Object> response = new HashMap<>();
         try {
+            if (storage != null && "cos".equalsIgnoreCase(storage.getType())) {
+                Long cosId = storage.getId() != null ? storage.getId() : storage.getCosId();
+                if (cosId != null && cosConnectionService != null && ibmCosService != null) {
+                    CosConnection cos = cosConnectionService.getConnection(cosId);
+                    if (cos != null && !"Local".equalsIgnoreCase(cos.getStorageType())) {
+                        List<Map<String, Object>> cosObjects = ibmCosService.listObjects(cos, null);
+                        List<Map<String, Object>> filesList = cosObjects.stream()
+                                .filter(o -> {
+                                    String name = (String) o.get("name");
+                                    return name != null && (name.endsWith(".json") || name.endsWith(".json.enc") || name.endsWith(".enc"));
+                                })
+                                .toList();
+
+                        response.put("status", "SUCCESS");
+                        response.put("path", "cos://" + ibmCosService.getEffectiveBucketName(cos));
+                        response.put("files", filesList);
+                        response.put("fileCount", filesList.size());
+                        return response;
+                    }
+                }
+            }
+
             Path dirPath = resolveStoragePath(storage);
             List<Map<String, Object>> filesList = new ArrayList<>();
 
@@ -240,6 +263,18 @@ public class JsonSecureImportService {
                                 Files.createDirectories(targetFile.getParent());
                                 Files.write(targetFile, contentBytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
+                                // If destination is COS, upload extracted file to COS bucket
+                                if (config.getDest() != null && "cos".equalsIgnoreCase(config.getDest().getType()) && config.getDest().getCosId() != null) {
+                                    try {
+                                        CosConnection dstCos = cosConnectionService.getConnection(config.getDest().getCosId());
+                                        if (dstCos != null && !"Local".equalsIgnoreCase(dstCos.getStorageType()) && ibmCosService != null) {
+                                            ibmCosService.uploadFile(dstCos, currentFile, targetFile);
+                                        }
+                                    } catch (Exception ex) {
+                                        log.warn("Failed to upload imported JSON file to destination COS: {}", ex.getMessage());
+                                    }
+                                }
+
                                 progress.totalRecords.incrementAndGet();
                                 incrementFileRecord(progress, currentFile);
                             }
@@ -366,6 +401,26 @@ public class JsonSecureImportService {
     }
 
     private Path resolveSourceFile(JsonSecureImportConfig config) {
+        if (config.getStorage() != null && "cos".equalsIgnoreCase(config.getStorage().getType())) {
+            Long cosId = config.getStorage().getId() != null ? config.getStorage().getId() : config.getStorage().getCosId();
+            if (cosId != null && cosConnectionService != null && ibmCosService != null) {
+                CosConnection cos = cosConnectionService.getConnection(cosId);
+                if (cos != null && !"Local".equalsIgnoreCase(cos.getStorageType())) {
+                    String fileName = config.getStorage().getFileName() != null && !config.getStorage().getFileName().trim().isEmpty()
+                            ? config.getStorage().getFileName().trim() : "secure-json-export.json.enc";
+                    try {
+                        Path tempDir = Files.createTempDirectory("cos-json-import-staging");
+                        Path stagingFile = tempDir.resolve(fileName);
+                        ibmCosService.downloadFile(cos, fileName, stagingFile);
+                        log.info("Downloaded COS JSON package to staging file: {}", stagingFile);
+                        return stagingFile;
+                    } catch (Exception e) {
+                        log.error("Failed to download JSON package from COS bucket", e);
+                    }
+                }
+            }
+        }
+
         Path basePath = resolveStoragePath(config.getStorage());
         if (config.getStorage() != null && config.getStorage().getFileName() != null && !config.getStorage().getFileName().trim().isEmpty()) {
             String fileName = config.getStorage().getFileName().trim();
@@ -383,6 +438,7 @@ public class JsonSecureImportService {
     }
 
     private void saveJobRecord(String executionId, JsonSecureImportConfig config, String status, String errorMessage) {
+        if (jobRepository == null) return;
         try {
             JsonSecureImportJob job = jobRepository.findByExecutionId(executionId);
             if (job == null) {

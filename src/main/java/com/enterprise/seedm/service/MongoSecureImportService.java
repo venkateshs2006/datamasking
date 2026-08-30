@@ -43,6 +43,7 @@ public class MongoSecureImportService {
 
     private final DbConnectionService dbConnectionService;
     private final CosConnectionService cosConnectionService;
+    private final IbmCosService ibmCosService;
     private final MongoSecureImportJobRepository jobRepository;
     private final ObjectMapper objectMapper;
     private final MongoConnectionHelper mongoConnectionHelper;
@@ -91,6 +92,28 @@ public class MongoSecureImportService {
     public Map<String, Object> scanStorage(MongoSecureImportConfig.StorageConfig storage) {
         Map<String, Object> response = new HashMap<>();
         try {
+            if (storage != null && "cos".equalsIgnoreCase(storage.getType())) {
+                Long cosId = storage.getId() != null ? storage.getId() : storage.getCosId();
+                if (cosId != null && cosConnectionService != null && ibmCosService != null) {
+                    CosConnection cos = cosConnectionService.getConnection(cosId);
+                    if (cos != null && !"Local".equalsIgnoreCase(cos.getStorageType())) {
+                        List<Map<String, Object>> cosObjects = ibmCosService.listObjects(cos, null);
+                        List<Map<String, Object>> filesList = cosObjects.stream()
+                                .filter(o -> {
+                                    String name = (String) o.get("name");
+                                    return name != null && (name.endsWith(".bson") || name.endsWith(".bson.enc") || name.endsWith(".enc"));
+                                })
+                                .toList();
+
+                        response.put("status", "SUCCESS");
+                        response.put("path", "cos://" + ibmCosService.getEffectiveBucketName(cos));
+                        response.put("files", filesList);
+                        response.put("fileCount", filesList.size());
+                        return response;
+                    }
+                }
+            }
+
             Path dirPath = resolveStoragePath(storage);
             List<Map<String, Object>> filesList = new ArrayList<>();
 
@@ -401,6 +424,26 @@ public class MongoSecureImportService {
     }
 
     private Path resolveSourceFile(MongoSecureImportConfig config) {
+        if (config.getStorage() != null && "cos".equalsIgnoreCase(config.getStorage().getType())) {
+            Long cosId = config.getStorage().getId() != null ? config.getStorage().getId() : config.getStorage().getCosId();
+            if (cosId != null && cosConnectionService != null && ibmCosService != null) {
+                CosConnection cos = cosConnectionService.getConnection(cosId);
+                if (cos != null && !"Local".equalsIgnoreCase(cos.getStorageType())) {
+                    String fileName = config.getStorage().getFileName() != null && !config.getStorage().getFileName().trim().isEmpty()
+                            ? config.getStorage().getFileName().trim() : "secure-mongo-export.bson.enc";
+                    try {
+                        Path tempDir = Files.createTempDirectory("cos-mongo-import-staging");
+                        Path stagingFile = tempDir.resolve(fileName);
+                        ibmCosService.downloadFile(cos, fileName, stagingFile);
+                        log.info("Downloaded COS Mongo package to staging file: {}", stagingFile);
+                        return stagingFile;
+                    } catch (Exception e) {
+                        log.error("Failed to download Mongo package from COS bucket", e);
+                    }
+                }
+            }
+        }
+
         Path basePath = resolveStoragePath(config.getStorage());
         if (config.getStorage() != null && config.getStorage().getFileName() != null && !config.getStorage().getFileName().trim().isEmpty()) {
             String fileName = config.getStorage().getFileName().trim();

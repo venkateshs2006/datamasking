@@ -34,9 +34,11 @@ import java.util.stream.Stream;
 public class JsonSecureExportService {
 
     private final CosConnectionService cosConnectionService;
+    private final IbmCosService ibmCosService;
     private final FormatPreservingEncryptionService fpeService;
     private final JsonSecureExportJobRepository jobRepository;
     private final ObjectMapper objectMapper;
+    private final net.datafaker.Faker faker = new net.datafaker.Faker();
 
     private static final String DEFAULT_EXPORT_DIR = "secure-export";
     private static final byte[] MAGIC_HEADER = "JSONBUNDLE1\n".getBytes(StandardCharsets.UTF_8);
@@ -80,6 +82,28 @@ public class JsonSecureExportService {
     public Map<String, Object> scanSourceFiles(JsonSecureExportConfig.StorageConfig source) {
         Map<String, Object> response = new HashMap<>();
         try {
+            if (source != null && "cos".equalsIgnoreCase(source.getType())) {
+                Long cosId = source.getCosId() != null ? source.getCosId() : source.getId();
+                if (cosId != null && cosConnectionService != null && ibmCosService != null) {
+                    CosConnection cos = cosConnectionService.getConnection(cosId);
+                    if (cos != null && !"Local".equalsIgnoreCase(cos.getStorageType())) {
+                        List<Map<String, Object>> cosObjects = ibmCosService.listObjects(cos, null);
+                        List<Map<String, Object>> filesList = cosObjects.stream()
+                                .filter(o -> {
+                                    String name = (String) o.get("name");
+                                    return name != null && name.toLowerCase().endsWith(".json");
+                                })
+                                .toList();
+
+                        response.put("status", "SUCCESS");
+                        response.put("path", "cos://" + ibmCosService.getEffectiveBucketName(cos));
+                        response.put("files", filesList);
+                        response.put("fileCount", filesList.size());
+                        return response;
+                    }
+                }
+            }
+
             Path srcPath = resolveStoragePath(source);
             List<Map<String, Object>> filesList = new ArrayList<>();
 
@@ -123,6 +147,20 @@ public class JsonSecureExportService {
     public Map<String, Object> sampleJsonFields(JsonSecureExportConfig.StorageConfig source, String fileName) {
         Map<String, Object> response = new HashMap<>();
         try {
+            if (source != null && "cos".equalsIgnoreCase(source.getType())) {
+                Long cosId = source.getCosId() != null ? source.getCosId() : source.getId();
+                if (cosId != null && cosConnectionService != null && ibmCosService != null) {
+                    CosConnection cos = cosConnectionService.getConnection(cosId);
+                    if (cos != null && !"Local".equalsIgnoreCase(cos.getStorageType())) {
+                        Set<String> keys = ibmCosService.extractJsonKeys(cos, fileName);
+                        response.put("status", "SUCCESS");
+                        response.put("fileName", fileName);
+                        response.put("fields", new ArrayList<>(keys));
+                        return response;
+                    }
+                }
+            }
+
             Path srcPath = resolveStoragePath(source);
             Path filePath = Files.isDirectory(srcPath) ? srcPath.resolve(fileName) : srcPath;
             if (!Files.exists(filePath)) {
@@ -179,26 +217,60 @@ public class JsonSecureExportService {
             saveJobRecord(executionId, config, "RUNNING", null);
 
             Path sourceDir = resolveStoragePath(config.getSource());
-            Path destDir = resolveStoragePath(config.getDest());
+
+            // If source is COS, download JSON objects to staging folder
+            if (config.getSource() != null && "cos".equalsIgnoreCase(config.getSource().getType())) {
+                Long srcCosId = config.getSource().getCosId() != null ? config.getSource().getCosId() : config.getSource().getId();
+                if (srcCosId != null && cosConnectionService != null && ibmCosService != null) {
+                    CosConnection srcCos = cosConnectionService.getConnection(srcCosId);
+                    if (srcCos != null && !"Local".equalsIgnoreCase(srcCos.getStorageType())) {
+                        sourceDir = Files.createTempDirectory("cos-json-src-staging");
+                        List<Map<String, Object>> cosObjs = ibmCosService.listObjects(srcCos, null);
+                        for (Map<String, Object> obj : cosObjs) {
+                            String name = (String) obj.get("name");
+                            if (name != null && name.toLowerCase().endsWith(".json")) {
+                                try {
+                                    Path targetP = sourceDir.resolve(name);
+                                    if (targetP.getParent() != null) Files.createDirectories(targetP.getParent());
+                                    ibmCosService.downloadFile(srcCos, name, targetP);
+                                } catch (Exception ex) {
+                                    log.warn("Failed to download JSON file {} from COS: {}", name, ex.getMessage());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Path destDir = resolveStoragePath(config.getDest() != null ? config.getDest() : config.getStorage());
             Files.createDirectories(destDir);
 
             if (!Files.exists(sourceDir)) {
                 throw new IllegalArgumentException("Source JSON directory does not exist: " + sourceDir);
             }
 
+            final Path effectiveSourceDir = sourceDir;
             String saltKey = config.getRules() != null ? config.getRules().getMaskingKey() : null;
 
             List<String> targetFiles = new ArrayList<>();
-            if (config.getRules() != null && config.getRules().getTargetFiles() != null && !config.getRules().getTargetFiles().isEmpty()) {
-                targetFiles.addAll(config.getRules().getTargetFiles());
-            } else {
-                if (Files.isRegularFile(sourceDir) && sourceDir.toString().endsWith(".json")) {
-                    targetFiles.add(sourceDir.getFileName().toString());
-                } else if (Files.isDirectory(sourceDir)) {
-                    try (Stream<Path> stream = Files.walk(sourceDir, 3)) {
+            if (config.getRules() != null) {
+                if (config.getRules().getTargetFiles() != null && !config.getRules().getTargetFiles().isEmpty()) {
+                    targetFiles.addAll(config.getRules().getTargetFiles());
+                } else if (config.getRules().getTargetTables() != null && !config.getRules().getTargetTables().isEmpty()) {
+                    targetFiles.addAll(config.getRules().getTargetTables());
+                } else if (config.getRules().getTargetCollections() != null && !config.getRules().getTargetCollections().isEmpty()) {
+                    targetFiles.addAll(config.getRules().getTargetCollections());
+                }
+            }
+
+            if (targetFiles.isEmpty()) {
+                if (Files.isRegularFile(effectiveSourceDir) && effectiveSourceDir.toString().endsWith(".json")) {
+                    targetFiles.add(effectiveSourceDir.getFileName().toString());
+                } else if (Files.isDirectory(effectiveSourceDir)) {
+                    try (Stream<Path> stream = Files.walk(effectiveSourceDir, 3)) {
                         stream.filter(Files::isRegularFile)
                                 .filter(p -> p.toString().endsWith(".json"))
-                                .forEach(p -> targetFiles.add(sourceDir.relativize(p).toString()));
+                                .forEach(p -> targetFiles.add(effectiveSourceDir.relativize(p).toString()));
                     }
                 }
             }
@@ -253,6 +325,7 @@ public class JsonSecureExportService {
             }
 
             // Encrypt output bundle file
+            Path finalExportFile = tempBundlePath;
             if (saltKey != null && !saltKey.trim().isEmpty()) {
                 Path encFilePath = destDir.resolve("secure-json-export.json.enc");
                 encryptFileWithSalt(tempBundlePath, encFilePath, saltKey);
@@ -261,7 +334,27 @@ public class JsonSecureExportService {
                 } catch (Exception ex) {
                     log.warn("Could not remove unencrypted temp JSON bundle: {}", ex.getMessage());
                 }
+                finalExportFile = encFilePath;
                 log.info("JSON Secure Export encrypted successfully: {}", encFilePath);
+            }
+
+            // Upload to destination COS bucket if destination is COS
+            JsonSecureExportConfig.StorageConfig destConfig = config.getDest() != null ? config.getDest() : config.getStorage();
+            if (destConfig != null && "cos".equalsIgnoreCase(destConfig.getType())) {
+                Long dstCosId = destConfig.getCosId() != null ? destConfig.getCosId() : destConfig.getId();
+                if (dstCosId != null && cosConnectionService != null && ibmCosService != null) {
+                    try {
+                        CosConnection dstCos = cosConnectionService.getConnection(dstCosId);
+                        if (dstCos != null && !"Local".equalsIgnoreCase(dstCos.getStorageType())) {
+                            if (Files.exists(finalExportFile)) {
+                                ibmCosService.uploadFile(dstCos, finalExportFile.getFileName().toString(), finalExportFile);
+                                log.info("Uploaded secure JSON export to COS bucket {}: {}", ibmCosService.getEffectiveBucketName(dstCos), finalExportFile.getFileName());
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.error("Failed to upload secure JSON export to COS bucket", e);
+                    }
+                }
             }
 
             progress.status = "COMPLETED";
@@ -288,12 +381,8 @@ public class JsonSecureExportService {
         dataOut.write(nameBytes);
 
         JsonNode rootNode = objectMapper.readTree(sourceFile.toFile());
-        List<String> fieldsToMask = null;
-        if (config.getRules() != null && config.getRules().getMaskingFields() != null) {
-            fieldsToMask = config.getRules().getMaskingFields().get(relFileName);
-        }
 
-        int count = maskJsonTree(rootNode, "", fieldsToMask, saltKey);
+        int count = maskJsonTree(rootNode, "", relFileName, config, saltKey);
         if (progress != null) {
             progress.totalRecords.addAndGet(count);
         }
@@ -308,8 +397,8 @@ public class JsonSecureExportService {
         return count;
     }
 
-    private int maskJsonTree(JsonNode node, String currentPath, List<String> fieldsToMask, String saltKey) {
-        if (node == null || fieldsToMask == null || fieldsToMask.isEmpty()) return 0;
+    private int maskJsonTree(JsonNode node, String currentPath, String fileName, JsonSecureExportConfig config, String saltKey) {
+        if (node == null || config.getRules() == null) return 0;
         int count = 0;
 
         if (node.isObject()) {
@@ -325,38 +414,159 @@ public class JsonSecureExportService {
                 String fieldPath = currentPath.isEmpty() ? fieldName : currentPath + "." + fieldName;
                 JsonNode val = entry.getValue();
 
-                if (fieldsToMask.contains(fieldPath) && val.isValueNode()) {
-                    if (val.isTextual()) {
-                        Object masked = fpeService.encrypt(val.asText(), "string", saltKey);
-                        objectNode.put(fieldName, masked != null ? masked.toString() : val.asText());
-                        count++;
-                    } else if (val.isInt()) {
-                        Object masked = fpeService.encrypt(val.asInt(), "integer", saltKey);
-                        if (masked instanceof Number) objectNode.put(fieldName, ((Number) masked).intValue());
-                        else objectNode.put(fieldName, masked.toString());
-                        count++;
-                    } else if (val.isLong()) {
-                        Object masked = fpeService.encrypt(val.asLong(), "long", saltKey);
-                        if (masked instanceof Number) objectNode.put(fieldName, ((Number) masked).longValue());
-                        else objectNode.put(fieldName, masked.toString());
-                        count++;
-                    } else if (val.isDouble()) {
-                        Object masked = fpeService.encrypt(val.asDouble(), "double", saltKey);
-                        if (masked instanceof Number) objectNode.put(fieldName, ((Number) masked).doubleValue());
-                        else objectNode.put(fieldName, masked.toString());
+                if (val.isValueNode()) {
+                    String ruleType = getMatchingRuleType(fileName, fieldPath, config.getRules());
+                    if (ruleType != null) {
+                        applyMaskToNode(objectNode, fieldName, val, fieldPath, ruleType, saltKey);
                         count++;
                     }
                 } else if (val.isContainerNode()) {
-                    count += maskJsonTree(val, fieldPath, fieldsToMask, saltKey);
+                    count += maskJsonTree(val, fieldPath, fileName, config, saltKey);
                 }
             }
         } else if (node.isArray()) {
             ArrayNode arrayNode = (ArrayNode) node;
-            for (JsonNode item : arrayNode) {
-                count += maskJsonTree(item, currentPath, fieldsToMask, saltKey);
+            for (int i = 0; i < arrayNode.size(); i++) {
+                JsonNode item = arrayNode.get(i);
+                if (item.isValueNode()) {
+                    String ruleType = getMatchingRuleType(fileName, currentPath, config.getRules());
+                    if (ruleType != null) {
+                        applyMaskToArrayItem(arrayNode, i, item, currentPath, ruleType, saltKey);
+                        count++;
+                    }
+                } else {
+                    count += maskJsonTree(item, currentPath, fileName, config, saltKey);
+                }
             }
         }
         return count;
+    }
+
+    private String getMatchingRuleType(String fileName, String fieldPath, JsonSecureExportConfig.RulesConfig rules) {
+        if (rules == null || fieldPath == null) return null;
+
+        String fullQualifier = fileName + "." + fieldPath;
+
+        // 1. Check dot-notated columns: maskingColumns (SFD)
+        if (matchesField(rules.getMaskingColumns(), fullQualifier, fieldPath)) {
+            return "SFD";
+        }
+        // 2. Check dot-notated columns: partialMaskingColumns (PMD)
+        if (matchesField(rules.getPartialMaskingColumns(), fullQualifier, fieldPath)) {
+            return "PMD";
+        }
+        // 3. Check dot-notated columns: constraintColumns / constraintFields (FPH)
+        if (matchesField(rules.getConstraintColumns(), fullQualifier, fieldPath) ||
+                matchesField(rules.getConstraintFields(), fullQualifier, fieldPath)) {
+            return "FPH";
+        }
+
+        // 4. Check Map-based structures
+        if (rules.getMaskingFields() != null && rules.getMaskingFields().containsKey(fileName)) {
+            List<String> list = rules.getMaskingFields().get(fileName);
+            if (list != null && list.contains(fieldPath)) return "SFD";
+        }
+        if (rules.getPartialMaskingFields() != null && rules.getPartialMaskingFields().containsKey(fileName)) {
+            List<String> list = rules.getPartialMaskingFields().get(fileName);
+            if (list != null && list.contains(fieldPath)) return "PMD";
+        }
+
+        return null;
+    }
+
+    private boolean matchesField(List<String> list, String fullQualifier, String fieldPath) {
+        if (list == null || list.isEmpty()) return false;
+        for (String item : list) {
+            if (item.equalsIgnoreCase(fullQualifier) || item.equalsIgnoreCase(fieldPath)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void applyMaskToNode(ObjectNode objectNode, String fieldName, JsonNode val, String fieldPath, String ruleType, String saltKey) {
+        if ("PMD".equalsIgnoreCase(ruleType)) {
+            String masked = applyPartialMasking(val.asText());
+            objectNode.put(fieldName, masked);
+        } else if ("SFD".equalsIgnoreCase(ruleType)) {
+            String fakeVal = generateFakeData(fieldPath, val);
+            if (val.isInt()) {
+                try { objectNode.put(fieldName, Integer.parseInt(fakeVal)); } catch (Exception e) { objectNode.put(fieldName, fakeVal); }
+            } else if (val.isLong()) {
+                try { objectNode.put(fieldName, Long.parseLong(fakeVal)); } catch (Exception e) { objectNode.put(fieldName, fakeVal); }
+            } else if (val.isDouble() || val.isFloat()) {
+                try { objectNode.put(fieldName, Double.parseDouble(fakeVal)); } catch (Exception e) { objectNode.put(fieldName, fakeVal); }
+            } else {
+                objectNode.put(fieldName, fakeVal);
+            }
+        } else {
+            // FPH (Format Preserving Encryption/Hashing)
+            if (val.isTextual()) {
+                Object masked = fpeService.encrypt(val.asText(), "string", saltKey);
+                objectNode.put(fieldName, masked != null ? masked.toString() : val.asText());
+            } else if (val.isInt()) {
+                Object masked = fpeService.encrypt(val.asInt(), "integer", saltKey);
+                if (masked instanceof Number) objectNode.put(fieldName, ((Number) masked).intValue());
+                else objectNode.put(fieldName, masked.toString());
+            } else if (val.isLong()) {
+                Object masked = fpeService.encrypt(val.asLong(), "long", saltKey);
+                if (masked instanceof Number) objectNode.put(fieldName, ((Number) masked).longValue());
+                else objectNode.put(fieldName, masked.toString());
+            } else if (val.isDouble()) {
+                Object masked = fpeService.encrypt(val.asDouble(), "double", saltKey);
+                if (masked instanceof Number) objectNode.put(fieldName, ((Number) masked).doubleValue());
+                else objectNode.put(fieldName, masked.toString());
+            } else {
+                Object masked = fpeService.encrypt(val.asText(), "string", saltKey);
+                objectNode.put(fieldName, masked != null ? masked.toString() : val.asText());
+            }
+        }
+    }
+
+    private void applyMaskToArrayItem(ArrayNode arrayNode, int index, JsonNode val, String fieldPath, String ruleType, String saltKey) {
+        if ("PMD".equalsIgnoreCase(ruleType)) {
+            String masked = applyPartialMasking(val.asText());
+            arrayNode.set(index, arrayNode.textNode(masked));
+        } else if ("SFD".equalsIgnoreCase(ruleType)) {
+            String fakeVal = generateFakeData(fieldPath, val);
+            arrayNode.set(index, arrayNode.textNode(fakeVal));
+        } else {
+            // FPH
+            Object masked = fpeService.encrypt(val.asText(), "string", saltKey);
+            arrayNode.set(index, arrayNode.textNode(masked != null ? masked.toString() : val.asText()));
+        }
+    }
+
+    private String applyPartialMasking(String value) {
+        if (value == null) return null;
+        if (value.length() <= 4) {
+            return "****";
+        }
+        return "****" + value.substring(value.length() - 4);
+    }
+
+    private String generateFakeData(String fieldPath, JsonNode originalNode) {
+        String lower = (fieldPath != null ? fieldPath.toLowerCase() : "");
+        if (lower.contains("name") || lower.contains("user")) {
+            return faker.name().fullName();
+        } else if (lower.contains("email")) {
+            return faker.internet().emailAddress();
+        } else if (lower.contains("phone") || lower.contains("mobile")) {
+            return faker.phoneNumber().phoneNumber();
+        } else if (lower.contains("city")) {
+            return faker.address().city();
+        } else if (lower.contains("street") || lower.contains("address")) {
+            return faker.address().fullAddress();
+        } else if (lower.contains("country")) {
+            return faker.address().country();
+        } else if (lower.contains("zip") || lower.contains("postal")) {
+            return faker.address().zipCode();
+        } else if (lower.contains("company")) {
+            return faker.company().name();
+        } else if (originalNode != null && originalNode.isNumber()) {
+            return String.valueOf(faker.number().numberBetween(1000, 99999));
+        }
+        return faker.lorem().word();
     }
 
     public void encryptFileWithSalt(Path sourceFile, Path targetEncryptedFile, String saltKey) throws Exception {
@@ -406,6 +616,7 @@ public class JsonSecureExportService {
     }
 
     private void saveJobRecord(String executionId, JsonSecureExportConfig config, String status, String errorMessage) {
+        if (jobRepository == null) return;
         try {
             JsonSecureExportJob job = jobRepository.findByExecutionId(executionId);
             if (job == null) {

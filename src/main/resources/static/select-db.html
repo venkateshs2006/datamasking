@@ -6,13 +6,17 @@
     <title>BNP Paribas - SeEDM Migration Type</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4' }
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4', greenDark: '#007a4c' }
+                    },
+                    fontFamily: {
+                        sans: ['Open Sans', 'sans-serif'],
+                        display: ['Inter', 'sans-serif']
                     }
                 }
             }
@@ -21,7 +25,7 @@
     <style>
         :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); display: flex; flex-direction: column; min-height: 100vh; color: var(--text-main); }
+        body { font-family: 'Open Sans', sans-serif; background-color: #f8fafc; display: flex; flex-direction: column; min-height: 100vh; color: var(--text-main); }
 
         header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
         .bnp-logo { height: 48px; display: block; }
@@ -31,19 +35,48 @@
         nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
         nav ul li a.active { color: var(--bnp-emerald); border-bottom: 2px solid var(--bnp-emerald); padding-bottom: 4px; font-weight: 700; }
 
-        main { flex: 1; padding: 60px 8%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-
         footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; }
         .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
         .tagline { font-weight: 300; letter-spacing: 1px; }
 
-        .db-card { background: white; border-radius: 12px; border: 2px solid #e2e8f0; transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden; }
-        .db-card:hover { border-color: var(--bnp-emerald); box-shadow: 0 10px 25px -5px rgba(0, 150, 94, 0.15); transform: translateY(-4px); }
-        .db-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: transparent; transition: background 0.3s ease; }
-        .db-card:hover::before { background: var(--bnp-emerald); }
+        .db-card {
+            background: #ffffff;
+            border-radius: 16px;
+            transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+        }
+        .db-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 14px 28px -4px rgba(0, 0, 0, 0.08), 0 8px 12px -3px rgba(0, 0, 0, 0.04);
+        }
 
-        .icon-container { width: 80px; height: 80px; border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem auto; font-size: 2.5rem; transition: all 0.3s ease; background: #f1f5f9; color: #64748b; }
-        .db-card:hover .icon-container { background: rgba(0, 150, 94, 0.1); color: var(--bnp-emerald); }
+        .icon-badge {
+            width: 58px;
+            height: 58px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.65rem;
+            transition: all 0.25s ease;
+        }
+
+        .section-divider {
+            display: flex;
+            align-items: center;
+            margin: 2rem 0 1.25rem 0;
+            width: 100%;
+        }
+        .section-divider::before, .section-divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #e2e8f0;
+        }
     </style>
 </head>
 <body>
@@ -54,8 +87,8 @@
                 <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
             </a>
             <div class="hidden md:block border-l border-gray-300 pl-6">
-                <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
-                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Platform</p>
+                <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none font-display">SeEDM</h1>
+                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Secure Enterprise Data Masking</p>
             </div>
         </div>
         <nav>
@@ -71,93 +104,200 @@
         </nav>
     </header>
 
-    <main>
-        <div class="text-center mb-12">
-            <h2 class="text-3xl font-bold text-bnp-dark-grey tracking-tight">Select Migration Type</h2>
-            <p class="text-gray-500 mt-3 font-medium">Choose the data source you want to migrate and mask.</p>
+    <main class="flex-1 py-12 px-6 lg:px-12 flex flex-col items-center">
+        <div class="text-center max-w-2xl mb-10">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-bnp-emerald text-xs font-bold uppercase tracking-wider mb-3">
+                <i class="fas fa-layer-group text-[11px]"></i> Migration Hub
+            </div>
+            <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight font-display">Select Migration & Masking Workflow</h2>
+            <p class="text-sm text-gray-600 mt-2.5 font-normal">Choose your data source type and transformation architecture to configure rules and secure governance.</p>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full max-w-7xl">
-            <div class="db-card p-6 text-center group" onclick="selectDbType('postgres')">
-                <div class="icon-container shadow-inner"><i class="fas fa-database"></i></div>
-                <h3 class="text-lg font-bold text-gray-800 mb-2">Relational SQL</h3>
-                <p class="text-xs text-gray-500 mb-6">PostgreSQL, Oracle, DB2, etc.</p>
-                <div class="flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-bnp-emerald transition-colors">
-                    Configure <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
+        <div class="w-full max-w-7xl space-y-10">
+
+            <!-- SECTION 1: DIRECT LIVE MIGRATIONS -->
+            <div>
+                <div class="flex items-center gap-3 mb-5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500">Direct Cluster & File Synchronizations</h3>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Option 1: Relational SQL (Indigo) -->
+                    <div class="db-card p-6 border-2 border-indigo-100/80 hover:border-indigo-500 group" onclick="selectDbType('postgres')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-indigo-500 to-blue-600 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white shadow-sm border border-indigo-100">
+                                <i class="fas fa-database"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 tracking-wide uppercase font-mono">Live SQL</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-indigo-600 transition-colors">Relational SQL</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Direct table-to-table masking & schema migration for PostgreSQL, Oracle, and DB2 databases.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-indigo-600">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
+
+                    <!-- Option 2: MongoDB Sync (Emerald) -->
+                    <div class="db-card p-6 border-2 border-emerald-100/80 hover:border-emerald-500 group" onclick="selectDbType('mongo')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-emerald-500 to-green-600 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white shadow-sm border border-emerald-100">
+                                <i class="fas fa-leaf"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 tracking-wide uppercase font-mono">NoSQL Sync</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-emerald-600 transition-colors">MongoDB Sync</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Live cluster-to-cluster collection streaming with nested BSON document masking.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-emerald-600">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
+
+                    <!-- Option 3: JSON Migration (Amber) -->
+                    <div class="db-card p-6 border-2 border-amber-100/80 hover:border-amber-500 group" onclick="selectDbType('json')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-amber-500 to-orange-500 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-amber-50 text-amber-600 group-hover:bg-amber-500 group-hover:text-white shadow-sm border border-amber-100">
+                                <i class="fas fa-file-code"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 tracking-wide uppercase font-mono">File Transfer</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-amber-600 transition-colors">JSON Migration</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Direct file-to-file transformation for JSON datasets across local directories and cloud storage.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-amber-600">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="db-card p-6 text-center group" onclick="selectDbType('mongo')">
-                <div class="icon-container shadow-inner"><i class="fas fa-leaf"></i></div>
-                <h3 class="text-lg font-bold text-gray-800 mb-2">MongoDB Sync</h3>
-                <p class="text-xs text-gray-500 mb-6">Live Cluster to Cluster</p>
-                <div class="flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-bnp-emerald transition-colors">
-                    Configure <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
+            <!-- SECTION 2: SECURE EXPORTS (AES-256 ENCRYPTION) -->
+            <div>
+                <div class="flex items-center gap-3 mb-5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-cyan-500"></span>
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500">Secure Anonymization & Encrypted Export</h3>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Option 4: SQL Secure Export (Teal / Cyan) -->
+                    <div class="db-card p-6 border-2 border-cyan-100/80 hover:border-cyan-500 group" onclick="selectDbType('secure-export')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-cyan-500 to-teal-600 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-cyan-50 text-cyan-600 group-hover:bg-cyan-600 group-hover:text-white shadow-sm border border-cyan-100">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 tracking-wide uppercase font-mono">AES-256 SQL</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-cyan-600 transition-colors">SQL Secure Export</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Anonymize relational SQL schemas and tables into an encrypted <code class="text-[11px] font-bold text-cyan-700 bg-cyan-50 px-1 rounded">.sql.enc</code> vault file.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-cyan-600">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
+
+                    <!-- Option 5: Mongo Secure Export (BNP Emerald) -->
+                    <div class="db-card p-6 border-2 border-emerald-200/80 hover:border-bnp-emerald group" onclick="selectDbType('mongo-secure-export')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-bnp-emerald to-emerald-700 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-emerald-50 text-bnp-emerald group-hover:bg-bnp-emerald group-hover:text-white shadow-sm border border-emerald-200">
+                                <i class="fas fa-lock"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-bnp-emerald border border-emerald-200 tracking-wide uppercase font-mono">AES-256 BSON</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-bnp-emerald transition-colors">Mongo Secure Export</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Apply SFD/PMD/FPH masking to MongoDB collections and package into an encrypted <code class="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-1 rounded">.bson.enc</code> archive.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-bnp-emerald">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
+
+                    <!-- Option 6: JSON Secure Export (Violet / Purple) -->
+                    <div class="db-card p-6 border-2 border-purple-100/80 hover:border-purple-500 group" onclick="selectDbType('json-secure-export')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-purple-500 to-indigo-600 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white shadow-sm border border-purple-100">
+                                <i class="fas fa-file-archive"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 tracking-wide uppercase font-mono">AES-256 JSON</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-purple-600 transition-colors">JSON Secure Export</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Mask multi-document JSON trees using SFD/PMD/FPH and export to an encrypted <code class="text-[11px] font-bold text-purple-800 bg-purple-50 px-1 rounded">.json.enc</code> bundle.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-purple-600">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="db-card p-6 text-center group" onclick="selectDbType('json')">
-                <div class="icon-container shadow-inner"><i class="fas fa-file-code"></i></div>
-                <h3 class="text-lg font-bold text-gray-800 mb-2">JSON Migration</h3>
-                <p class="text-xs text-gray-500 mb-6">Local & Cloud Storage</p>
-                <div class="flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-bnp-emerald transition-colors">
-                    Configure <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
+            <!-- SECTION 3: SECURE IMPORTS (DECRYPT & RESTORE) -->
+            <div>
+                <div class="flex items-center gap-3 mb-5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500">Decryption & Target Restoration</h3>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Option 7: SQL Secure Import (Royal Cobalt Blue) -->
+                    <div class="db-card p-6 border-2 border-blue-100/80 hover:border-blue-600 group" onclick="selectDbType('secure-import')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-blue-600 to-indigo-700 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-blue-50 text-blue-700 group-hover:bg-blue-700 group-hover:text-white shadow-sm border border-blue-100">
+                                <i class="fas fa-file-import"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200 tracking-wide uppercase font-mono">SQL Restore</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-blue-700 transition-colors">SQL Secure Import</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Prompt for secret key to decrypt <code class="text-[11px] font-bold text-blue-800 bg-blue-50 px-1 rounded">.sql.enc</code> and restore relational schemas to target database.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-blue-700">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
+
+                    <!-- Option 8: Mongo Secure Import (Dark Teal / Mint) -->
+                    <div class="db-card p-6 border-2 border-teal-100/80 hover:border-teal-600 group" onclick="selectDbType('mongo-secure-import')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-teal-600 to-emerald-700 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-teal-50 text-teal-700 group-hover:bg-teal-700 group-hover:text-white shadow-sm border border-teal-100">
+                                <i class="fas fa-file-export"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-200 tracking-wide uppercase font-mono">BSON Restore</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-teal-700 transition-colors">Mongo Secure Import</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Decrypt <code class="text-[11px] font-bold text-teal-800 bg-teal-50 px-1 rounded">.bson.enc</code> packages and restore masked collections directly into MongoDB databases.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-teal-700">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
+
+                    <!-- Option 9: JSON Secure Import (Rose / Crimson) -->
+                    <div class="db-card p-6 border-2 border-rose-100/80 hover:border-rose-500 group" onclick="selectDbType('json-secure-import')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-rose-500 to-pink-600 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white shadow-sm border border-rose-100">
+                                <i class="fas fa-file-arrow-up"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 tracking-wide uppercase font-mono">JSON Restore</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-rose-600 transition-colors">JSON Secure Import</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Decrypt and unpack <code class="text-[11px] font-bold text-rose-800 bg-rose-50 px-1 rounded">.json.enc</code> archives into target local directories or cloud object storage.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-rose-600">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="db-card p-6 text-center group" onclick="selectDbType('secure-export')">
-                <div class="icon-container shadow-inner"><i class="fas fa-shield-alt"></i></div>
-                <h3 class="text-lg font-bold text-gray-800 mb-2">SQL Secure Export</h3>
-                <p class="text-xs text-gray-500 mb-6">Anonymize SQL to encrypted file</p>
-                <div class="flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-bnp-emerald transition-colors">
-                    Configure <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
-                </div>
-            </div>
-
-            <div class="db-card p-6 text-center group" onclick="selectDbType('secure-import')">
-                <div class="icon-container shadow-inner"><i class="fas fa-file-import"></i></div>
-                <h3 class="text-lg font-bold text-gray-800 mb-2">SQL Secure Import</h3>
-                <p class="text-xs text-gray-500 mb-6">Decrypt and restore SQL package</p>
-                <div class="flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-bnp-emerald transition-colors">
-                    Configure <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
-                </div>
-            </div>
-
-            <div class="db-card p-6 text-center group border-2 border-emerald-100 bg-emerald-50/10" onclick="selectDbType('mongo-secure-export')">
-                <div class="icon-container shadow-inner bg-emerald-50 text-bnp-emerald"><i class="fas fa-lock"></i></div>
-                <h3 class="text-lg font-bold text-gray-800 mb-2">Mongo Secure Export</h3>
-                <p class="text-xs text-gray-500 mb-6">Anonymize to encrypted BSON</p>
-                <div class="flex items-center justify-center text-xs font-bold text-bnp-emerald uppercase tracking-wider group-hover:text-bnp-greenDark transition-colors">
-                    Configure <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
-                </div>
-            </div>
-
-            <div class="db-card p-6 text-center group border-2 border-emerald-100 bg-emerald-50/10" onclick="selectDbType('mongo-secure-import')">
-                <div class="icon-container shadow-inner bg-emerald-50 text-bnp-emerald"><i class="fas fa-file-export"></i></div>
-                <h3 class="text-lg font-bold text-gray-800 mb-2">Mongo Secure Import</h3>
-                <p class="text-xs text-gray-500 mb-6">Decrypt and restore BSON to Mongo</p>
-                <div class="flex items-center justify-center text-xs font-bold text-bnp-emerald uppercase tracking-wider group-hover:text-bnp-greenDark transition-colors">
-                    Configure <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
-                </div>
-            </div>
-
-            <div class="db-card p-6 text-center group border-2 border-blue-100 bg-blue-50/10" onclick="selectDbType('json-secure-export')">
-                <div class="icon-container shadow-inner bg-blue-50 text-blue-600"><i class="fas fa-file-archive"></i></div>
-                <h3 class="text-lg font-bold text-gray-800 mb-2">JSON Secure Export</h3>
-                <p class="text-xs text-gray-500 mb-6">Anonymize JSON to encrypted package</p>
-                <div class="flex items-center justify-center text-xs font-bold text-blue-600 uppercase tracking-wider group-hover:text-blue-800 transition-colors">
-                    Configure <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
-                </div>
-            </div>
-
-            <div class="db-card p-6 text-center group border-2 border-blue-100 bg-blue-50/10" onclick="selectDbType('json-secure-import')">
-                <div class="icon-container shadow-inner bg-blue-50 text-blue-600"><i class="fas fa-file-arrow-up"></i></div>
-                <h3 class="text-lg font-bold text-gray-800 mb-2">JSON Secure Import</h3>
-                <p class="text-xs text-gray-500 mb-6">Decrypt and restore JSON packages</p>
-                <div class="flex items-center justify-center text-xs font-bold text-blue-600 uppercase tracking-wider group-hover:text-blue-800 transition-colors">
-                    Configure <i class="fas fa-arrow-right ml-2 transition-transform transform group-hover:translate-x-1"></i>
-                </div>
-            </div>
         </div>
     </main>
 

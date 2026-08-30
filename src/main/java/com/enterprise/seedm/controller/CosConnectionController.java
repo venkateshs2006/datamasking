@@ -3,6 +3,7 @@ package com.enterprise.seedm.controller;
 import com.enterprise.seedm.model.CosConnection;
 import com.enterprise.seedm.model.Department;
 import com.enterprise.seedm.service.CosConnectionService;
+import com.enterprise.seedm.service.IbmCosService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 public class CosConnectionController {
 
     private final CosConnectionService connectionService;
+    private final IbmCosService ibmCosService;
 
     @GetMapping
     public ResponseEntity<?> getConnections(
@@ -80,18 +82,65 @@ public class CosConnectionController {
 
             List<CosConnection> connections = connectionService.getConnectionsByFilters(allowedDepartments, envType, storageType);
 
-            // Scrub sensitive credentials before sending to frontend
-            connections.forEach(c -> {
-                c.setApiKey("********");
-                c.setSecretKey("********");
-            });
+            // Return scrubbed copy for security
+            List<CosConnection> scrubbed = connections.stream().map(c -> {
+                CosConnection copy = new CosConnection();
+                copy.setId(c.getId());
+                copy.setCosName(c.getCosName());
+                copy.setStorageType(c.getStorageType());
+                copy.setStorageLocation(c.getStorageLocation());
+                copy.setLocation(c.getLocation());
+                copy.setApiKey("********");
+                copy.setServiceInstanceId(c.getServiceInstanceId());
+                copy.setAccessKey(c.getAccessKey() != null && !c.getAccessKey().isEmpty() ? "********" : "");
+                copy.setSecretKey("********");
+                copy.setBucketUrl(c.getBucketUrl());
+                copy.setBucketId(c.getBucketId());
+                copy.setBucketName(c.getBucketName());
+                copy.setAuthenticationType(c.getAuthenticationType());
+                copy.setDepartment(c.getDepartment());
+                copy.setEnvType(c.getEnvType());
+                copy.setCreatedBy(c.getCreatedBy());
+                copy.setCreatedAt(c.getCreatedAt());
+                return copy;
+            }).collect(Collectors.toList());
 
-            return ResponseEntity.ok(connections);
+            return ResponseEntity.ok(scrubbed);
         } catch (Exception e) {
             log.error("Failed to fetch COS connections", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("message", "Internal error fetching connections: " + e.getMessage()));
         }
+    }
+
+    @PostMapping("/test")
+    public ResponseEntity<?> testConnection(@RequestBody CosConnection connection) {
+        try {
+            // If connection ID is provided and credentials are masked, load actual credentials from db
+            if (connection.getId() != null) {
+                CosConnection existing = connectionService.getConnection(connection.getId());
+                if (existing != null) {
+                    if ("********".equals(connection.getApiKey())) connection.setApiKey(existing.getApiKey());
+                    if ("********".equals(connection.getSecretKey())) connection.setSecretKey(existing.getSecretKey());
+                    if ("********".equals(connection.getAccessKey())) connection.setAccessKey(existing.getAccessKey());
+                }
+            }
+            Map<String, Object> testResult = ibmCosService.testConnection(connection);
+            return ResponseEntity.ok(testResult);
+        } catch (Exception e) {
+            log.error("COS connection test failed", e);
+            return ResponseEntity.ok(Map.of("status", "ERROR", "message", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id}/objects")
+    public ResponseEntity<?> getBucketObjects(@PathVariable Long id, @RequestParam(required = false) String prefix) {
+        CosConnection conn = connectionService.getConnection(id);
+        if (conn == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Connection not found"));
+        }
+        List<Map<String, Object>> objects = ibmCosService.listObjects(conn, prefix);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "bucket", ibmCosService.getEffectiveBucketName(conn), "objects", objects));
     }
 
     @PostMapping
@@ -104,6 +153,16 @@ public class CosConnectionController {
         String role = (String) session.getAttribute("role");
         String user = (String) session.getAttribute("user");
         connection.setCreatedBy(user);
+
+        // If editing existing and secrets are masked, retain old secrets
+        if (connection.getId() != null) {
+            CosConnection existing = connectionService.getConnection(connection.getId());
+            if (existing != null) {
+                if ("********".equals(connection.getApiKey())) connection.setApiKey(existing.getApiKey());
+                if ("********".equals(connection.getSecretKey())) connection.setSecretKey(existing.getSecretKey());
+                if ("********".equals(connection.getAccessKey())) connection.setAccessKey(existing.getAccessKey());
+            }
+        }
 
         if ("ADMIN".equalsIgnoreCase(role)) {
             CosConnection saved = connectionService.saveConnection(connection);

@@ -1,5 +1,6 @@
 package com.enterprise.seedm.service;
 
+import com.enterprise.seedm.model.CosConnection;
 import com.enterprise.seedm.model.SecureExportConfig;
 import com.enterprise.seedm.model.SecureExportJob;
 import com.enterprise.seedm.repository.SecureExportJobRepository;
@@ -39,6 +40,12 @@ public class SecureExportService {
 
     @Autowired
     private SecureExportJobRepository jobRepository;
+
+    @Autowired
+    private CosConnectionService cosConnectionService;
+
+    @Autowired
+    private IbmCosService ibmCosService;
 
     private final ObjectMapper objectMapper;
     private final Faker faker;
@@ -164,6 +171,7 @@ public class SecureExportService {
             }
 
             // Encrypt the export file using the salt key
+            Path finalExportFile = filePath;
             if (saltKey != null && !saltKey.trim().isEmpty()) {
                 Path encFilePath = destDir.resolve("secure-export.sql.enc");
                 encryptFileWithSalt(filePath, encFilePath, saltKey);
@@ -172,7 +180,30 @@ public class SecureExportService {
                 } catch (Exception ex) {
                     log.warn("Could not remove unencrypted temp SQL file: {}", ex.getMessage());
                 }
+                finalExportFile = encFilePath;
                 log.info("Export file encrypted successfully: {}", encFilePath);
+            }
+
+            // Upload to COS bucket if destination is Cloud Object Storage
+            Long cosId = null;
+            if (config.getDest() != null && "cos".equalsIgnoreCase(config.getDest().getType())) {
+                cosId = config.getDest().getCosId() != null ? config.getDest().getCosId() : config.getDest().getId();
+            } else if (config.getStorage() != null && "cos".equalsIgnoreCase(config.getStorage().getType())) {
+                cosId = config.getStorage().getId() != null ? config.getStorage().getId() : config.getStorage().getCosId();
+            }
+
+            if (cosId != null && cosConnectionService != null && ibmCosService != null) {
+                try {
+                    CosConnection cosConn = cosConnectionService.getConnection(cosId);
+                    if (cosConn != null && !"Local".equalsIgnoreCase(cosConn.getStorageType())) {
+                        if (Files.exists(finalExportFile)) {
+                            ibmCosService.uploadFile(cosConn, finalExportFile.getFileName().toString(), finalExportFile);
+                            log.info("Successfully uploaded secure SQL export to COS bucket {}: {}", ibmCosService.getEffectiveBucketName(cosConn), finalExportFile.getFileName());
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to upload secure export to COS bucket", e);
+                }
             }
 
             updateProgress(executionId, "COMPLETED", processedTables, totalTables, null);

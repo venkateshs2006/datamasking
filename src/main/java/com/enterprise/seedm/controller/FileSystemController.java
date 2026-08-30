@@ -4,6 +4,7 @@ import com.enterprise.seedm.model.DbConnection;
 import com.enterprise.seedm.model.CosConnection;
 import com.enterprise.seedm.service.DbConnectionService;
 import com.enterprise.seedm.service.CosConnectionService;
+import com.enterprise.seedm.service.IbmCosService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 @RestController
@@ -37,6 +39,7 @@ public class FileSystemController {
             .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     private final DbConnectionService dbConnectionService;
     private final CosConnectionService cosConnectionService;
+    private final IbmCosService ibmCosService;
 
     @PostMapping("/scan")
     public ResponseEntity<?> scanDirectory(@RequestBody Map<String, Object> request) {
@@ -72,15 +75,30 @@ public class FileSystemController {
             if ("Local".equalsIgnoreCase(conn.getStorageType())) {
                 dirPath = conn.getStorageLocation();
             } else if ("COS".equalsIgnoreCase(conn.getStorageType())) {
-                // Mock COS logic since actual IBM COS SDK is out of scope
-                Set<String> mockedKeys = Set.of("customer.id", "customer.name", "customer.email", "customer.phone", "customer.address.city", "transaction.amount", "transaction.date");
+                try {
+                    List<Map<String, Object>> objects = ibmCosService.listObjects(conn, null);
+                    List<String> jsonFiles = objects.stream()
+                            .map(o -> (String) o.get("name"))
+                            .filter(n -> n != null && n.toLowerCase().endsWith(".json"))
+                            .toList();
 
-                return ResponseEntity.ok(Map.of(
-                        "status", "SUCCESS",
-                        "path", "cos://" + (conn.getBucketName() != null ? conn.getBucketName() : "default"),
-                        "fileCount", 5, // Mock 5 files found in bucket
-                        "sampleKeys", new ArrayList<>(mockedKeys)
-                ));
+                    Set<String> discoveredKeys = new TreeSet<>();
+                    if (!jsonFiles.isEmpty()) {
+                        String firstKey = jsonFiles.get(0);
+                        discoveredKeys = ibmCosService.extractJsonKeys(conn, firstKey);
+                    }
+
+                    return ResponseEntity.ok(Map.of(
+                            "status", "SUCCESS",
+                            "path", "cos://" + ibmCosService.getEffectiveBucketName(conn),
+                            "fileCount", jsonFiles.size(),
+                            "files", jsonFiles,
+                            "sampleKeys", new ArrayList<>(discoveredKeys)
+                    ));
+                } catch (Exception e) {
+                    log.error("Failed to scan COS bucket {}", conn.getBucketName(), e);
+                    return ResponseEntity.internalServerError().body(Map.of("error", "Failed to scan COS bucket: " + e.getMessage()));
+                }
             } else {
                  return ResponseEntity.badRequest().body(Map.of("error", "Unknown storage type: " + conn.getStorageType()));
             }

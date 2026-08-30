@@ -43,6 +43,7 @@ public class MongoSecureExportService {
 
     private final DbConnectionService dbConnectionService;
     private final CosConnectionService cosConnectionService;
+    private final IbmCosService ibmCosService;
     private final FormatPreservingEncryptionService fpeService;
     private final MongoSecureExportJobRepository jobRepository;
     private final ObjectMapper objectMapper;
@@ -180,6 +181,7 @@ public class MongoSecureExportService {
                 }
 
                 // Encrypt output BSON file
+                Path finalFileToExport = tempBsonPath;
                 if (saltKey != null && !saltKey.trim().isEmpty()) {
                     Path encFilePath = destDir.resolve("secure-mongo-export.bson.enc");
                     encryptFileWithSalt(tempBsonPath, encFilePath, saltKey);
@@ -187,6 +189,22 @@ public class MongoSecureExportService {
                         Files.deleteIfExists(tempBsonPath);
                     } catch (Exception ex) {
                         log.warn("Could not delete temporary BSON file: {}", ex.getMessage());
+                    }
+                    finalFileToExport = encFilePath;
+                }
+
+                // Upload to COS bucket if destination is Cloud Object Storage
+                if (config.getDest() != null && "cos".equalsIgnoreCase(config.getDest().getType()) && config.getDest().getCosId() != null) {
+                    try {
+                        CosConnection cosConn = cosConnectionService.getConnection(config.getDest().getCosId());
+                        if (cosConn != null && !"Local".equalsIgnoreCase(cosConn.getStorageType()) && ibmCosService != null) {
+                            if (Files.exists(finalFileToExport)) {
+                                ibmCosService.uploadFile(cosConn, finalFileToExport.getFileName().toString(), finalFileToExport);
+                                log.info("Uploaded Mongo secure export to COS bucket {}: {}", ibmCosService.getEffectiveBucketName(cosConn), finalFileToExport.getFileName());
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.error("Failed to upload Mongo secure export to COS bucket", e);
                     }
                 }
 

@@ -169,16 +169,24 @@
                             </div>
                         </div>
 
-                        <button type="submit" class="w-full bg-bnp-emerald text-white py-2 rounded-lg font-bold shadow hover:bg-[#007a4c] transition mt-4">
-                            Save Connection
-                        </button>
+                        <!-- Action Buttons -->
+                        <div class="flex gap-2 pt-2">
+                            <button type="button" onclick="testCosConnection()" id="btnTestCos" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg font-bold text-xs uppercase tracking-wider transition border border-gray-300 flex items-center justify-center gap-1.5">
+                                <i class="fas fa-plug"></i> Test Connection
+                            </button>
+                            <button type="submit" class="flex-1 bg-bnp-emerald text-white py-2.5 rounded-lg font-bold text-xs uppercase tracking-wider shadow hover:bg-[#007a4c] transition flex items-center justify-center gap-1.5">
+                                <i class="fas fa-save"></i> Save Storage
+                            </button>
+                        </div>
+                        <div id="testResultBox" style="display: none;" class="p-3 rounded-lg text-xs mt-2 border"></div>
                     </form>
                 </div>
 
                 <!-- Existing Connections -->
                 <div class="card overflow-hidden lg:col-span-2 h-fit">
-                    <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                    <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                         <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Registered Endpoints</h3>
+                        <span class="text-xs text-gray-400">Click Explore to view bucket contents</span>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm">
@@ -187,7 +195,7 @@
                                     <th class="px-6 py-3">Name / Details</th>
                                     <th class="px-6 py-3">Dept / Env</th>
                                     <th class="px-6 py-3">Type / Path</th>
-                                    <th class="px-6 py-3">Action</th>
+                                    <th class="px-6 py-3 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="cosTableBody" class="divide-y divide-gray-100">
@@ -200,6 +208,43 @@
             </div>
         </div>
     </main>
+
+    <!-- Bucket Explorer Modal -->
+    <div id="bucketModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" style="display: none;">
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+            <div class="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-cloud text-bnp-emerald text-lg"></i>
+                    <h3 class="font-bold text-gray-800" id="bucketModalTitle">Bucket Contents</h3>
+                </div>
+                <button onclick="closeBucketModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-lg"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1">
+                <div id="bucketLoading" class="text-center py-8 text-gray-400">
+                    <i class="fas fa-spinner fa-spin text-2xl mb-2 text-bnp-emerald"></i>
+                    <p>Scanning Cloud Object Storage bucket...</p>
+                </div>
+                <div id="bucketEmpty" style="display: none;" class="text-center py-8 text-gray-400">
+                    <i class="fas fa-box-open text-3xl mb-2"></i>
+                    <p>No objects found in this bucket.</p>
+                </div>
+                <table id="bucketObjectsTable" class="w-full text-left text-xs" style="display: none;">
+                    <thead>
+                        <tr class="border-b text-gray-500 uppercase tracking-wider">
+                            <th class="pb-2">Object Key</th>
+                            <th class="pb-2">Size</th>
+                            <th class="pb-2 text-right">Encrypted</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bucketObjectsList" class="divide-y divide-gray-100 font-mono">
+                    </tbody>
+                </table>
+            </div>
+            <div class="bg-gray-50 px-6 py-3 border-t text-right">
+                <button onclick="closeBucketModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold px-4 py-1.5 rounded-lg text-xs transition">Close</button>
+            </div>
+        </div>
+    </div>
 
     <footer>
         <div class="footer-content">
@@ -298,6 +343,105 @@
         // Run toggles on init to set correct required attributes
         toggleStorageFields();
 
+        async function testCosConnection() {
+            const btn = document.getElementById('btnTestCos');
+            const resultBox = document.getElementById('testResultBox');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+            resultBox.style.display = 'none';
+
+            const storageType = document.getElementById('storageType').value;
+            const payload = {
+                cosName: document.getElementById('cosName').value || 'Test Connection',
+                storageType: storageType,
+                department: document.getElementById('department').value,
+                envType: document.getElementById('envType').value
+            };
+
+            if (storageType === 'Local') {
+                payload.storageLocation = document.getElementById('storageLocation').value;
+            } else {
+                payload.authenticationType = document.getElementById('authenticationType').value;
+                payload.apiKey = document.getElementById('apiKey').value;
+                payload.serviceInstanceId = document.getElementById('serviceInstanceId').value;
+                payload.accessKey = document.getElementById('accessKey').value;
+                payload.secretKey = document.getElementById('secretKey').value;
+                payload.bucketUrl = document.getElementById('bucketUrl').value;
+                payload.location = document.getElementById('location').value;
+                payload.bucketName = document.getElementById('bucketName').value;
+                payload.bucketId = document.getElementById('bucketId').value;
+            }
+
+            try {
+                const res = await fetch('/api/cos-connections/test', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                resultBox.style.display = 'block';
+                if (data.status === 'SUCCESS') {
+                    resultBox.className = 'p-3 rounded-lg text-xs mt-2 border bg-green-50 border-green-200 text-green-700 font-semibold';
+                    resultBox.innerHTML = '<i class="fas fa-check-circle mr-1"></i> ' + (data.message || 'Connection verified successfully.');
+                } else {
+                    resultBox.className = 'p-3 rounded-lg text-xs mt-2 border bg-red-50 border-red-200 text-red-700 font-semibold';
+                    resultBox.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> ' + (data.message || 'Connection failed.');
+                }
+            } catch (err) {
+                resultBox.style.display = 'block';
+                resultBox.className = 'p-3 rounded-lg text-xs mt-2 border bg-red-50 border-red-200 text-red-700 font-semibold';
+                resultBox.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> Request error: ' + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-plug"></i> Test Connection';
+            }
+        }
+
+        async function exploreBucket(id, name) {
+            document.getElementById('bucketModal').style.display = 'flex';
+            document.getElementById('bucketModalTitle').innerText = 'Bucket Contents: ' + name;
+            document.getElementById('bucketLoading').style.display = 'block';
+            document.getElementById('bucketEmpty').style.display = 'none';
+            document.getElementById('bucketObjectsTable').style.display = 'none';
+
+            try {
+                const res = await fetch('/api/cos-connections/' + id + '/objects');
+                const data = await res.json();
+                document.getElementById('bucketLoading').style.display = 'none';
+
+                if (data.status === 'SUCCESS' && data.objects && data.objects.length > 0) {
+                    const tbody = document.getElementById('bucketObjectsList');
+                    tbody.innerHTML = '';
+                    data.objects.forEach(obj => {
+                        const tr = document.createElement('tr');
+                        const isEnc = obj.encrypted || (obj.name && obj.name.endsWith('.enc'));
+                        const sizeKb = obj.sizeBytes ? (obj.sizeBytes / 1024).toFixed(1) + ' KB' : '0 KB';
+                        tr.innerHTML = `
+                            <td class="py-2 text-gray-800 font-semibold flex items-center gap-1.5">
+                                <i class="fas fa-file-code text-gray-400"></i> ${obj.name}
+                            </td>
+                            <td class="py-2 text-gray-500">${sizeKb}</td>
+                            <td class="py-2 text-right">
+                                ${isEnc ? '<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold">AES-256</span>' : '<span class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-[10px]">Plain</span>'}
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                    document.getElementById('bucketObjectsTable').style.display = 'table';
+                } else {
+                    document.getElementById('bucketEmpty').style.display = 'block';
+                }
+            } catch (e) {
+                document.getElementById('bucketLoading').style.display = 'none';
+                document.getElementById('bucketEmpty').style.display = 'block';
+                document.getElementById('bucketEmpty').innerHTML = '<p class="text-red-500">Failed to load objects: ' + e.message + '</p>';
+            }
+        }
+
+        function closeBucketModal() {
+            document.getElementById('bucketModal').style.display = 'none';
+        }
+
         async function fetchCos() {
             let url = '/api/cos-connections';
             const res = await fetch(url);
@@ -316,14 +460,14 @@
 
                     let pathOrAuth = '';
                     let subDetail = '';
-                    const departmentName = db.department ? db.department.name : 'N/A';
+                    const departmentName = db.department ? (typeof db.department === 'object' ? db.department.name : db.department) : 'N/A';
 
                     if (db.storageType === 'Local') {
                         subDetail = '<i class="fas fa-hdd mr-1 text-gray-400"></i> Local Disk';
                         pathOrAuth = `<span class="font-bold text-gray-700">Local</span><br><span class="text-xs break-all">${db.storageLocation || 'N/A'}</span>`;
                     } else {
                         subDetail = db.bucketName ? `<i class="fas fa-cloud mr-1 text-blue-400"></i> ${db.bucketName}` : '';
-                        pathOrAuth = `<span class="font-bold">${db.authenticationType || 'IAM'}</span><br>${db.location || 'Unknown'}`;
+                        pathOrAuth = `<span class="font-bold text-blue-700">${db.authenticationType || 'IAM'}</span><br><span class="text-gray-500 text-xs">${db.location || 'Unknown'}</span>`;
                     }
 
                     tr.innerHTML = `
@@ -338,8 +482,11 @@
                         <td class="px-6 py-4 text-xs font-mono text-gray-500 max-w-xs">
                             ${pathOrAuth}
                         </td>
-                        <td class="px-6 py-4 text-right">
-                            <button onclick="deleteCos('${db.id}')" class="text-red-500 hover:text-red-700 transition"><i class="fas fa-trash-alt"></i></button>
+                        <td class="px-6 py-4 text-right space-x-2">
+                            <button onclick="exploreBucket('${db.id}', '${db.cosName}')" title="Explore Bucket" class="text-bnp-emerald hover:text-emerald-700 font-semibold text-xs border border-emerald-200 bg-emerald-50 px-2.5 py-1 rounded transition">
+                                <i class="fas fa-folder-open mr-1"></i> Explore
+                            </button>
+                            <button onclick="deleteCos('${db.id}')" title="Delete Storage" class="text-red-500 hover:text-red-700 transition p-1"><i class="fas fa-trash-alt"></i></button>
                         </td>
                     `;
                     tbody.appendChild(tr);
@@ -380,6 +527,7 @@
 
             if (res.ok) {
                 document.getElementById('cosForm').reset();
+                document.getElementById('testResultBox').style.display = 'none';
                 toggleStorageFields();
                 toggleAuthFields();
                 fetchCos();

@@ -29,8 +29,10 @@ public class JsonSecureExportImportServiceTest {
         objectMapper = new ObjectMapper();
         MaskingConfigService maskingConfigService = new MaskingConfigService(List.of(), List.of(), List.of(), "DefaultSecretKey123");
         FormatPreservingEncryptionService fpeService = new FormatPreservingEncryptionService(maskingConfigService);
-        exportService = new JsonSecureExportService(null, fpeService, null, objectMapper);
-        importService = new JsonSecureImportService(null, null, objectMapper);
+        CosConnectionService cosConnectionService = org.mockito.Mockito.mock(CosConnectionService.class);
+        IbmCosService ibmCosService = new IbmCosService(cosConnectionService);
+        exportService = new JsonSecureExportService(cosConnectionService, ibmCosService, fpeService, null, objectMapper);
+        importService = new JsonSecureImportService(cosConnectionService, ibmCosService, null, objectMapper);
     }
 
     @Test
@@ -116,5 +118,65 @@ public class JsonSecureExportImportServiceTest {
         assertNotEquals("john@bnp.com", restoredJson.get("email").asText());
         assertNotNull(restoredJson.get("profile"));
         assertNotEquals("123 Bank St", restoredJson.get("profile").get("address").asText());
+    }
+
+    @Test
+    void testJsonExportWithSfdPmdFphRules() throws Exception {
+        Path srcDir = tempDir.resolve("json-sfd-src");
+        Path destExportDir = tempDir.resolve("json-sfd-export");
+        Path destImportDir = tempDir.resolve("json-sfd-imported");
+        Files.createDirectories(srcDir);
+        Files.createDirectories(destExportDir);
+        Files.createDirectories(destImportDir);
+
+        String sampleJson = "{\"name\": \"Alice Wonderland\", \"phone\": \"9876543210\", \"ssn\": \"123456789\"}";
+        Files.writeString(srcDir.resolve("accounts.json"), sampleJson);
+
+        JsonSecureExportConfig.StorageConfig sourceConfig = new JsonSecureExportConfig.StorageConfig();
+        sourceConfig.setType("local");
+        sourceConfig.setPath(srcDir.toString());
+
+        JsonSecureExportConfig.StorageConfig destConfig = new JsonSecureExportConfig.StorageConfig();
+        destConfig.setType("local");
+        destConfig.setPath(destExportDir.toString());
+
+        String secretKey = "Custom16CharSalt";
+        JsonSecureExportConfig exportConfig = new JsonSecureExportConfig();
+        exportConfig.setJobName("Test SFD PMD FPH");
+        exportConfig.setSource(sourceConfig);
+        exportConfig.setDest(destConfig);
+
+        JsonSecureExportConfig.RulesConfig rules = new JsonSecureExportConfig.RulesConfig();
+        rules.setTargetFiles(List.of("accounts.json"));
+        rules.setMaskingColumns(List.of("accounts.json.name")); // SFD
+        rules.setPartialMaskingColumns(List.of("accounts.json.phone")); // PMD
+        rules.setConstraintColumns(List.of("accounts.json.ssn")); // FPH
+        rules.setMaskingKey(secretKey);
+        exportConfig.setRules(rules);
+
+        exportService.processJsonExport("sfd-pmd-fph-test", exportConfig);
+
+        JsonSecureImportConfig importConfig = new JsonSecureImportConfig();
+        JsonSecureImportConfig.StorageConfig importStorage = new JsonSecureImportConfig.StorageConfig();
+        importStorage.setType("local");
+        importStorage.setPath(destExportDir.toString());
+        importStorage.setFileName("secure-json-export.json.enc");
+        importConfig.setStorage(importStorage);
+
+        JsonSecureImportConfig.DestinationConfig importDest = new JsonSecureImportConfig.DestinationConfig();
+        importDest.setType("local");
+        importDest.setPath(destImportDir.toString());
+        importDest.setOverwrite(true);
+        importConfig.setDest(importDest);
+
+        importService.processJsonImport("sfd-pmd-fph-import", importConfig, secretKey);
+
+        Path restoredFile = destImportDir.resolve("accounts.json");
+        assertTrue(Files.exists(restoredFile));
+
+        JsonNode json = objectMapper.readTree(restoredFile.toFile());
+        assertNotEquals("Alice Wonderland", json.get("name").asText()); // SFD
+        assertEquals("****3210", json.get("phone").asText()); // PMD keeps last 4
+        assertNotEquals("123456789", json.get("ssn").asText()); // FPH
     }
 }

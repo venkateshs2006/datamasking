@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -43,6 +44,9 @@ public class SecureImportService {
     @Autowired
     private CosConnectionService cosConnectionService;
 
+    @Autowired
+    private IbmCosService ibmCosService;
+
     private final ObjectMapper objectMapper;
 
     // In-memory store for real-time progress tracking
@@ -56,9 +60,9 @@ public class SecureImportService {
     }
 
     /**
-     * Resolve the source file path based on storage configuration.
+     * Resolve the source export file path based on storage configuration.
      */
-    public Path resolveSourceFile(SecureImportConfig config) throws FileNotFoundException {
+    public Path resolveSourceFile(SecureImportConfig config) throws Exception {
         if (config == null || config.getStorage() == null) {
             throw new IllegalArgumentException("Storage configuration is missing");
         }
@@ -68,10 +72,21 @@ public class SecureImportService {
         Path candidatePath = null;
 
         if ("cos".equals(storageType)) {
-            if (storage.getId() != null) {
+            if (storage.getId() != null && cosConnectionService != null) {
                 CosConnection cos = cosConnectionService.getConnection(storage.getId());
-                if (cos != null && cos.getStorageLocation() != null && !cos.getStorageLocation().trim().isEmpty()) {
-                    candidatePath = Paths.get(cos.getStorageLocation());
+                if (cos != null) {
+                    if (!"Local".equalsIgnoreCase(cos.getStorageType()) && ibmCosService != null) {
+                        String fileName = storage.getFileName() != null && !storage.getFileName().trim().isEmpty()
+                                ? storage.getFileName().trim() : "secure-export.sql.enc";
+                        Path tempDir = Files.createTempDirectory("cos-sql-import-staging");
+                        Path stagingFile = tempDir.resolve(fileName);
+                        ibmCosService.downloadFile(cos, fileName, stagingFile);
+                        log.info("Downloaded COS SQL package to temporary staging: {}", stagingFile);
+                        return stagingFile;
+                    }
+                    if (cos.getStorageLocation() != null && !cos.getStorageLocation().trim().isEmpty()) {
+                        candidatePath = Paths.get(cos.getStorageLocation());
+                    }
                 }
             }
             if (candidatePath == null && storage.getPath() != null && !storage.getPath().trim().isEmpty()) {
@@ -483,10 +498,27 @@ public class SecureImportService {
             }
 
             Path dirPath = null;
-            if ("cos".equalsIgnoreCase(type) && cosId != null) {
+            if ("cos".equalsIgnoreCase(type) && cosId != null && cosConnectionService != null) {
                 CosConnection cos = cosConnectionService.getConnection(cosId);
-                if (cos != null && cos.getStorageLocation() != null) {
-                    dirPath = Paths.get(cos.getStorageLocation());
+                if (cos != null) {
+                    if (!"Local".equalsIgnoreCase(cos.getStorageType()) && ibmCosService != null) {
+                        List<Map<String, Object>> cosObjects = ibmCosService.listObjects(cos, null);
+                        List<Map<String, Object>> filesList = cosObjects.stream()
+                                .filter(o -> {
+                                    String name = (String) o.get("name");
+                                    return name != null && (name.endsWith(".sql") || name.endsWith(".sql.enc"));
+                                })
+                                .collect(Collectors.toList());
+
+                        response.put("status", "SUCCESS");
+                        response.put("path", "cos://" + ibmCosService.getEffectiveBucketName(cos));
+                        response.put("files", filesList);
+                        response.put("fileCount", filesList.size());
+                        return response;
+                    }
+                    if (cos.getStorageLocation() != null) {
+                        dirPath = Paths.get(cos.getStorageLocation());
+                    }
                 }
             } else if (pathStr != null && !pathStr.trim().isEmpty()) {
                 dirPath = Paths.get(pathStr.trim());

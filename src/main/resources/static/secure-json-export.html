@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BNP Paribas - JSON Secure Export</title>
+    <title>BNP Paribas - SeEDM JSON Secure Export</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -12,352 +12,474 @@
             theme: {
                 extend: {
                     colors: {
-                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4', greenDark: '#007a4d' }
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4' }
                     }
                 }
             }
         }
     </script>
     <style>
-        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; }
-        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--bnp-dark-grey); min-height: 100vh; display: flex; flex-direction: column; }
-        .bnp-logo { height: 44px; display: block; }
-        .card { background: white; border-radius: 12px; box-shadow: 0 4px 20px -2px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
-        .step-panel { display: none; }
-        .step-panel.active { display: block; animation: fadeIn 0.25s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-        .stepper-item.active .stepper-circle { border-color: var(--bnp-emerald); color: var(--bnp-emerald); background-color: white; box-shadow: 0 0 0 4px rgba(0, 150, 94, 0.15); font-weight: 700; }
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
+
+        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
+        .bnp-logo { height: 48px; display: block; }
+        nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
+        nav ul li { margin-left: 25px; }
+        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
+        nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+        nav ul li a.active { color: var(--bnp-emerald); border-bottom: 2px solid var(--bnp-emerald); padding-bottom: 4px; font-weight: 700; }
+
+        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; z-index: 20; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
+        .tagline { font-weight: 300; letter-spacing: 1px; }
+
+        .step-container { display: none !important; }
+        .step-container.active {
+            display: flex !important;
+            flex-direction: column;
+            animation: fadeIn 0.3s ease-out;
+            flex: 1;
+            min-height: 0;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Stepper Styles */
+        .stepper-item { flex: 1; text-align: center; position: relative; }
+        .stepper-item::after { content: ''; position: absolute; top: 16px; left: 50%; width: 100%; height: 2px; background-color: #e2e8f0; z-index: 1; transition: background-color 0.3s; }
+        .stepper-item:last-child::after { display: none; }
+        .stepper-item.completed::after { background-color: var(--bnp-emerald); }
+        .stepper-circle { width: 34px; height: 34px; border-radius: 50%; background-color: #fff; border: 2px solid #cbd5e1; color: #94a3b8; display: flex; align-items: center; justify-content: center; font-weight: 600; margin: 0 auto; position: relative; z-index: 2; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+
+        .stepper-item.active .stepper-circle { border-color: var(--bnp-emerald); color: var(--bnp-emerald); background-color: #fff; box-shadow: 0 0 0 4px rgba(0, 150, 94, 0.1); }
         .stepper-item.completed .stepper-circle { background-color: var(--bnp-emerald); border-color: var(--bnp-emerald); color: white; }
+
+        .stepper-label { font-size: 0.7rem; font-weight: 600; color: #64748b; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em; transition: color 0.3s; }
+        .stepper-item.active .stepper-label { color: var(--bnp-dark-grey); font-weight: 700; }
+        .stepper-item.completed .stepper-label { color: var(--bnp-emerald); }
+
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #f1f5f9; }
+
+        .input-field { width: 100%; padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.875rem; transition: all 0.2s; background-color: #f8fafc; color: #334155; }
+        .input-field:focus { outline: none; border-color: var(--bnp-emerald); box-shadow: 0 0 0 3px rgba(0, 150, 94, 0.15); background-color: #fff; }
+        .input-field:disabled { background-color: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+        .input-field.error { border-color: #ef4444; background-color: #fef2f2; }
+
+        .btn { padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 600; font-size: 0.875rem; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+        .btn-primary { background-color: var(--bnp-emerald); color: white; border: 1px solid transparent; }
+        .btn-primary:hover:not(:disabled) { background-color: #007a4c; box-shadow: 0 4px 6px rgba(0, 150, 94, 0.2); transform: translateY(-1px); }
+        .btn-secondary { background-color: #fff; color: #475569; border: 1px solid #cbd5e1; }
+        .btn-secondary:hover:not(:disabled) { background-color: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
+        .btn-success { background-color: #10b981; color: white; border: 1px solid transparent; }
+        .btn-success:hover:not(:disabled) { background-color: #059669; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2); transform: translateY(-1px); }
+
+        .list-container { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; overflow: hidden; display: flex; flex-direction: column; }
+        .list-item { padding: 0.6rem 0.875rem; border-radius: 6px; font-size: 0.875rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; transition: all 0.15s; border: 1px solid transparent; }
+        .list-item:hover { background-color: #f8fafc; border-color: #e2e8f0; }
+        .list-item.selected { background-color: rgba(0,150,94,0.05); color: var(--bnp-emerald); font-weight: 600; border-color: rgba(0,150,94,0.2); box-shadow: inset 3px 0 0 var(--bnp-emerald); }
+
+        .rule-btn { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; transition: all 0.2s; border: 1px solid transparent; }
+        .rule-btn-std { color: var(--bnp-emerald); background: rgba(0,150,94,0.05); border-color: rgba(0,150,94,0.2); }
+        .rule-btn-std:hover { background: rgba(0,150,94,0.1); }
+        .rule-btn-prt { color: #ea580c; background: #fff7ed; border-color: #fed7aa; }
+        .rule-btn-prt:hover { background: #ffedd5; }
+        .rule-btn-enc { color: #7c3aed; background: #faf5ff; border-color: #e9d5ff; }
+        .rule-btn-enc:hover { background: #f3e8ff; }
     </style>
 </head>
-<body class="flex flex-col min-h-screen">
+<body>
 
-<!-- Header -->
-<header class="border-t-4 border-bnp-emerald bg-white shadow-sm sticky top-0 z-40">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between items-center h-16">
-            <div class="flex items-center">
-                <a href="/index.html" class="mr-4">
-                    <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
-                </a>
-                <div class="hidden md:block border-l border-gray-300 pl-4">
-                    <h1 class="text-lg font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
-                    <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">JSON Secure Export</p>
-                </div>
-            </div>
-            <nav>
-                <ul class="flex items-center space-x-6 text-xs font-semibold uppercase tracking-wider">
-                    <li id="navNewMigration"><a href="/select-db.html" class="text-bnp-emerald border-b-2 border-bnp-emerald pb-1 font-bold"><i class="fas fa-plus mr-1"></i> New Migration</a></li>
-                    <li id="navDashboard"><a href="/index.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-desktop mr-1"></i> Dashboard</a></li>
-                    <li id="navJobs"><a href="/jobs.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-tasks mr-1"></i> Jobs</a></li>
-                    <li id="adminDbLink" style="display: none;"><a href="/admin-db.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-database mr-1"></i> DB Admin</a></li>
-                    <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-cloud mr-1"></i> COS Admin</a></li>
-                    <li id="userManagementLink" style="display: none;"><a href="/users.html" class="text-gray-600 hover:text-bnp-emerald transition"><i class="fas fa-users mr-1"></i> Users</a></li>
-                    <li><button onclick="logout()" class="text-gray-600 hover:text-rose-600 transition"><i class="fas fa-sign-out-alt mr-1"></i> Sign Out</button></li>
-                </ul>
-            </nav>
-        </div>
-    </div>
-</header>
-
-<!-- Main Container -->
-<main class="flex-1 max-w-5xl w-full mx-auto py-8 px-4 sm:px-6 lg:px-8">
-
-    <!-- Stepper Navigation Header -->
-    <div class="card p-4 mb-6">
-        <div class="flex items-center justify-between relative">
-            <div class="stepper-item active flex-1 text-center" id="step-nav-1">
-                <div class="stepper-circle w-8 h-8 rounded-full border-2 border-gray-300 text-gray-400 flex items-center justify-center text-xs font-bold mx-auto mb-1">1</div>
-                <span class="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Source Storage</span>
-            </div>
-            <div class="w-8 h-0.5 bg-gray-200"></div>
-            <div class="stepper-item flex-1 text-center" id="step-nav-2">
-                <div class="stepper-circle w-8 h-8 rounded-full border-2 border-gray-300 text-gray-400 flex items-center justify-center text-xs font-bold mx-auto mb-1">2</div>
-                <span class="text-[11px] font-bold text-gray-600 uppercase tracking-wider">JSON Files</span>
-            </div>
-            <div class="w-8 h-0.5 bg-gray-200"></div>
-            <div class="stepper-item flex-1 text-center" id="step-nav-3">
-                <div class="stepper-circle w-8 h-8 rounded-full border-2 border-gray-300 text-gray-400 flex items-center justify-center text-xs font-bold mx-auto mb-1">3</div>
-                <span class="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Field Masking</span>
-            </div>
-            <div class="w-8 h-0.5 bg-gray-200"></div>
-            <div class="stepper-item flex-1 text-center" id="step-nav-4">
-                <div class="stepper-circle w-8 h-8 rounded-full border-2 border-gray-300 text-gray-400 flex items-center justify-center text-xs font-bold mx-auto mb-1">4</div>
-                <span class="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Destination</span>
-            </div>
-            <div class="w-8 h-0.5 bg-gray-200"></div>
-            <div class="stepper-item flex-1 text-center" id="step-nav-5">
-                <div class="stepper-circle w-8 h-8 rounded-full border-2 border-gray-300 text-gray-400 flex items-center justify-center text-xs font-bold mx-auto mb-1">5</div>
-                <span class="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Review & Submit</span>
+    <header>
+        <div class="flex items-center">
+            <a href="/index.html" class="logo-link mr-6">
+                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+            </a>
+            <div class="hidden md:block border-l border-gray-300 pl-6">
+                <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
+                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">JSON Secure Export</p>
             </div>
         </div>
-    </div>
+        <nav>
+            <ul>
+                <li id="navNewMigration"><a href="/select-db.html" class="active"><i class="fas fa-plus mr-1.5"></i> New Migration</a></li>
+                <li id="navDashboard"><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+                <li id="navJobs"><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
+                <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
+                <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> Users</a></li>
+                <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
+            </ul>
+        </nav>
+    </header>
 
-    <!-- Step 1: Source Storage Selection -->
-    <div id="step-1" class="step-panel active">
-        <div class="card p-6">
-            <h2 class="text-lg font-bold text-gray-800 mb-1 flex items-center">
-                <i class="fas fa-folder-open mr-2 text-bnp-emerald"></i> Step 1: Select Source Storage & Scan
-            </h2>
-            <p class="text-xs text-gray-500 mb-6">Choose whether your source JSON files reside in a local directory or IBM Cloud Object Storage (COS).</p>
+    <main class="flex-1 flex flex-col overflow-hidden bg-transparent">
+        <div class="w-full max-w-6xl mx-auto px-6 py-8 flex flex-col h-full">
 
-            <div class="space-y-4 max-w-lg">
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Job Name <span class="text-rose-500">*</span></label>
-                    <input type="text" id="jobName" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-1 focus:ring-bnp-emerald focus:border-bnp-emerald font-medium" placeholder="e.g. JSON Transactions Export">
-                </div>
+            <div class="mb-8 shrink-0 text-center">
+                <h2 class="text-3xl font-bold text-gray-900">Configure JSON Secure Export</h2>
+                <p class="text-sm text-gray-500 mt-2">Define your source JSON files location, storage destination, and masking rules in 4 simple steps.</p>
+            </div>
 
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Storage Source Type</label>
-                    <div class="grid grid-cols-2 gap-3">
-                        <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition border-bnp-emerald bg-emerald-50/20" id="srcTypeLocalLabel">
-                            <input type="radio" name="srcType" value="local" checked onchange="onSrcTypeChanged()" class="text-bnp-emerald focus:ring-bnp-emerald mr-2.5">
-                            <div>
-                                <div class="text-xs font-bold text-gray-800">Local Directory</div>
-                                <div class="text-[10px] text-gray-500">Read from server disk</div>
+            <!-- Stepper -->
+            <div class="flex items-start mb-8 px-4 w-[80%] mx-auto shrink-0">
+                <div class="stepper-item active" id="step1-indicator"><div class="stepper-circle"><i class="fas fa-plug text-sm"></i></div><div class="stepper-label">Connection</div></div>
+                <div class="stepper-item" id="step2-indicator"><div class="stepper-circle"><i class="fas fa-file-code text-sm"></i></div><div class="stepper-label">Files</div></div>
+                <div class="stepper-item" id="step3-indicator"><div class="stepper-circle"><i class="fas fa-mask text-sm"></i></div><div class="stepper-label">Rules</div></div>
+                <div class="stepper-item" id="step4-indicator"><div class="stepper-circle"><i class="fas fa-flag-checkered text-sm"></i></div><div class="stepper-label">Review</div></div>
+            </div>
+
+            <!-- Main Card -->
+            <div class="card flex-1 flex flex-col overflow-hidden relative shadow-md bg-white rounded-xl">
+
+                <!-- STEP 1: CONNECTIONS & STORAGE -->
+                <div id="step1" class="step-container active p-8">
+                    <div class="flex flex-col md:flex-row flex-1 gap-12 relative h-full">
+                        <!-- Source Form -->
+                        <div class="flex-1 flex flex-col">
+                            <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
+                                <div class="w-10 h-10 rounded-lg bg-bnp-emerald/10 flex items-center justify-center text-bnp-emerald mr-4 border border-bnp-emerald/20"><i class="fas fa-folder-open text-lg"></i></div>
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-800 leading-tight">Source Storage</h3>
+                                    <p class="text-xs text-gray-500">Folder or COS bucket containing JSON files</p>
+                                </div>
                             </div>
-                        </label>
-                        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition" id="srcTypeCosLabel">
-                            <input type="radio" name="srcType" value="cos" onchange="onSrcTypeChanged()" class="text-bnp-emerald focus:ring-bnp-emerald mr-2.5">
-                            <div>
-                                <div class="text-xs font-bold text-gray-800">IBM Cloud Storage</div>
-                                <div class="text-[10px] text-gray-500">Scan COS bucket</div>
+                            <form id="sourceForm" class="space-y-5 flex-1 flex flex-col" onsubmit="event.preventDefault(); scanSourceFiles();">
+                                <div>
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2 block">Storage Type</label>
+                                    <div class="flex gap-4">
+                                        <label class="flex items-center text-sm cursor-pointer"><input type="radio" name="src-storage-type" value="local" class="mr-2 text-bnp-emerald" onchange="toggleSrcStorageOptions()" checked> Local Directory</label>
+                                        <label class="flex items-center text-sm cursor-pointer"><input type="radio" name="src-storage-type" value="cos" class="mr-2 text-bnp-emerald" onchange="toggleSrcStorageOptions()"> Cloud Object Storage</label>
+                                    </div>
+                                </div>
+
+                                <div id="src-local-option">
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Directory Path</label>
+                                    <div class="flex gap-2">
+                                        <input type="text" id="src-local-path" name="src-local-path" class="input-field font-mono" placeholder="e.g., /home/sv/data" value="/home/sv/data" oninput="validateStep1()">
+                                        <button type="button" id="btnScanLocal" onclick="scanSourceFiles()" class="btn btn-secondary text-xs px-4 whitespace-nowrap"><i class="fas fa-search mr-1.5"></i>Scan</button>
+                                    </div>
+                                </div>
+
+                                <div id="src-cos-option" style="display: none;">
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">COS Source Connection</label>
+                                    <div class="flex gap-2">
+                                        <select id="src-cos-connection" name="src-cos-connection" class="input-field cursor-pointer bg-white" onchange="validateStep1()">
+                                            <option value="">Loading COS connections...</option>
+                                        </select>
+                                        <button type="button" id="btnScanCos" onclick="scanSourceFiles()" class="btn btn-secondary text-xs px-4 whitespace-nowrap"><i class="fas fa-search mr-1.5"></i>Scan</button>
+                                    </div>
+                                </div>
+
+                                <div class="mt-auto pt-4 border-t border-gray-50">
+                                    <div class="flex justify-between items-center text-xs">
+                                        <span class="text-gray-500 font-semibold uppercase text-[10px]">Detected JSON Files:</span>
+                                        <span id="srcScanStatusBadge" class="font-mono text-[11px] font-bold text-gray-600 bg-gray-100 px-2.5 py-1 rounded">Click Scan to discover</span>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Divider -->
+                        <div class="hidden md:block absolute left-1/2 top-4 bottom-4 w-px bg-gray-200 transform -translate-x-1/2"></div>
+
+                        <!-- Storage Form -->
+                        <div class="flex-1 flex flex-col pl-2">
+                            <div class="flex items-center mb-6 pb-3 border-b border-gray-100">
+                                <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 mr-4 border border-emerald-100"><i class="fas fa-archive text-lg"></i></div>
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-800 leading-tight">Storage Environment</h3>
+                                    <p class="text-xs text-gray-500">Where to save the exported encrypted JSON package</p>
+                                </div>
                             </div>
-                        </label>
+                            <form id="storageForm" class="space-y-5 flex-1 flex flex-col">
+                                <div>
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2 block">Storage Type</label>
+                                    <div class="flex gap-4">
+                                        <label class="flex items-center text-sm cursor-pointer"><input type="radio" name="storage-type" value="cos" class="mr-2 text-bnp-emerald" onchange="toggleStorageOptions()" checked> Cloud Object Storage</label>
+                                        <label class="flex items-center text-sm cursor-pointer"><input type="radio" name="storage-type" value="local" class="mr-2 text-bnp-emerald" onchange="toggleStorageOptions()"> Local Storage</label>
+                                    </div>
+                                </div>
+
+                                <div id="cos-storage-option" class="mt-4">
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">COS Connection</label>
+                                    <select id="cos-connection" name="cos-connection" class="input-field cursor-pointer bg-white" onchange="validateStep1()">
+                                        <option value="">Loading connections...</option>
+                                    </select>
+                                </div>
+
+                                <div id="local-storage-option" class="mt-4" style="display: none;">
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Path</label>
+                                    <input type="text" id="local-path" name="local-path" class="input-field font-mono" placeholder="e.g., secure-export" value="secure-export" oninput="validateStep1()">
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
 
-                <div id="srcLocalContainer">
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Source Directory Path <span class="text-rose-500">*</span></label>
-                    <div class="flex gap-2">
-                        <input type="text" id="srcDirPath" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono" value="/home/sv/data" placeholder="e.g. /home/sv/data">
-                        <button type="button" onclick="scanSourceFiles()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg transition shrink-0">
-                            <i class="fas fa-search mr-1"></i> Scan
+                <!-- STEP 2: FILES -->
+                <div id="step2" class="step-container p-8 flex flex-col">
+                    <div class="mb-6 flex justify-between items-end">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800">Select JSON Files</h3>
+                            <p class="text-sm text-gray-500 mt-1">Choose the JSON documents you want to include in this secure export.</p>
+                        </div>
+                        <button onclick="selectAllTables()" class="text-sm font-semibold text-bnp-emerald hover:text-[#007a4c] transition flex items-center bg-bnp-emerald/10 px-3 py-1.5 rounded-lg border border-bnp-emerald/20 shadow-sm hover:shadow">
+                            <i class="fas fa-check-double mr-2"></i> Select All
                         </button>
                     </div>
-                </div>
 
-                <div id="srcCosContainer" class="hidden space-y-3">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">IBM COS Connection <span class="text-rose-500">*</span></label>
-                        <select id="srcCosSelect" onchange="scanSourceFiles()" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs bg-white">
-                            <option value="" disabled selected>Loading COS connections...</option>
-                        </select>
+                    <div class="flex flex-1 gap-8 min-h-0 bg-gray-50/50 p-4 rounded-xl border border-gray-200">
+                        <!-- Available -->
+                        <div class="list-container flex-1 bg-white shadow-sm border-gray-200 flex flex-col h-full overflow-hidden">
+                            <div class="list-header bg-white border-b border-gray-100 py-3 shrink-0">
+                                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Available in Source</span>
+                            </div>
+                            <div id="availableTables" class="list-body p-3 space-y-1 overflow-y-auto flex-1"></div>
+                        </div>
+
+                        <div class="flex items-center justify-center shrink-0">
+                            <div class="w-10 h-10 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-400">
+                                <i class="fas fa-arrow-right"></i>
+                            </div>
+                        </div>
+
+                        <!-- Selected -->
+                        <div class="list-container flex-1 border-bnp-emerald/30 bg-bnp-emerald/5 shadow-sm flex flex-col h-full overflow-hidden">
+                            <div class="list-header bg-white border-b border-bnp-emerald/20 py-3 shrink-0">
+                                <span class="text-xs font-bold text-bnp-emerald uppercase tracking-wider">Selected (<span id="selectedTableCount">0</span>)</span>
+                            </div>
+                            <div id="selectedTablesList" class="list-body p-3 space-y-1 overflow-y-auto flex-1"></div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="mt-4">
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Detected JSON Files</label>
-                    <div id="scannedFilesContainer" class="border border-gray-200 rounded-lg p-2 max-h-40 overflow-y-auto space-y-1.5 bg-gray-50/50">
-                        <div class="text-center py-4 text-gray-400 text-xs italic">Click Scan to detect JSON files.</div>
+                <!-- STEP 3: RULES -->
+                <div id="step3" class="step-container p-8 flex flex-col">
+                    <div class="flex justify-between items-start mb-6 shrink-0">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800">Assign Masking Rules</h3>
+                            <p class="text-sm text-gray-500 mt-1">Configure how sensitive fields should be transformed.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-1 gap-6 min-h-0">
+                        <!-- Files List -->
+                        <div class="list-container w-1/4 bg-white shadow-sm border-gray-200 flex flex-col overflow-hidden">
+                            <div class="list-header bg-gray-50 py-3 shrink-0"><span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Files</span></div>
+                            <div id="ruleTablesList" class="list-body p-2 overflow-y-auto flex-1"></div>
+                        </div>
+
+                        <!-- Fields List -->
+                        <div class="list-container w-1/3 bg-white shadow-sm border-gray-200 flex flex-col overflow-hidden">
+                            <div class="list-header bg-gray-50 py-3 flex justify-between shrink-0">
+                                <span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Fields</span>
+                                <span id="activeTableName" class="text-[10px] font-mono text-bnp-emerald bg-bnp-emerald/10 px-2 py-0.5 rounded border border-bnp-emerald/20 hidden"></span>
+                            </div>
+                            <div id="ruleColumnsList" class="list-body p-2 overflow-y-auto flex-1 relative">
+                                <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 text-sm bg-white z-10" id="columnsPlaceholder">
+                                    <i class="fas fa-arrow-left text-2xl mb-2 opacity-50"></i>
+                                    Select a file to view fields
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Applied Rules Overview -->
+                        <div class="list-container flex-1 bg-gray-50 border-gray-200 shadow-inner flex flex-col overflow-hidden">
+                            <div class="list-header bg-gray-100 py-3 border-b border-gray-200 shrink-0">
+                                <span class="text-xs font-bold text-gray-700 uppercase tracking-wider">Active Rules Overview</span>
+                            </div>
+                            <div class="p-5 space-y-5 flex-1 overflow-y-auto relative">
+                                <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 text-sm bg-gray-50 z-10 hidden" id="rulesPlaceholder">
+                                    <i class="fas fa-info-circle text-2xl mb-2 opacity-50"></i>
+                                    Select a file to view its rules
+                                </div>
+                                <!-- Standard -->
+                                <div>
+                                    <h5 class="text-[10px] font-bold text-bnp-emerald uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-bnp-emerald/10 flex items-center justify-center mr-1.5"><i class="fas fa-mask"></i></div> SFD (STANDARD FAKER DATA)</h5>
+                                    <div id="tags-masking" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-bnp-emerald/40 shadow-sm"></div>
+                                </div>
+                                <!-- Partial -->
+                                <div>
+                                    <h5 class="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-orange-100 flex items-center justify-center mr-1.5"><i class="fas fa-eye-slash"></i></div> PMD (Partial masking DATA)</h5>
+                                    <div id="tags-partial" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-orange-200 shadow-sm"></div>
+                                </div>
+                                <!-- Encrypt -->
+                                <div>
+                                    <h5 class="text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-purple-100 flex items-center justify-center mr-1.5"><i class="fas fa-key"></i></div> FPH (Format Perserving Hashing(keep Last 4))</h5>
+                                    <div id="tags-constraint" class="flex flex-wrap gap-1.5 min-h-[36px] p-2.5 bg-white rounded-lg border border-dashed border-purple-200 shadow-sm"></div>
+                                </div>
+
+                                <!-- FPH & File Encryption Key Container -->
+                                <div class="mt-4 p-4 bg-white border border-gray-200 rounded-lg shadow-sm" id="fphKeyContainer">
+                                    <label class="text-[10px] font-bold text-purple-800 uppercase tracking-wider mb-2 flex items-center">
+                                        <i class="fas fa-key mr-1.5"></i> FPH & File Encryption Key Configuration
+                                    </label>
+
+                                    <div class="mb-3 flex items-center">
+                                        <input type="checkbox" id="autoGenerateKey" class="mr-2 cursor-pointer" onchange="toggleAutoGenerateKey()" checked>
+                                        <label for="autoGenerateKey" class="text-xs text-gray-600 cursor-pointer font-semibold">Generate 16-character salt key automatically</label>
+                                    </div>
+
+                                    <div class="flex shadow-sm rounded" id="keyInputsWrapper">
+                                        <input type="text" id="saltPrefix" class="w-full p-2 text-sm font-mono border border-purple-200 bg-purple-50 text-purple-800 rounded focus:outline-none cursor-not-allowed text-center tracking-widest" readonly title="Generated by backend">
+                                        <input type="text" id="userSalt" class="w-1/2 p-2 text-sm font-mono border border-purple-200 rounded-r focus:border-purple-500 focus:ring-purple-200 outline-none transition text-center tracking-widest" placeholder="Enter 8 chars" maxlength="8" oninput="validateStep3()" style="display: none;">
+                                    </div>
+                                    <p class="text-[10px] text-gray-400 mt-2" id="keyHintText">This 16-character salt key will be used for FPH hashing and to encrypt the export file (.json.enc) with AES-256.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="flex justify-end mt-8 pt-4 border-t border-gray-100">
-                <button onclick="goToStep(2)" class="px-6 py-2.5 bg-bnp-emerald text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-bnp-greenDark transition flex items-center shadow-sm">
-                    Next: Select Files <i class="fas fa-arrow-right ml-2"></i>
-                </button>
-            </div>
-        </div>
-    </div>
+                <!-- STEP 4: PREVIEW -->
+                <div id="step4" class="step-container p-8 overflow-y-auto">
+                    <div class="max-w-4xl mx-auto w-full flex flex-col h-full">
+                        <div class="text-center mb-8 shrink-0">
+                            <div class="w-16 h-16 bg-bnp-emerald/10 text-bnp-emerald rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-bnp-emerald/5">
+                                <i class="fas fa-check"></i>
+                            </div>
+                            <h3 class="text-2xl font-bold text-gray-900">Ready to Submit</h3>
+                            <p class="text-sm text-gray-500 mt-2">Review your configuration summary before submitting for approval.</p>
+                        </div>
 
-    <!-- Step 2: File Selection -->
-    <div id="step-2" class="step-panel">
-        <div class="card p-6">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
-                <div>
-                    <h2 class="text-lg font-bold text-gray-800 flex items-center">
-                        <i class="fas fa-file-code mr-2 text-bnp-emerald"></i> Step 2: Select JSON Files
-                    </h2>
-                    <p class="text-xs text-gray-500">Choose the JSON documents to bundle and mask in the secure export.</p>
+                        <div class="mb-6 max-w-lg mx-auto w-full space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Export Name</label>
+                                <input type="text" id="migrationName" class="input-field" placeholder="e.g. Q3 JSON Finance Export" required>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department</label>
+                                <select id="department" class="input-field cursor-pointer bg-white" required>
+                                    <option value="">Loading departments...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 shrink-0">
+                            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                                <div class="absolute top-0 right-0 p-4 opacity-5 text-4xl"><i class="fas fa-network-wired"></i></div>
+                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">Environment Targets</h4>
+                                <div class="space-y-4">
+                                    <div>
+                                        <span class="text-[10px] font-bold text-bnp-emerald uppercase flex items-center"><i class="fas fa-folder-open mr-1.5"></i> Source Storage</span>
+                                        <div id="previewSrc" class="text-xs font-mono text-gray-700 mt-1 truncate" title=""></div>
+                                    </div>
+                                    <div>
+                                        <span class="text-[10px] font-bold text-emerald-600 uppercase flex items-center"><i class="fas fa-archive mr-1.5"></i> Storage Destination</span>
+                                        <div id="previewDest" class="text-xs font-mono text-gray-700 mt-1 truncate" title=""></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-center gap-12 relative overflow-hidden">
+                                <div class="absolute top-0 right-0 p-4 opacity-5 text-4xl"><i class="fas fa-chart-pie"></i></div>
+                                <div class="text-center">
+                                    <span class="block text-5xl font-black text-bnp-emerald" id="previewTableCount">0</span>
+                                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2 block">Files</span>
+                                </div>
+                                <div class="w-px h-20 bg-gray-100"></div>
+                                <div class="text-center">
+                                    <span class="block text-5xl font-black text-purple-600" id="previewRuleCount">0</span>
+                                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2 block">Rules applied</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col min-h-[300px]">
+                            <div class="bg-gray-50 px-5 py-4 border-b border-gray-200 flex justify-between items-center">
+                                <span class="text-xs font-bold text-gray-600 uppercase tracking-wider"><i class="fas fa-list-ul mr-2"></i> Export Scope Details</span>
+                            </div>
+                            <div class="overflow-y-auto flex-1 p-0">
+                                <table class="w-full text-sm text-left">
+                                    <thead class="bg-white sticky top-0 border-b border-gray-100 shadow-sm z-10">
+                                        <tr>
+                                            <th class="p-4 pl-6 font-semibold text-gray-500 text-xs uppercase w-1/3">File</th>
+                                            <th class="p-4 font-semibold text-gray-500 text-xs uppercase w-2/3">Transformations</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="previewRulesTable" class="divide-y divide-gray-50"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="space-x-2 text-xs">
-                    <button onclick="toggleAllFiles(true)" class="text-bnp-emerald font-bold hover:underline">Select All</button>
-                    <span class="text-gray-300">|</span>
-                    <button onclick="toggleAllFiles(false)" class="text-gray-400 hover:underline">Clear All</button>
-                </div>
-            </div>
 
-            <div class="mb-4">
-                <input type="text" id="fileSearch" oninput="filterFileList()" placeholder="Filter files..." class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs">
-            </div>
-
-            <div id="fileListContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-80 overflow-y-auto p-3 border border-gray-200 rounded-lg bg-gray-50/50">
-                <div class="col-span-full text-center py-8 text-gray-400 text-xs">Scan in Step 1 first.</div>
-            </div>
-
-            <div class="flex justify-between mt-8 pt-4 border-t border-gray-100">
-                <button onclick="goToStep(1)" class="px-5 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-arrow-left mr-1"></i> Back
-                </button>
-                <button onclick="goToStep(3)" class="px-6 py-2.5 bg-bnp-emerald text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-bnp-greenDark transition flex items-center shadow-sm">
-                    Next: Field Masking <i class="fas fa-arrow-right ml-2"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Step 3: Field Masking -->
-    <div id="step-3" class="step-panel">
-        <div class="card p-6">
-            <h2 class="text-lg font-bold text-gray-800 mb-1 flex items-center">
-                <i class="fas fa-user-secret mr-2 text-bnp-emerald"></i> Step 3: Configure JSON Field Masking & Encryption Key
-            </h2>
-            <p class="text-xs text-gray-500 mb-6">Choose sensitive attributes across your JSON files to anonymize with Format-Preserving Encryption (FPE) and set your backup salt key.</p>
-
-            <!-- Salt Key Input -->
-            <div class="p-4 bg-emerald-50/60 border border-emerald-200 rounded-xl mb-6">
-                <div class="flex justify-between items-center mb-1">
-                    <label class="block text-xs font-bold text-emerald-900 uppercase">Masking & Encryption Secret Salt Key <span class="text-rose-500">*</span></label>
-                    <button type="button" onclick="generateRandomSalt()" class="text-xs text-bnp-emerald font-bold hover:underline">
-                        <i class="fas fa-random mr-1"></i> Generate Random Key
+                <!-- Card Footer -->
+                <div class="mt-auto border-t border-gray-200 px-8 py-4 bg-gray-50 flex justify-between items-center shrink-0 rounded-b-xl z-10 relative">
+                    <button id="btnPrev" onclick="prevStep()" class="btn btn-secondary text-sm font-bold tracking-wide"><i class="fas fa-chevron-left mr-2 text-xs"></i> BACK</button>
+                    <div class="flex-1"></div>
+                    <button id="btnNext" onclick="nextStep()" class="btn btn-primary px-8 text-sm font-bold tracking-wide shadow-md hover:shadow-lg">CONTINUE <i class="fas fa-chevron-right ml-2 text-xs"></i></button>
+                    <button id="btnStart" onclick="submitWorkflow()" class="btn btn-success px-10 py-3 text-base font-bold tracking-wide shadow-lg hover:shadow-xl hidden animate-pulse bg-bnp-emerald hover:bg-[#007a4c]">
+                        SUBMIT FOR APPROVAL <i class="fas fa-paper-plane ml-2"></i>
                     </button>
                 </div>
-                <div class="relative">
-                    <input type="text" id="saltKeyInput" required class="w-full px-3 py-2 border border-emerald-300 rounded-lg text-xs font-mono bg-white focus:ring-1 focus:ring-bnp-emerald" placeholder="e.g. bnp-secret-json-salt-2026">
-                </div>
-                <p class="text-[10px] text-emerald-700 mt-1">This key deterministically drives format-preserving encryption and encrypts the final JSON archive (`.json.enc`).</p>
-            </div>
 
-            <!-- File Field Masking Accordions -->
-            <div class="space-y-4" id="maskingAccordionContainer">
-                <div class="text-center py-6 text-gray-400 text-xs">Select JSON files in Step 2 to configure masking rules.</div>
-            </div>
-
-            <div class="flex justify-between mt-8 pt-4 border-t border-gray-100">
-                <button onclick="goToStep(2)" class="px-5 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-arrow-left mr-1"></i> Back
-                </button>
-                <button onclick="goToStep(4)" class="px-6 py-2.5 bg-bnp-emerald text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-bnp-greenDark transition flex items-center shadow-sm">
-                    Next: Destination <i class="fas fa-arrow-right ml-2"></i>
-                </button>
             </div>
         </div>
-    </div>
+    </main>
 
-    <!-- Step 4: Destination -->
-    <div id="step-4" class="step-panel">
-        <div class="card p-6">
-            <h2 class="text-lg font-bold text-gray-800 mb-1 flex items-center">
-                <i class="fas fa-hdd mr-2 text-bnp-emerald"></i> Step 4: Destination Storage
-            </h2>
-            <p class="text-xs text-gray-500 mb-6">Select where the encrypted JSON backup package (`secure-json-export.json.enc`) will be stored.</p>
-
-            <div class="space-y-4 max-w-lg">
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Storage Destination Type</label>
-                    <div class="grid grid-cols-2 gap-3">
-                        <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition border-bnp-emerald bg-emerald-50/20" id="destTypeLocalLabel">
-                            <input type="radio" name="destType" value="local" checked onchange="onDestTypeChanged()" class="text-bnp-emerald focus:ring-bnp-emerald mr-2.5">
-                            <div>
-                                <div class="text-xs font-bold text-gray-800">Local Directory</div>
-                                <div class="text-[10px] text-gray-500">Save to server disk path</div>
-                            </div>
-                        </label>
-                        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition" id="destTypeCosLabel">
-                            <input type="radio" name="destType" value="cos" onchange="onDestTypeChanged()" class="text-bnp-emerald focus:ring-bnp-emerald mr-2.5">
-                            <div>
-                                <div class="text-xs font-bold text-gray-800">IBM Cloud Storage</div>
-                                <div class="text-[10px] text-gray-500">Upload to COS bucket</div>
-                            </div>
-                        </label>
-                    </div>
-                </div>
-
-                <div id="destLocalContainer">
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Local Directory Path <span class="text-rose-500">*</span></label>
-                    <input type="text" id="destDirPath" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono" value="/home/sv/data" placeholder="e.g. /home/sv/data">
-                </div>
-
-                <div id="destCosContainer" class="hidden space-y-3">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">IBM COS Connection <span class="text-rose-500">*</span></label>
-                        <select id="destCosSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs bg-white">
-                            <option value="" disabled selected>Loading COS connections...</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex justify-between mt-8 pt-4 border-t border-gray-100">
-                <button onclick="goToStep(3)" class="px-5 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-arrow-left mr-1"></i> Back
-                </button>
-                <button onclick="goToStep(5)" class="px-6 py-2.5 bg-bnp-emerald text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-bnp-greenDark transition flex items-center shadow-sm">
-                    Next: Review & Submit <i class="fas fa-arrow-right ml-2"></i>
-                </button>
-            </div>
+    <footer>
+        <div class="footer-content">
+            <p>© BNP Paribas - 2026</p>
+            <p class="tagline">The bank for a changing world</p>
         </div>
-    </div>
-
-    <!-- Step 5: Review & Submit -->
-    <div id="step-5" class="step-panel">
-        <div class="card p-6">
-            <h2 class="text-lg font-bold text-gray-800 mb-1 flex items-center">
-                <i class="fas fa-clipboard-check mr-2 text-bnp-emerald"></i> Step 5: Review & Submit for Approval
-            </h2>
-            <p class="text-xs text-gray-500 mb-6">Review your JSON export configuration before submitting to the approval workflow.</p>
-
-            <div class="bg-gray-50 rounded-xl p-5 border border-gray-200 space-y-4 text-xs mb-6">
-                <div class="grid grid-cols-2 gap-4 border-b border-gray-200 pb-3">
-                    <div>
-                        <span class="text-gray-400 font-bold uppercase text-[10px]">Job Name</span>
-                        <div class="font-bold text-gray-800 mt-0.5" id="revJobName">-</div>
-                    </div>
-                    <div>
-                        <span class="text-gray-400 font-bold uppercase text-[10px]">Source Storage</span>
-                        <div class="font-bold text-gray-800 mt-0.5" id="revSrcStorage">-</div>
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-4 border-b border-gray-200 pb-3">
-                    <div>
-                        <span class="text-gray-400 font-bold uppercase text-[10px]">Selected JSON Files</span>
-                        <div class="font-bold text-gray-800 mt-0.5" id="revFilesCount">0 files</div>
-                    </div>
-                    <div>
-                        <span class="text-gray-400 font-bold uppercase text-[10px]">Destination Storage</span>
-                        <div class="font-bold text-gray-800 mt-0.5" id="revDestStorage">-</div>
-                    </div>
-                </div>
-                <div>
-                    <span class="text-gray-400 font-bold uppercase text-[10px]">Masked JSON Fields Summary</span>
-                    <div class="mt-1 max-h-32 overflow-y-auto space-y-1" id="revMaskedFieldsSummary">
-                        <!-- Summary items injected -->
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex justify-between mt-8 pt-4 border-t border-gray-100">
-                <button onclick="goToStep(4)" class="px-5 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50">
-                    <i class="fas fa-arrow-left mr-1"></i> Back
-                </button>
-                <button id="btnSubmitExport" onclick="submitJsonExportJob()" class="px-6 py-2.5 bg-bnp-emerald text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-bnp-greenDark transition flex items-center shadow-md">
-                    <i class="fas fa-paper-plane mr-2"></i> Submit for Approval
-                </button>
-            </div>
-        </div>
-    </div>
-</main>
-
-<!-- Footer -->
-<footer class="bg-bnp-dark-grey text-white p-8 text-xs mt-auto">
-    <div class="max-w-7xl mx-auto flex justify-between items-center opacity-80">
-        <p>© BNP Paribas - 2026</p>
-        <p class="font-light tracking-wide">The bank for a changing world</p>
-    </div>
-</footer>
+    </footer>
 
 <script>
-    let currentStep = 1;
-    let cosConnections = [];
+    let userDepartments = [];
     let discoveredFiles = [];
-    let fileFieldsMap = {}; // file -> list of field paths
-    let selectedMaskingMap = {}; // file -> Set of selected fields
+    let cosConnections = [];
 
-    // Auth check
+    async function loadRandomSalt() {
+        toggleAutoGenerateKey();
+    }
+
+    async function toggleAutoGenerateKey() {
+        const autoGen = document.getElementById('autoGenerateKey').checked;
+        const userSaltInput = document.getElementById('userSalt');
+        const prefixInput = document.getElementById('saltPrefix');
+        const hintText = document.getElementById('keyHintText');
+
+        if (autoGen) {
+            try {
+                const res = await fetch('/api/config/random-salt?length=16');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (prefixInput) {
+                        prefixInput.value = data.saltPrefix;
+                        prefixInput.className = "w-full p-2 text-sm font-mono border border-purple-200 bg-purple-50 text-purple-800 rounded focus:outline-none cursor-not-allowed text-center tracking-widest";
+                    }
+                    if (userSaltInput) {
+                        userSaltInput.style.display = 'none';
+                        userSaltInput.value = '';
+                    }
+                    if (hintText) hintText.innerText = "Full 16-character salt key is auto-generated by the backend.";
+                }
+            } catch (e) { console.error("Failed to fetch 16-char salt", e); }
+        } else {
+            try {
+                const res = await fetch('/api/config/random-salt?length=8');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (prefixInput) {
+                        prefixInput.value = data.saltPrefix;
+                        prefixInput.className = "w-1/2 p-2 text-sm font-mono border-y border-l border-purple-200 bg-purple-50 text-purple-800 rounded-l focus:outline-none cursor-not-allowed text-center tracking-widest";
+                    }
+                    if (userSaltInput) {
+                        userSaltInput.style.display = 'block';
+                        userSaltInput.value = '';
+                    }
+                    if (hintText) hintText.innerText = "First 8 chars are auto-generated. You must provide the remaining 8 chars.";
+                }
+            } catch (e) { console.error("Failed to fetch 8-char salt", e); }
+        }
+        validateStep3();
+    }
+
     fetch('/api/auth/check').then(r => r.json()).then(data => {
-        if (!data.authenticated) {
+        if(!data.authenticated) {
             window.location.href = '/login.html';
             return;
         }
@@ -376,88 +498,108 @@
             const userLink = document.getElementById('userManagementLink');
             if (userLink) userLink.style.display = 'block';
         }
-        initPage();
+
+        userDepartments = data.departments || [];
+        const deptSelect = document.getElementById('department');
+        deptSelect.innerHTML = '<option value="">Select a department...</option>';
+        userDepartments.forEach(d => {
+            const dName = typeof d === 'string' ? d : d.name;
+            deptSelect.add(new Option(dName, dName));
+        });
+
+        fetchConnections();
+        loadRandomSalt();
+        toggleSrcStorageOptions();
+        toggleStorageOptions();
+        scanSourceFiles();
     });
 
     async function logout() {
-        await fetch('/api/auth/logout', { method: 'POST' });
+        await fetch('/api/auth/logout', {method: 'POST'});
         window.location.href = '/login.html';
     }
 
-    async function initPage() {
-        generateRandomSalt();
-        await loadCosConnections();
-        scanSourceFiles();
-    }
+    let currentStep = 1;
+    const totalSteps = 4;
+    let state = {
+        tables: [],
+        selectedTables: [],
+        columnsCache: {},
+        rules: { maskingColumns: [], constraintColumns: [], partialMaskingColumns: [], targetTables: [] },
+        source: {},
+        storage: {}
+    };
 
-    async function loadCosConnections() {
+    async function fetchConnections() {
+        // Fetch destination COS connections
         try {
-            const res = await fetch('/api/cos-connections');
-            if (res.ok) {
-                cosConnections = await res.json();
-                const srcSelect = document.getElementById('srcCosSelect');
-                const dstSelect = document.getElementById('destCosSelect');
-                srcSelect.innerHTML = '<option value="" disabled selected>Select Source COS Bucket...</option>';
-                dstSelect.innerHTML = '<option value="" disabled selected>Select Dest COS Bucket...</option>';
+            const resCos = await fetch('/api/cos-connections?envType=destination');
+            if (resCos.ok) {
+                cosConnections = await resCos.json();
+                const srcCosSelect = document.getElementById('src-cos-connection');
+                const cosSelect = document.getElementById('cos-connection');
+                srcCosSelect.innerHTML = '<option value="">Select a Source COS connection...</option>';
+                cosSelect.innerHTML = '<option value="">Select a Destination COS connection...</option>';
                 cosConnections.forEach(c => {
-                    const opt = `<option value="${c.id}">${c.cosName} - ${c.bucketName || 'Bucket'} (${c.departmentId})</option>`;
-                    srcSelect.innerHTML += opt;
-                    dstSelect.innerHTML += opt;
+                    const label = (c.cosName || c.name || 'COS') + ' (' + (c.department || c.departmentId || '') + ')';
+                    srcCosSelect.add(new Option(label, c.id));
+                    cosSelect.add(new Option(label, c.id));
                 });
             }
-        } catch (e) {}
+        } catch (e) { console.error("Error loading COS connections", e); }
+
+        validateStep1();
     }
 
-    function onSrcTypeChanged() {
-        const val = document.querySelector('input[name="srcType"]:checked').value;
-        if (val === 'local') {
-            document.getElementById('srcLocalContainer').classList.remove('hidden');
-            document.getElementById('srcCosContainer').classList.add('hidden');
-            document.getElementById('srcTypeLocalLabel').classList.add('border-bnp-emerald', 'bg-emerald-50/20');
-            document.getElementById('srcTypeCosLabel').classList.remove('border-bnp-emerald', 'bg-emerald-50/20');
+    function toggleSrcStorageOptions() {
+        const srcStorageType = document.querySelector('input[name="src-storage-type"]:checked').value;
+        const localOpt = document.getElementById('src-local-option');
+        const cosOpt = document.getElementById('src-cos-option');
+        if (srcStorageType === 'local') {
+            localOpt.style.display = 'block';
+            cosOpt.style.display = 'none';
         } else {
-            document.getElementById('srcLocalContainer').classList.add('hidden');
-            document.getElementById('srcCosContainer').classList.remove('hidden');
-            document.getElementById('srcTypeCosLabel').classList.add('border-bnp-emerald', 'bg-emerald-50/20');
-            document.getElementById('srcTypeLocalLabel').classList.remove('border-bnp-emerald', 'bg-emerald-50/20');
+            localOpt.style.display = 'none';
+            cosOpt.style.display = 'block';
         }
-        scanSourceFiles();
+        validateStep1();
     }
 
-    function onDestTypeChanged() {
-        const val = document.querySelector('input[name="destType"]:checked').value;
-        if (val === 'local') {
-            document.getElementById('destLocalContainer').classList.remove('hidden');
-            document.getElementById('destCosContainer').classList.add('hidden');
-            document.getElementById('destTypeLocalLabel').classList.add('border-bnp-emerald', 'bg-emerald-50/20');
-            document.getElementById('destTypeCosLabel').classList.remove('border-bnp-emerald', 'bg-emerald-50/20');
+    function toggleStorageOptions() {
+        const storageType = document.querySelector('input[name="storage-type"]:checked').value;
+        const cosOption = document.getElementById('cos-storage-option');
+        const localOption = document.getElementById('local-storage-option');
+        if (storageType === 'cos') {
+            cosOption.style.display = 'block';
+            localOption.style.display = 'none';
         } else {
-            document.getElementById('destLocalContainer').classList.add('hidden');
-            document.getElementById('destCosContainer').classList.remove('hidden');
-            document.getElementById('destTypeCosLabel').classList.add('border-bnp-emerald', 'bg-emerald-50/20');
-            document.getElementById('destTypeLocalLabel').classList.remove('border-bnp-emerald', 'bg-emerald-50/20');
+            cosOption.style.display = 'none';
+            localOption.style.display = 'block';
         }
+        validateStep1();
     }
 
-    function getSourceStoragePayload() {
-        const srcType = document.querySelector('input[name="srcType"]:checked').value;
+    function getSourcePayload() {
+        const srcType = document.querySelector('input[name="src-storage-type"]:checked').value;
         const payload = { type: srcType };
         if (srcType === 'local') {
-            payload.path = document.getElementById('srcDirPath').value.trim();
+            payload.path = document.getElementById('src-local-path').value.trim();
         } else {
-            const cosId = document.getElementById('srcCosSelect').value;
+            const cosId = document.getElementById('src-cos-connection').value;
             if (cosId) payload.cosId = Number(cosId);
         }
         return payload;
     }
 
     async function scanSourceFiles() {
-        const container = document.getElementById('scannedFilesContainer');
-        container.innerHTML = '<div class="text-center py-4 text-gray-400 text-xs"><i class="fas fa-spinner fa-spin mr-1"></i> Scanning JSON files...</div>';
+        const badge = document.getElementById('srcScanStatusBadge');
+        badge.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Scanning...';
+        badge.className = 'font-mono text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded';
 
-        const payload = getSourceStoragePayload();
+        const payload = getSourcePayload();
         if (payload.type === 'cos' && !payload.cosId) {
-            container.innerHTML = '<div class="text-center py-4 text-gray-400 text-xs italic">Select a COS connection to scan.</div>';
+            badge.innerText = 'Select a COS connection first';
+            badge.className = 'font-mono text-[11px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded';
             return;
         }
 
@@ -468,318 +610,436 @@
                 body: JSON.stringify(payload)
             });
 
-            const data = await res.json();
-            if (res.ok && data.status === 'SUCCESS') {
-                discoveredFiles = data.files || [];
-                renderScannedFiles(discoveredFiles);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.status === 'SUCCESS') {
+                    discoveredFiles = data.files || [];
+                    state.tables = discoveredFiles.map(f => f.name);
+                    badge.innerText = `${discoveredFiles.length} JSON file(s) detected`;
+                    badge.className = 'font-mono text-[11px] font-bold text-bnp-emerald bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded';
+                    renderAvailableTables();
+                } else {
+                    badge.innerText = 'Scan error: ' + (data.message || 'Unknown');
+                    badge.className = 'font-mono text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded';
+                }
             } else {
-                container.innerHTML = `<div class="text-center py-4 text-rose-500 text-xs">Scan failed: ${data.message || 'Error'}</div>`;
+                badge.innerText = 'Failed to scan files';
+                badge.className = 'font-mono text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded';
             }
         } catch (e) {
-            container.innerHTML = `<div class="text-center py-4 text-rose-500 text-xs">Error scanning: ${e.message}</div>`;
+            console.error("Scan error", e);
+            badge.innerText = 'Error scanning path';
+            badge.className = 'font-mono text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded';
+        }
+
+        validateStep1();
+    }
+
+    function validateStep1() {
+        const srcType = document.querySelector('input[name="src-storage-type"]:checked').value;
+        let srcValid = false;
+        if (srcType === 'local') {
+            srcValid = !!document.getElementById('src-local-path').value.trim();
+        } else {
+            srcValid = !!document.getElementById('src-cos-connection').value;
+        }
+
+        const storageType = document.querySelector('input[name="storage-type"]:checked').value;
+        let storageValid = false;
+        if (storageType === 'cos') {
+            storageValid = !!document.getElementById('cos-connection').value;
+        } else {
+            storageValid = !!document.getElementById('local-path').value.trim();
+        }
+
+        const btnNext = document.getElementById('btnNext');
+        if (btnNext) btnNext.disabled = !(srcValid && storageValid);
+    }
+
+    function validateStep2() {
+        const btnNext = document.getElementById('btnNext');
+        const valid = state.selectedTables.length > 0;
+        if (btnNext) btnNext.disabled = !valid;
+    }
+
+    function validateStep3() {
+        const userSalt = document.getElementById('userSalt');
+        const autoGen = document.getElementById('autoGenerateKey');
+        const btnNext = document.getElementById('btnNext');
+        const container = document.getElementById('fphKeyContainer');
+
+        if (container) container.style.display = 'block';
+        if (autoGen && autoGen.checked) {
+            if (btnNext) btnNext.disabled = false;
+        } else {
+            const valid = userSalt && userSalt.value.trim().length === 8;
+            if (userSalt) userSalt.classList.toggle('border-red-400', userSalt.value.length > 0 && !valid);
+            if (btnNext) btnNext.disabled = !valid;
         }
     }
 
-    function renderScannedFiles(files) {
-        const container = document.getElementById('scannedFilesContainer');
+    function updateUI() {
+        document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active'));
+        document.getElementById(`step${currentStep}`).classList.add('active');
+
+        // Stepper
+        for(let i=1; i<=totalSteps; i++) {
+            const el = document.getElementById(`step${i}-indicator`);
+            if(el) {
+                el.classList.toggle('completed', i < currentStep);
+                el.classList.toggle('active', i === currentStep);
+
+                const iconWrap = el.querySelector('.stepper-circle');
+                if(i < currentStep) {
+                    iconWrap.innerHTML = '<i class="fas fa-check"></i>';
+                } else {
+                    const icons = ['plug', 'file-code', 'mask', 'flag-checkered'];
+                    iconWrap.innerHTML = `<i class="fas fa-${icons[i-1]} text-sm"></i>`;
+                }
+            }
+        }
+
+        document.getElementById('btnPrev').style.visibility = currentStep > 1 ? 'visible' : 'hidden';
+        document.getElementById('btnNext').classList.toggle('hidden', currentStep === totalSteps);
+        document.getElementById('btnStart').classList.toggle('hidden', currentStep !== totalSteps);
+
+        if (currentStep === 1) validateStep1();
+        if (currentStep === 2) validateStep2();
+        if (currentStep === 3) validateStep3();
+        if (currentStep === 4) populatePreview();
+    }
+
+    async function nextStep() {
+        const btn = document.getElementById('btnNext');
+        const origHtml = btn.innerHTML;
+
+        if (currentStep === 1) {
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Loading Files...';
+            btn.disabled = true;
+            try {
+                // Record source and storage config
+                const srcPayload = getSourcePayload();
+                state.source = srcPayload;
+
+                const storageType = document.querySelector('input[name="storage-type"]:checked').value;
+                state.storage.type = storageType;
+                if (storageType === 'cos') {
+                    const cosSelect = document.getElementById('cos-connection');
+                    state.storage.id = cosSelect.value;
+                    state.storage.name = cosSelect.options[cosSelect.selectedIndex]?.text;
+                } else {
+                    state.storage.path = document.getElementById('local-path').value.trim() || 'secure-export';
+                }
+
+                if (state.tables.length === 0) {
+                    await scanSourceFiles();
+                }
+                renderAvailableTables();
+            } catch (e) {
+                alert("Failed to retrieve JSON files from storage.");
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+                return;
+            }
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+        }
+        if (currentStep === 2) renderRuleTables();
+
+        currentStep++;
+        updateUI();
+    }
+
+    function prevStep() { if (currentStep > 1) { currentStep--; updateUI(); } }
+
+    function renderAvailableTables() {
+        const container = document.getElementById('availableTables');
         container.innerHTML = '';
-        if (files.length === 0) {
-            container.innerHTML = '<div class="text-center py-4 text-gray-400 text-xs italic">No .json files detected in this path.</div>';
+        const filtered = state.tables.filter(t => !state.selectedTables.includes(t));
+
+        if(filtered.length === 0) {
+            container.innerHTML = '<div class="text-center text-gray-400 text-xs py-4 italic">No JSON files left in source</div>';
             return;
         }
 
-        files.forEach(f => {
-            container.innerHTML += `
-                <div class="p-2 bg-white border border-gray-200 rounded-md flex items-center justify-between text-xs">
-                    <div class="flex items-center space-x-2 truncate">
-                        <i class="fas fa-file-code text-amber-500"></i>
-                        <span class="font-mono font-medium text-gray-800 truncate">${f.name}</span>
-                    </div>
-                    <span class="text-[10px] text-gray-400 font-mono">${formatBytes(f.sizeBytes)}</span>
-                </div>
-            `;
+        filtered.forEach(t => {
+            const d = document.createElement('div');
+            d.className = 'list-item bg-white border border-gray-200 hover:border-bnp-emerald/40 shadow-sm text-gray-700 font-medium group';
+            d.innerHTML = `<span class="truncate font-mono text-xs">${t}</span><div class="w-6 h-6 rounded bg-gray-50 flex items-center justify-center group-hover:bg-bnp-emerald/10 transition"><i class="fas fa-plus text-[10px] text-gray-400 group-hover:text-bnp-emerald"></i></div>`;
+            d.onclick = () => { state.selectedTables.push(t); renderAvailableTables(); renderSelectedTables(); validateStep2(); };
+            container.appendChild(d);
         });
     }
 
-    function formatBytes(bytes) {
-        if (!bytes || bytes === 0) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-    }
-
-    async function goToStep(step) {
-        if (step === 2 && currentStep === 1) {
-            const jobName = document.getElementById('jobName').value.trim();
-            if (!jobName) {
-                alert('Please enter a job name.');
-                return;
-            }
-            if (discoveredFiles.length === 0) {
-                alert('No JSON files found in source location. Please scan a valid directory.');
-                return;
-            }
-            renderFilesList(discoveredFiles);
-        } else if (step === 3 && currentStep === 2) {
-            const selected = getSelectedFiles();
-            if (selected.length === 0) {
-                alert('Please select at least one JSON file to export.');
-                return;
-            }
-            await loadFieldsForFiles(selected);
-        } else if (step === 5) {
-            buildReviewSummary();
-        }
-
-        // Switch panels
-        document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
-        document.getElementById(`step-${step}`).classList.add('active');
-
-        // Update stepper nav
-        for (let i = 1; i <= 5; i++) {
-            const nav = document.getElementById(`step-nav-${i}`);
-            nav.classList.remove('active', 'completed');
-            if (i === step) nav.classList.add('active');
-            else if (i < step) nav.classList.add('completed');
-        }
-
-        currentStep = step;
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function renderFilesList(files) {
-        const container = document.getElementById('fileListContainer');
+    function renderSelectedTables() {
+        const container = document.getElementById('selectedTablesList');
         container.innerHTML = '';
-        files.forEach(f => {
-            const id = `chk_file_${f.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
-            container.innerHTML += `
-                <label for="${id}" class="p-2.5 bg-white border border-gray-200 rounded-lg flex items-center justify-between cursor-pointer hover:border-bnp-emerald hover:bg-emerald-50/20 transition select-none">
-                    <div class="flex items-center space-x-2 truncate">
-                        <input type="checkbox" id="${id}" value="${f.name}" checked class="file-checkbox text-bnp-emerald focus:ring-bnp-emerald rounded">
-                        <span class="text-xs font-semibold text-gray-800 truncate">${f.name}</span>
-                    </div>
-                    <i class="fas fa-file-code text-[10px] text-gray-300"></i>
-                </label>
-            `;
+        document.getElementById('selectedTableCount').innerText = state.selectedTables.length;
+
+        if(state.selectedTables.length === 0) {
+            container.innerHTML = '<div class="text-center text-gray-400 text-xs py-8 italic flex flex-col items-center"><i class="fas fa-hand-pointer text-2xl mb-2 opacity-50"></i>Select JSON files</div>';
+            return;
+        }
+
+        state.selectedTables.forEach(t => {
+            const d = document.createElement('div');
+            d.className = 'list-item bg-bnp-emerald/10 border border-bnp-emerald/20 text-bnp-emerald font-semibold shadow-sm group';
+            d.innerHTML = `<span class="truncate font-mono text-xs">${t}</span><button class="w-6 h-6 rounded hover:bg-red-100 flex items-center justify-center transition"><i class="fas fa-times text-[10px] text-bnp-emerald/50 hover:text-red-500"></i></button>`;
+            d.querySelector('button').onclick = (e) => { e.stopPropagation(); state.selectedTables = state.selectedTables.filter(x => x !== t); renderAvailableTables(); renderSelectedTables(); validateStep2(); };
+            container.appendChild(d);
         });
     }
 
-    function filterFileList() {
-        const q = document.getElementById('fileSearch').value.toLowerCase().trim();
-        const filtered = discoveredFiles.filter(f => f.name.toLowerCase().includes(q));
-        renderFilesList(filtered);
-    }
+    function selectAllTables() { state.selectedTables = [...state.tables]; renderAvailableTables(); renderSelectedTables(); validateStep2(); }
 
-    function toggleAllFiles(checked) {
-        document.querySelectorAll('.file-checkbox').forEach(cb => cb.checked = checked);
-    }
+    let activeRuleTable = null;
 
-    function getSelectedFiles() {
-        const list = [];
-        document.querySelectorAll('.file-checkbox:checked').forEach(cb => list.push(cb.value));
-        return list;
-    }
-
-    async function loadFieldsForFiles(files) {
-        const container = document.getElementById('maskingAccordionContainer');
-        container.innerHTML = '<div class="text-center py-8 text-gray-400 text-xs"><i class="fas fa-spinner fa-spin mr-2"></i> Sampling JSON structures & fields...</div>';
-
-        const sourcePayload = getSourceStoragePayload();
-
-        for (const fileName of files) {
-            if (!fileFieldsMap[fileName]) {
-                try {
-                    const res = await fetch('/api/json-secure-export/fields', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ source: sourcePayload, fileName: fileName })
-                    });
-                    if (res.ok) {
-                        const data = await res.json();
-                        fileFieldsMap[fileName] = data.fields || [];
-                    } else {
-                        fileFieldsMap[fileName] = [];
-                    }
-                } catch (e) {
-                    fileFieldsMap[fileName] = [];
-                }
-            }
-        }
-
-        renderMaskingAccordions(files);
-    }
-
-    function renderMaskingAccordions(files) {
-        const container = document.getElementById('maskingAccordionContainer');
+    function renderRuleTables() {
+        const container = document.getElementById('ruleTablesList');
         container.innerHTML = '';
+        state.selectedTables.forEach(t => {
+            const d = document.createElement('div');
+            d.className = 'list-item border-b rounded-none px-3 py-2';
+            d.innerHTML = `<span class="font-medium text-gray-700 font-mono text-xs truncate">${t}</span><i class="fas fa-chevron-right text-[10px] text-gray-300"></i>`;
+            d.onclick = () => loadColumns(t, d);
+            container.appendChild(d);
+        });
+        if(state.selectedTables.length > 0) loadColumns(state.selectedTables[0], container.firstChild);
+    }
 
-        files.forEach(fileName => {
-            const fields = fileFieldsMap[fileName] || [];
-            let fieldsHtml = '';
+    async function loadColumns(table, el) {
+        document.querySelectorAll('#ruleTablesList .list-item').forEach(i => i.classList.remove('selected', 'bg-gray-50', 'border-l-4', 'border-gray-400'));
+        if(el) el.classList.add('bg-gray-50', 'border-l-4', 'border-gray-400');
 
-            if (fields.length === 0) {
-                fieldsHtml = '<div class="text-gray-400 italic text-[11px] p-3">No fields detected in JSON document.</div>';
-            } else {
-                fields.forEach(field => {
-                    const chkId = `mask_${fileName.replace(/[^a-zA-Z0-9]/g, '_')}_${field.replace(/[^a-zA-Z0-9]/g, '_')}`;
-                    const isChecked = selectedMaskingMap[fileName] && selectedMaskingMap[fileName].has(field);
-                    fieldsHtml += `
-                        <label for="${chkId}" class="p-2 bg-white border border-gray-200 rounded-md flex items-center justify-between text-xs cursor-pointer hover:bg-emerald-50/20 hover:border-bnp-emerald transition select-none">
-                            <div class="flex items-center space-x-2 truncate">
-                                <input type="checkbox" id="${chkId}" value="${field}" data-file="${fileName}" ${isChecked ? 'checked' : ''} onchange="onFieldMaskToggled(this)" class="mask-field-chk text-bnp-emerald focus:ring-bnp-emerald rounded">
-                                <span class="font-mono text-gray-700 truncate">${field}</span>
-                            </div>
-                            <span class="text-[10px] text-gray-400 uppercase font-semibold">FPE Mask</span>
-                        </label>
-                    `;
+        activeRuleTable = table;
+        const nameDisplay = document.getElementById('activeTableName');
+        nameDisplay.innerText = table;
+        nameDisplay.classList.remove('hidden');
+
+        const cp = document.getElementById('columnsPlaceholder');
+        if (cp) cp.classList.add('hidden');
+
+        const rp = document.getElementById('rulesPlaceholder');
+        if (rp) rp.classList.add('hidden');
+
+        const colList = document.getElementById('ruleColumnsList');
+        if(!state.columnsCache[table]) {
+            colList.innerHTML = '<div class="text-center text-gray-400 mt-10 text-xs"><i class="fas fa-circle-notch fa-spin mb-2 text-lg"></i><br>Sampling JSON fields...</div>';
+            try {
+                const srcPayload = getSourcePayload();
+                const res = await fetch('/api/json-secure-export/fields', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source: srcPayload, fileName: table })
                 });
+                if (res.ok) {
+                    const data = await res.json();
+                    state.columnsCache[table] = data.fields || [];
+                } else {
+                    state.columnsCache[table] = [];
+                }
+            } catch (e) {
+                console.error("Failed to load fields for " + table, e);
+                state.columnsCache[table] = [];
             }
+        }
+        renderColumnList(table, state.columnsCache[table]);
+        renderTags(table);
+    }
 
-            container.innerHTML += `
-                <div class="border border-gray-200 rounded-xl overflow-hidden bg-white">
-                    <div class="px-4 py-3 bg-gray-50 flex justify-between items-center border-b border-gray-200">
-                        <div class="font-bold text-xs text-gray-800 flex items-center">
-                            <i class="fas fa-file-code mr-2 text-bnp-emerald"></i> ${fileName}
-                            <span class="ml-2 text-[10px] bg-gray-200 text-gray-700 px-2 py-0.5 rounded font-mono">${fields.length} attributes</span>
-                        </div>
-                    </div>
-                    <div class="p-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 bg-gray-50/30">
-                        ${fieldsHtml}
-                    </div>
+    function renderColumnList(table, columns) {
+        const container = document.getElementById('ruleColumnsList');
+        container.innerHTML = '';
+        if (!columns || columns.length === 0) {
+            container.innerHTML = '<div class="text-center text-gray-400 mt-10 text-xs italic">No fields discovered in JSON sample</div>';
+            return;
+        }
+        columns.forEach(col => {
+            const full = `${table}.${col}`;
+            const d = document.createElement('div');
+            d.className = 'p-2.5 border-b border-gray-100 bg-white hover:bg-gray-50 transition';
+
+            const isStd = state.rules.maskingColumns.includes(full);
+            const isPrt = state.rules.partialMaskingColumns.includes(full);
+            const isEnc = state.rules.constraintColumns.includes(full);
+
+            d.innerHTML = `
+                <div class="text-[11px] font-bold text-gray-700 mb-1.5 truncate font-mono" title="${col}">${col}</div>
+                <div class="flex gap-1.5">
+                    <button class="flex-1 rule-btn rule-btn-std ${isStd ? 'ring-2 ring-bnp-emerald/50 ring-offset-1' : ''}" onclick="toggleRule('${full}','maskingColumns','${table}')">SFD</button>
+                    <button class="flex-1 rule-btn rule-btn-prt ${isPrt ? 'ring-2 ring-orange-400 ring-offset-1' : ''}" onclick="toggleRule('${full}','partialMaskingColumns','${table}')">PMD</button>
+                    <button class="flex-1 rule-btn rule-btn-enc ${isEnc ? 'ring-2 ring-purple-400 ring-offset-1' : ''}" onclick="toggleRule('${full}','constraintColumns','${table}')">FPH</button>
                 </div>
             `;
+            container.appendChild(d);
         });
     }
 
-    function onFieldMaskToggled(cb) {
-        const file = cb.getAttribute('data-file');
-        const field = cb.value;
-        if (!selectedMaskingMap[file]) {
-            selectedMaskingMap[file] = new Set();
+    function toggleRule(full, type, table) {
+        if(!state.selectedTables.includes(table)) {
+            state.selectedTables.push(table);
+            renderAvailableTables();
+            validateStep2();
         }
-        if (cb.checked) {
-            selectedMaskingMap[file].add(field);
-        } else {
-            selectedMaskingMap[file].delete(field);
+
+        ['maskingColumns','partialMaskingColumns','constraintColumns'].forEach(r => { if(r !== type) state.rules[r] = state.rules[r].filter(c => c !== full); });
+        const list = state.rules[type];
+        const idx = list.indexOf(full);
+        if(idx === -1) list.push(full); else list.splice(idx, 1);
+
+        if(state.columnsCache[table]) {
+             renderColumnList(table, state.columnsCache[table]);
         }
+
+        renderTags(table);
+        if (currentStep === 3) validateStep3();
     }
 
-    function generateRandomSalt() {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-        let result = '';
-        for (let i = 0; i < 24; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        document.getElementById('saltKeyInput').value = result;
-    }
-
-    function buildReviewSummary() {
-        document.getElementById('revJobName').textContent = document.getElementById('jobName').value;
-
-        const srcType = document.querySelector('input[name="srcType"]:checked').value;
-        if (srcType === 'local') {
-            document.getElementById('revSrcStorage').textContent = `Local: ${document.getElementById('srcDirPath').value}`;
-        } else {
-            const srcCosSelect = document.getElementById('srcCosSelect');
-            document.getElementById('revSrcStorage').textContent = `IBM COS: ${srcCosSelect.options[srcCosSelect.selectedIndex].text}`;
-        }
-
-        const selectedFiles = getSelectedFiles();
-        document.getElementById('revFilesCount').textContent = `${selectedFiles.length} files (${selectedFiles.join(', ')})`;
-
-        const destType = document.querySelector('input[name="destType"]:checked').value;
-        if (destType === 'local') {
-            document.getElementById('revDestStorage').textContent = `Local Path: ${document.getElementById('destDirPath').value}/secure-json-export.json.enc`;
-        } else {
-            const cosSelect = document.getElementById('destCosSelect');
-            const cosText = cosSelect.options[cosSelect.selectedIndex] ? cosSelect.options[cosSelect.selectedIndex].text : 'COS';
-            document.getElementById('revDestStorage').textContent = `IBM COS: ${cosText}`;
-        }
-
-        const summaryContainer = document.getElementById('revMaskedFieldsSummary');
-        summaryContainer.innerHTML = '';
-        let totalMasked = 0;
-
-        selectedFiles.forEach(file => {
-            const set = selectedMaskingMap[file];
-            if (set && set.size > 0) {
-                totalMasked += set.size;
-                summaryContainer.innerHTML += `
-                    <div class="flex items-center text-gray-700">
-                        <strong class="w-40 truncate text-gray-900 font-mono">${file}:</strong>
-                        <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-mono">${Array.from(set).join(', ')}</span>
-                    </div>
-                `;
+    function renderTags(table) {
+        const f = (type, id, colorClass) => {
+            const c = document.getElementById(id);
+            c.innerHTML = '';
+            const rules = state.rules[type].filter(x => x.startsWith(table+'.'));
+            if(rules.length === 0) {
+                c.innerHTML = '<span class="text-[10px] text-gray-400 italic py-0.5">No fields assigned</span>';
+                return;
             }
-        });
-
-        if (totalMasked === 0) {
-            summaryContainer.innerHTML = '<div class="text-gray-400 italic">No masking rules configured (raw JSON export with encryption).</div>';
-        }
-    }
-
-    async function submitJsonExportJob() {
-        const btn = document.getElementById('btnSubmitExport');
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Submitting...';
-
-        const jobName = document.getElementById('jobName').value.trim();
-        const saltKey = document.getElementById('saltKeyInput').value.trim();
-        const srcPayload = getSourceStoragePayload();
-        const destType = document.querySelector('input[name="destType"]:checked').value;
-
-        const selectedFiles = getSelectedFiles();
-        const maskingRules = {};
-        selectedFiles.forEach(file => {
-            if (selectedMaskingMap[file] && selectedMaskingMap[file].size > 0) {
-                maskingRules[file] = Array.from(selectedMaskingMap[file]);
-            }
-        });
-
-        const destConfig = { type: destType };
-        if (destType === 'local') {
-            destConfig.path = document.getElementById('destDirPath').value.trim();
-        } else {
-            destConfig.cosId = Number(document.getElementById('destCosSelect').value);
-        }
-
-        const payload = {
-            jobType: 'JSON_SECURE_EXPORT',
-            migrationName: jobName,
-            configDetails: {
-                jobName: jobName,
-                source: srcPayload,
-                dest: destConfig,
-                rules: {
-                    targetFiles: selectedFiles,
-                    maskingFields: maskingRules,
-                    maskingKey: saltKey
-                }
-            }
+            rules.forEach(full => {
+                const s = document.createElement('span');
+                s.className = `inline-flex items-center text-[10px] font-bold px-2 py-1 rounded-md ${colorClass} shadow-sm font-mono`;
+                s.innerHTML = `${full.substring(table.length + 1)} <button class="ml-1.5 hover:text-black focus:outline-none" onclick="toggleRule('${full}','${type}','${table}')"><i class="fas fa-times"></i></button>`;
+                c.appendChild(s);
+            });
         };
+        f('maskingColumns','tags-masking','bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20');
+        f('partialMaskingColumns','tags-partial','bg-orange-100 text-orange-700 border border-orange-200');
+        f('constraintColumns','tags-constraint','bg-purple-100 text-purple-700 border border-purple-200');
+    }
+
+    function populatePreview() {
+        const srcType = document.querySelector('input[name="src-storage-type"]:checked').value;
+        const srcPreview = document.getElementById('previewSrc');
+        if (srcType === 'cos') {
+            const srcCosSelect = document.getElementById('src-cos-connection');
+            srcPreview.innerText = `COS: ${srcCosSelect.options[srcCosSelect.selectedIndex]?.text || 'Bucket'}`;
+        } else {
+            srcPreview.innerText = `Local: ${document.getElementById('src-local-path').value.trim()}`;
+        }
+
+        const destPreview = document.getElementById('previewDest');
+        if (state.storage.type === 'cos') {
+            destPreview.innerText = `COS: ${state.storage.name}`;
+        } else {
+            destPreview.innerText = `Local: ${state.storage.path}`;
+        }
+
+        const totalRules = state.rules.maskingColumns.length + state.rules.constraintColumns.length + state.rules.partialMaskingColumns.length;
+        document.getElementById('previewTableCount').innerText = state.selectedTables.length;
+        document.getElementById('previewRuleCount').innerText = totalRules;
+
+        const body = document.getElementById('previewRulesTable');
+        body.innerHTML = '';
+        state.selectedTables.forEach(t => {
+            const masks = state.rules.maskingColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20 px-1.5 py-0.5 rounded text-[9px] font-bold font-mono mr-1 mb-1 inline-block shadow-sm">SFD: ${x.substring(t.length + 1)}</span>`);
+            const parts = state.rules.partialMaskingColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-orange-50 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded text-[9px] font-bold font-mono mr-1 mb-1 inline-block shadow-sm">PMD: ${x.substring(t.length + 1)}</span>`);
+            const encs = state.rules.constraintColumns.filter(x => x.startsWith(t+'.')).map(x => `<span class="bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded text-[9px] font-bold font-mono mr-1 mb-1 inline-block shadow-sm">FPH: ${x.substring(t.length + 1)}</span>`);
+
+            const rules = [...masks, ...parts, ...encs].join('') || '<span class="text-gray-400 italic text-[10px]">Direct Copy (No Rules)</span>';
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50 transition-colors';
+            tr.innerHTML = `<td class="p-4 pl-6 font-semibold text-gray-800 align-top font-mono text-xs">${t}</td><td class="p-4 align-top">${rules}</td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    async function submitWorkflow() {
+        const btn = document.getElementById('btnStart');
+        const mNameInput = document.getElementById('migrationName');
+        const migrationName = mNameInput ? mNameInput.value.trim() : '';
+        const department = document.getElementById('department').value;
+
+        if (!migrationName) {
+            alert("Please enter an Export Name");
+            return;
+        }
+        if (!department) {
+            alert("Please select a Department");
+            return;
+        }
+
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Submitting...';
+        btn.disabled = true;
 
         try {
+            state.rules.targetTables = state.selectedTables;
+            state.rules.targetFiles = state.selectedTables;
+
+            const prefix = document.getElementById('saltPrefix').value;
+            const autoGen = document.getElementById('autoGenerateKey').checked;
+            const suffix = autoGen ? '' : document.getElementById('userSalt').value.trim();
+            state.rules.maskingKey = prefix + suffix;
+
+            const srcPayload = getSourcePayload();
+
+            const payload = {
+                migrationName: migrationName,
+                department: department,
+                jobType: 'JSON_SECURE_EXPORT',
+                configDetails: {
+                    jobName: migrationName,
+                    source: {
+                        type: srcPayload.type,
+                        path: srcPayload.type === 'local' ? srcPayload.path : null,
+                        cosId: srcPayload.type === 'cos' ? srcPayload.cosId : null,
+                        id: srcPayload.type === 'cos' ? srcPayload.cosId : null
+                    },
+                    storage: {
+                        type: state.storage.type,
+                        id: state.storage.type === 'cos' ? state.storage.id : null,
+                        cosId: state.storage.type === 'cos' ? state.storage.id : null,
+                        name: state.storage.type === 'cos' ? state.storage.name : null,
+                        path: state.storage.type === 'local' ? state.storage.path : null
+                    },
+                    dest: {
+                        type: state.storage.type,
+                        destDir: state.storage.type === 'local' ? state.storage.path : null,
+                        path: state.storage.type === 'local' ? state.storage.path : null,
+                        cosId: state.storage.type === 'cos' ? state.storage.id : null,
+                        id: state.storage.type === 'cos' ? state.storage.id : null
+                    },
+                    rules: {
+                        targetFiles: state.selectedTables,
+                        targetTables: state.selectedTables,
+                        targetCollections: state.selectedTables,
+                        maskingColumns: state.rules.maskingColumns,
+                        partialMaskingColumns: state.rules.partialMaskingColumns,
+                        constraintColumns: state.rules.constraintColumns,
+                        maskingKey: state.rules.maskingKey
+                    }
+                }
+            };
+
             const res = await fetch('/api/jobs/request', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(payload)
             });
 
             if (res.ok) {
-                alert('JSON Secure Export job successfully submitted for approval!');
+                alert('JSON Secure Export job submitted for approval successfully!');
                 window.location.href = '/jobs.html';
             } else {
-                const err = await res.json();
-                alert('Failed to submit job: ' + (err.message || 'Unknown error'));
+                throw new Error('Failed to submit job.');
             }
         } catch (e) {
-            alert('Error submitting job: ' + e.message);
-        } finally {
+            alert('Failed to submit export job: ' + e.message);
+            btn.innerHTML = origHtml;
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i> Submit for Approval';
         }
     }
+
+    updateUI();
 </script>
 </body>
 </html>

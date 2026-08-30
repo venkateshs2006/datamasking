@@ -36,8 +36,10 @@ public class MongoSecureExportImportServiceTest {
         objectMapper = new ObjectMapper();
         MaskingConfigService maskingConfigService = new MaskingConfigService(List.of(), List.of(), List.of(), "DefaultSecretKey123");
         FormatPreservingEncryptionService fpeService = new FormatPreservingEncryptionService(maskingConfigService);
-        exportService = new MongoSecureExportService(null, null, fpeService, null, objectMapper, null);
-        importService = new MongoSecureImportService(null, null, null, objectMapper, null);
+        CosConnectionService cosConnectionService = org.mockito.Mockito.mock(CosConnectionService.class);
+        IbmCosService ibmCosService = new IbmCosService(cosConnectionService);
+        exportService = new MongoSecureExportService(null, cosConnectionService, ibmCosService, fpeService, null, objectMapper, null);
+        importService = new MongoSecureImportService(null, cosConnectionService, ibmCosService, null, objectMapper, null);
     }
 
     private void createSampleEncryptedBsonFile(Path targetFile, String saltKey) throws Exception {
