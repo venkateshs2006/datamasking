@@ -446,38 +446,43 @@ public class JsonSecureExportService {
         if (rules == null || fieldPath == null) return null;
 
         String fullQualifier = fileName + "." + fieldPath;
+        String fileNameNoExt = (fileName != null && fileName.toLowerCase().endsWith(".json"))
+                ? fileName.substring(0, fileName.length() - 5) : fileName;
+        String baseQualifier = fileNameNoExt + "." + fieldPath;
 
         // 1. Check dot-notated columns: maskingColumns (SFD)
-        if (matchesField(rules.getMaskingColumns(), fullQualifier, fieldPath)) {
+        if (matchesField(rules.getMaskingColumns(), fullQualifier, baseQualifier, fieldPath)) {
             return "SFD";
         }
         // 2. Check dot-notated columns: partialMaskingColumns (PMD)
-        if (matchesField(rules.getPartialMaskingColumns(), fullQualifier, fieldPath)) {
+        if (matchesField(rules.getPartialMaskingColumns(), fullQualifier, baseQualifier, fieldPath)) {
             return "PMD";
         }
         // 3. Check dot-notated columns: constraintColumns / constraintFields (FPH)
-        if (matchesField(rules.getConstraintColumns(), fullQualifier, fieldPath) ||
-                matchesField(rules.getConstraintFields(), fullQualifier, fieldPath)) {
+        if (matchesField(rules.getConstraintColumns(), fullQualifier, baseQualifier, fieldPath) ||
+                matchesField(rules.getConstraintFields(), fullQualifier, baseQualifier, fieldPath)) {
             return "FPH";
         }
 
         // 4. Check Map-based structures
-        if (rules.getMaskingFields() != null && rules.getMaskingFields().containsKey(fileName)) {
+        if (rules.getMaskingFields() != null) {
             List<String> list = rules.getMaskingFields().get(fileName);
+            if (list == null && fileNameNoExt != null) list = rules.getMaskingFields().get(fileNameNoExt);
             if (list != null && list.contains(fieldPath)) return "SFD";
         }
-        if (rules.getPartialMaskingFields() != null && rules.getPartialMaskingFields().containsKey(fileName)) {
+        if (rules.getPartialMaskingFields() != null) {
             List<String> list = rules.getPartialMaskingFields().get(fileName);
+            if (list == null && fileNameNoExt != null) list = rules.getPartialMaskingFields().get(fileNameNoExt);
             if (list != null && list.contains(fieldPath)) return "PMD";
         }
 
         return null;
     }
 
-    private boolean matchesField(List<String> list, String fullQualifier, String fieldPath) {
+    private boolean matchesField(List<String> list, String fullQualifier, String baseQualifier, String fieldPath) {
         if (list == null || list.isEmpty()) return false;
         for (String item : list) {
-            if (item.equalsIgnoreCase(fullQualifier) || item.equalsIgnoreCase(fieldPath)) {
+            if (item.equalsIgnoreCase(fullQualifier) || item.equalsIgnoreCase(baseQualifier) || item.equalsIgnoreCase(fieldPath)) {
                 return true;
             }
         }

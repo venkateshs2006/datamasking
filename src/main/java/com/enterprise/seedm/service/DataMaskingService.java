@@ -38,13 +38,14 @@ public class DataMaskingService {
         Map<String, Set<String>> ruleMap = new HashMap<>();
         if (rules != null) {
             for (String rule : rules) {
-                String[] parts = rule.split("\\.");
-                if (parts.length >= 2) { // Allow for nested paths
+                if (rule == null || rule.trim().isEmpty()) continue;
+                String[] parts = rule.trim().split("\\.");
+                if (parts.length >= 2) {
                     String tableName = parts[0].toLowerCase();
-                    String fieldPath = String.join(".", Arrays.copyOfRange(parts, 1, parts.length));
+                    String fieldPath = String.join(".", Arrays.copyOfRange(parts, 1, parts.length)).toLowerCase();
                     ruleMap.computeIfAbsent(tableName, k -> new HashSet<>()).add(fieldPath);
-                } else {
-                    log.warn("Invalid rule format: {}", rule);
+                } else if (parts.length == 1) {
+                    ruleMap.computeIfAbsent("*", k -> new HashSet<>()).add(parts[0].toLowerCase());
                 }
             }
         }
@@ -100,11 +101,11 @@ public class DataMaskingService {
                 List<Object> newList = new ArrayList<>();
                 for (Object item : (List<?>) newValue) {
                     if (item instanceof Map) {
-                        Map<String, Object> newMapItem = new Document((Map<String, Object>) item);
-                        traverseAndMask(rootName, newMapItem, newPath, maskingRules, constraintRules, partialMaskingRules, metadata);
-                        newList.add(newMapItem);
+                        Map<String, Object> itemMap = new Document((Map<String, Object>) item);
+                        traverseAndMask(rootName, itemMap, newPath, maskingRules, constraintRules, partialMaskingRules, metadata);
+                        newList.add(itemMap);
                     } else {
-                        newList.add(applyRulesToField(rootName, newPath, item, maskingRules, constraintRules, partialMaskingRules, metadata));
+                        newList.add(item);
                     }
                 }
                 currentMap.put(key, newList);
@@ -122,8 +123,11 @@ public class DataMaskingService {
         }
 
         String fullPath = rootName + "." + fieldPath;
+        String lowerRoot = rootName != null ? rootName.toLowerCase() : "";
+        String lowerField = fieldPath != null ? fieldPath.toLowerCase() : "";
 
-        if (constraintRules.getOrDefault(rootName.toLowerCase(), Collections.emptySet()).contains(fieldPath.toLowerCase())) {
+        if (constraintRules.getOrDefault(lowerRoot, Collections.emptySet()).contains(lowerField)
+                || constraintRules.getOrDefault("*", Collections.emptySet()).contains(lowerField)) {
             try {
                 String dataType = getColumnType(metadata, fieldPath);
                 Object encryptedValue = fpeService.encrypt(originalValue, dataType);
@@ -142,12 +146,14 @@ public class DataMaskingService {
             }
         }
 
-        if (maskingRules.getOrDefault(rootName.toLowerCase(), Collections.emptySet()).contains(fieldPath.toLowerCase())) {
+        if (maskingRules.getOrDefault(lowerRoot, Collections.emptySet()).contains(lowerField)
+                || maskingRules.getOrDefault("*", Collections.emptySet()).contains(lowerField)) {
             Integer maxLength = getColumnMaxLength(metadata, fieldPath);
             return generateMaskedValue(fieldPath, originalValue, maxLength);
         }
 
-        if (partialMaskingRules.getOrDefault(rootName.toLowerCase(), Collections.emptySet()).contains(fieldPath.toLowerCase())) {
+        if (partialMaskingRules.getOrDefault(lowerRoot, Collections.emptySet()).contains(lowerField)
+                || partialMaskingRules.getOrDefault("*", Collections.emptySet()).contains(lowerField)) {
             return applyPartialMasking(originalValue.toString());
         }
 
