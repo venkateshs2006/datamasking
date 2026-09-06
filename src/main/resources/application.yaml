@@ -2,7 +2,7 @@ spring:
   main:
     allow-bean-definition-overriding: true
   application:
-    name: seedm db migration
+    name: anonify db migration
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -83,7 +83,7 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
   file:
-    name: logs/seedm-platform.log
+    name: logs/anonify-platform.log
     max-size: 10MB
     max-history: 30
 
@@ -105,3 +105,8 @@ seedm:
     masking-constraints: testing.id,testing.mydata_id,data.id
     partial-masking-columns:
     masking-key: SecretKey123
+  ai:
+    qwen:
+      api-url: https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions
+      api-key: ${QWEN_API_KEY:}
+      model: qwen-turbo

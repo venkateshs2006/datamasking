@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BNP Paribas - SeEDM Migration Setup</title>
+    <title>BNP Paribas - Anonify Migration Setup</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -97,7 +97,7 @@
                 <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
             </a>
             <div class="hidden md:block border-l border-gray-300 pl-6">
-                <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
+                <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">Anonify</h1>
                 <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Migration Setup</p>
             </div>
         </div>
@@ -200,6 +200,86 @@
                             </form>
                         </div>
                     </div>
+
+                    <!-- AI PII Auto-Detection Toggle Card -->
+                    <div class="mt-8 bg-gradient-to-r from-emerald-50/70 via-slate-50 to-purple-50/70 p-5 rounded-2xl border border-emerald-200/80 shadow-sm transition-all duration-200 hover:shadow-md">
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                            <div class="flex items-start space-x-3.5">
+                                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-bnp-emerald to-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-md shadow-bnp-emerald/20 shrink-0">
+                                    <i class="fas fa-brain"></i>
+                                </div>
+                                <div>
+                                    <div class="flex items-center space-x-2">
+                                        <h4 class="text-sm font-bold text-gray-900 tracking-tight">AI-Powered PII Auto-Detection & Masking</h4>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">
+                                            <i class="fas fa-sparkles mr-1"></i> Qwen LLM
+                                        </span>
+                                    </div>
+                                    <p class="text-xs text-gray-500 mt-0.5">
+                                        Automatically scan selected tables to discover sensitive PII columns (Emails, Names, Phone numbers, Locations, Financial details, SSN/IDs) and pre-apply synthetic Faker rules using Qwen AI.
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-3 self-end sm:self-center shrink-0">
+                                <button type="button" onclick="toggleQwenConfigDrawer()" class="text-xs text-gray-700 hover:text-bnp-emerald bg-white px-3 py-1.5 rounded-lg border border-gray-200 hover:border-bnp-emerald/40 font-bold shadow-sm transition flex items-center">
+                                    <i class="fas fa-sliders-h mr-1.5 text-bnp-emerald"></i> Qwen Settings <i id="qwenConfigChevron" class="fas fa-chevron-down ml-1.5 text-[10px] text-gray-400 transition-transform"></i>
+                                </button>
+                                <span id="aiPiiStatusBadge" class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    <i class="fas fa-check-circle mr-1"></i> AI Active
+                                </span>
+                                <label class="relative inline-flex items-center cursor-pointer select-none">
+                                    <input type="checkbox" id="aiPiiToggle" class="sr-only peer" checked onchange="toggleAiPiiDetection()">
+                                    <div class="w-12 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bnp-emerald shadow-inner"></div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Qwen Configuration Drawer -->
+                        <div id="qwenConfigDrawer" class="hidden mt-4 pt-4 border-t border-emerald-200/60 transition-all">
+                            <div class="bg-white/95 p-4 rounded-xl border border-emerald-100 shadow-sm space-y-3">
+                                <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+                                    <span class="text-xs font-bold text-gray-700 uppercase tracking-wide flex items-center">
+                                        <i class="fas fa-brain mr-1.5 text-bnp-emerald"></i> Qwen API & Model Settings
+                                    </span>
+                                    <span class="text-[11px] text-gray-400 font-medium"><i class="fas fa-lock mr-1"></i>Saved locally in browser</span>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div class="md:col-span-2">
+                                        <label class="text-[11px] font-bold text-gray-600 block mb-1">Qwen API Endpoint URL</label>
+                                        <input type="text" id="qwenApiUrl" class="w-full text-xs p-2.5 border border-gray-200 rounded-lg focus:border-bnp-emerald focus:ring-1 focus:ring-bnp-emerald/20 outline-none font-mono bg-gray-50/50 focus:bg-white transition" placeholder="https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions" value="https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions" oninput="saveQwenConfig()">
+                                    </div>
+                                    <div>
+                                        <label class="text-[11px] font-bold text-gray-600 block mb-1">Model Name</label>
+                                        <select id="qwenModel" class="w-full text-xs p-2.5 border border-gray-200 rounded-lg focus:border-bnp-emerald focus:ring-1 focus:ring-bnp-emerald/20 outline-none font-medium bg-gray-50/50 focus:bg-white transition cursor-pointer" onchange="saveQwenConfig()">
+                                            <option value="qwen-turbo">qwen-turbo (Fast & Economical)</option>
+                                            <option value="qwen-plus" selected>qwen-plus (Balanced & Recommended)</option>
+                                            <option value="qwen-max">qwen-max (Deep Reasoning)</option>
+                                            <option value="qwen2.5-72b-instruct">qwen2.5-72b-instruct</option>
+                                            <option value="qwen2.5-coder-32b-instruct">qwen2.5-coder-32b-instruct</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="text-[11px] font-bold text-gray-600 block mb-1">Qwen API Key</label>
+                                    <div class="flex gap-2">
+                                        <div class="relative flex-1">
+                                            <input type="password" id="qwenApiKey" class="w-full text-xs p-2.5 pr-10 border border-gray-200 rounded-lg focus:border-bnp-emerald focus:ring-1 focus:ring-bnp-emerald/20 outline-none font-mono bg-gray-50/50 focus:bg-white transition" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" oninput="saveQwenConfig()">
+                                            <button type="button" onclick="toggleApiKeyVisibility('qwenApiKey')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs focus:outline-none" title="Toggle visibility">
+                                                <i id="qwenApiKeyEye" class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                        <button type="button" id="btnTestQwen" onclick="testQwenConnection()" class="px-4 py-2 text-xs font-bold text-bnp-emerald bg-bnp-emerald/10 border border-bnp-emerald/20 hover:bg-bnp-emerald hover:text-white rounded-lg transition shadow-sm flex items-center shrink-0">
+                                            <i class="fas fa-bolt mr-1.5"></i> Test Connection
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div id="qwenTestStatus" class="hidden text-xs font-semibold p-2.5 rounded-lg transition-all"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- STEP 2: TABLES -->
@@ -241,10 +321,31 @@
 
                 <!-- STEP 3: RULES -->
                 <div id="step3" class="step-container p-8 flex flex-col">
-                    <div class="flex justify-between items-start mb-6 shrink-0">
+                    <div class="flex justify-between items-start mb-4 shrink-0">
                         <div>
                             <h3 class="text-xl font-bold text-gray-800">Assign Masking Rules</h3>
-                            <p class="text-sm text-gray-500 mt-1">Configure how sensitive columns should be transformed.</p>
+                            <p class="text-sm text-gray-500 mt-0.5">Configure how sensitive columns should be transformed.</p>
+                        </div>
+                    </div>
+
+                    <!-- AI Banner in Step 3 -->
+                    <div id="aiPiiBanner" class="mb-4 p-3 bg-gradient-to-r from-emerald-50/90 via-teal-50/70 to-purple-50/80 border border-emerald-200/90 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm shrink-0">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 rounded-lg bg-bnp-emerald text-white flex items-center justify-center text-xs font-bold shadow-sm shrink-0">
+                                <i class="fas fa-sparkles"></i>
+                            </div>
+                            <div>
+                                <span id="aiPiiBannerText" class="text-xs font-bold text-gray-800 block">AI Auto-Detection Ready</span>
+                                <p id="aiPiiBannerSubtext" class="text-[11px] text-gray-600">Sensitive PII columns automatically classified and Faker masking rules pre-applied.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2 self-end sm:self-center shrink-0">
+                            <button type="button" onclick="runManualAiScan()" class="text-xs bg-white text-bnp-emerald border border-bnp-emerald/30 hover:bg-bnp-emerald hover:text-white px-2.5 py-1.5 rounded-lg font-bold transition shadow-sm flex items-center">
+                                <i class="fas fa-sync-alt mr-1"></i> Re-Scan AI
+                            </button>
+                            <button type="button" onclick="clearAllRules()" class="text-xs bg-white text-gray-600 hover:text-red-600 border border-gray-200 px-2.5 py-1.5 rounded-lg font-bold transition shadow-sm">
+                                Clear All
+                            </button>
                         </div>
                     </div>
 
@@ -335,9 +436,21 @@
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department</label>
-                                <select id="department" class="input-field cursor-pointer bg-white" required>
-                                    <option value="">Loading departments...</option>
-                                </select>
+                                <div class="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl shadow-inner">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-9 h-9 rounded-lg bg-bnp-emerald/10 text-bnp-emerald flex items-center justify-center font-bold text-sm border border-bnp-emerald/20 shadow-sm">
+                                            <i class="fas fa-building"></i>
+                                        </div>
+                                        <div>
+                                            <span id="departmentDisplay" class="font-bold text-gray-800 text-sm block">Auto-detected from Destination</span>
+                                            <p id="departmentHint" class="text-[11px] text-gray-500 font-medium">Determined automatically from destination connection endpoint</p>
+                                        </div>
+                                    </div>
+                                    <span id="departmentBadge" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                        Auto-Assigned
+                                    </span>
+                                </div>
+                                <input type="hidden" id="department" name="department" value="">
                             </div>
                         </div>
 
@@ -481,15 +594,10 @@
         }
 
         userDepartments = data.departments || [];
-        const deptSelect = document.getElementById('department');
-        deptSelect.innerHTML = '<option value="">Select a department...</option>';
-        userDepartments.forEach(d => {
-            const dName = typeof d === 'string' ? d : d.name;
-            deptSelect.add(new Option(dName, dName));
-        });
 
         fetchConnections();
         loadRandomSalt();
+        loadQwenConfig();
     });
 
     async function logout() {
@@ -504,8 +612,268 @@
         selectedTables: [],
         columnsCache: {},
         rules: { maskingColumns: [], constraintColumns: [], partialMaskingColumns: [], targetTables: [] },
-        connections: []
+        connections: [],
+        destConnections: [],
+        aiSuggestions: {}
     };
+
+    function toggleQwenConfigDrawer() {
+        const drawer = document.getElementById('qwenConfigDrawer');
+        const chevron = document.getElementById('qwenConfigChevron');
+        if (drawer) {
+            const isHidden = drawer.classList.contains('hidden');
+            if (isHidden) {
+                drawer.classList.remove('hidden');
+                if (chevron) chevron.classList.add('rotate-180');
+            } else {
+                drawer.classList.add('hidden');
+                if (chevron) chevron.classList.remove('rotate-180');
+            }
+        }
+    }
+
+    function toggleApiKeyVisibility(inputId) {
+        const input = document.getElementById(inputId);
+        const eye = document.getElementById(inputId + 'Eye');
+        if (input && eye) {
+            if (input.type === 'password') {
+                input.type = 'text';
+                eye.className = 'fas fa-eye-slash';
+            } else {
+                input.type = 'password';
+                eye.className = 'fas fa-eye';
+            }
+        }
+    }
+
+    function saveQwenConfig() {
+        const url = document.getElementById('qwenApiUrl')?.value || '';
+        const key = document.getElementById('qwenApiKey')?.value || '';
+        const model = document.getElementById('qwenModel')?.value || 'qwen-turbo';
+        localStorage.setItem('anonify_qwen_url', url);
+        localStorage.setItem('anonify_qwen_key', key);
+        localStorage.setItem('anonify_qwen_model', model);
+    }
+
+    function loadQwenConfig() {
+        const savedUrl = localStorage.getItem('anonify_qwen_url');
+        const savedKey = localStorage.getItem('anonify_qwen_key');
+        const savedModel = localStorage.getItem('anonify_qwen_model');
+        if (savedUrl && document.getElementById('qwenApiUrl')) {
+            document.getElementById('qwenApiUrl').value = savedUrl;
+        }
+        if (savedKey && document.getElementById('qwenApiKey')) {
+            document.getElementById('qwenApiKey').value = savedKey;
+        }
+        if (savedModel && document.getElementById('qwenModel')) {
+            document.getElementById('qwenModel').value = savedModel;
+        }
+    }
+
+    async function testQwenConnection() {
+        const btn = document.getElementById('btnTestQwen');
+        const status = document.getElementById('qwenTestStatus');
+        const url = document.getElementById('qwenApiUrl')?.value.trim();
+        const key = document.getElementById('qwenApiKey')?.value.trim();
+        const model = document.getElementById('qwenModel')?.value || 'qwen-turbo';
+
+        if (!url) {
+            status.className = 'text-xs font-semibold p-2.5 rounded-lg bg-red-50 text-red-700 border border-red-200 block';
+            status.innerHTML = '<i class="fas fa-exclamation-circle mr-1"></i> Please enter the Qwen API Endpoint URL.';
+            return;
+        }
+
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1.5"></i> Testing...';
+        btn.disabled = true;
+        status.classList.add('hidden');
+
+        try {
+            const res = await fetch('/api/ai/test-qwen', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ qwenApiUrl: url, qwenApiKey: key, qwenModel: model })
+            });
+            const data = await res.json();
+            if (data.success) {
+                status.className = 'text-xs font-semibold p-2.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 block';
+                status.innerHTML = `<i class="fas fa-check-circle mr-1 text-emerald-600"></i> ${data.message || 'Connected to Qwen API successfully!'}`;
+            } else {
+                status.className = 'text-xs font-semibold p-2.5 rounded-lg bg-red-50 text-red-700 border border-red-200 block';
+                status.innerHTML = `<i class="fas fa-times-circle mr-1 text-red-600"></i> ${data.message || 'Connection failed'}`;
+            }
+        } catch (e) {
+            status.className = 'text-xs font-semibold p-2.5 rounded-lg bg-red-50 text-red-700 border border-red-200 block';
+            status.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i> Request failed: ${e.message}`;
+        } finally {
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+        }
+    }
+
+    function toggleAiPiiDetection() {
+        const toggle = document.getElementById('aiPiiToggle');
+        const badge = document.getElementById('aiPiiStatusBadge');
+        if (toggle && badge) {
+            if (toggle.checked) {
+                badge.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200';
+                badge.innerHTML = '<i class="fas fa-check-circle mr-1"></i> AI Active';
+                if (currentStep === 3) {
+                    runManualAiScan();
+                }
+            } else {
+                badge.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200';
+                badge.innerHTML = '<i class="fas fa-minus-circle mr-1"></i> AI Inactive';
+                const bannerText = document.getElementById('aiPiiBannerText');
+                const bannerSubtext = document.getElementById('aiPiiBannerSubtext');
+                if (bannerText) bannerText.textContent = 'Manual Masking Mode Active';
+                if (bannerSubtext) bannerSubtext.textContent = 'AI auto-detection is currently switched off. Configure columns manually.';
+            }
+        }
+    }
+
+    async function triggerAiPiiDetection() {
+        const isAiEnabled = document.getElementById('aiPiiToggle')?.checked;
+        if (!isAiEnabled || state.selectedTables.length === 0) return;
+
+        // Fetch columns for all selected tables if not already in cache
+        const missingTables = state.selectedTables.filter(t => !state.columnsCache[t]);
+        if (missingTables.length > 0) {
+            await Promise.all(missingTables.map(async t => {
+                try {
+                    const res = await fetch(`/api/config/columns/${t}`);
+                    if (res.ok) state.columnsCache[t] = await res.json();
+                } catch (e) { console.error("Error fetching columns for " + t, e); }
+            }));
+        }
+
+        const qwenUrl = document.getElementById('qwenApiUrl')?.value.trim() || '';
+        const qwenKey = document.getElementById('qwenApiKey')?.value.trim() || '';
+        const qwenModel = document.getElementById('qwenModel')?.value || 'qwen-turbo';
+
+        try {
+            const payload = {
+                tables: state.selectedTables,
+                tableColumns: state.columnsCache,
+                qwenApiUrl: qwenUrl,
+                qwenApiKey: qwenKey,
+                qwenModel: qwenModel
+            };
+            const res = await fetch('/api/ai/detect-pii', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                const aiData = await res.json();
+                state.aiSuggestions = aiData.detectedEntities || {};
+
+                // Merge suggested masking columns into state.rules
+                if (aiData.maskingColumns) {
+                    aiData.maskingColumns.forEach(col => {
+                        if (!state.rules.maskingColumns.includes(col)) {
+                            state.rules.maskingColumns.push(col);
+                        }
+                    });
+                }
+                if (aiData.partialMaskingColumns) {
+                    aiData.partialMaskingColumns.forEach(col => {
+                        if (!state.rules.partialMaskingColumns.includes(col)) {
+                            state.rules.partialMaskingColumns.push(col);
+                        }
+                    });
+                }
+                if (aiData.constraintColumns) {
+                    aiData.constraintColumns.forEach(col => {
+                        if (!state.rules.constraintColumns.includes(col)) {
+                            state.rules.constraintColumns.push(col);
+                        }
+                    });
+                }
+
+                const bannerText = document.getElementById('aiPiiBannerText');
+                const bannerSubtext = document.getElementById('aiPiiBannerSubtext');
+                const engine = aiData.engineUsed || 'Smart AI';
+                if (bannerText) {
+                    bannerText.textContent = `${engine} Scan Completed (${aiData.totalPiiColumnsFound || 0} PII Columns Found)`;
+                }
+                if (bannerSubtext) {
+                    bannerSubtext.textContent = `Automatically detected ${aiData.totalPiiColumnsFound || 0} sensitive fields across ${state.selectedTables.length} tables and applied standard Faker masking rules.`;
+                }
+            }
+        } catch (e) {
+            console.error("AI PII Detection error:", e);
+        }
+    }
+
+    async function runManualAiScan() {
+        const isAiEnabled = document.getElementById('aiPiiToggle');
+        if (isAiEnabled) isAiEnabled.checked = true;
+        toggleAiPiiDetection();
+
+        await triggerAiPiiDetection();
+        if (activeRuleTable && state.columnsCache[activeRuleTable]) {
+            renderColumnList(activeRuleTable, state.columnsCache[activeRuleTable]);
+            renderTags(activeRuleTable);
+        }
+        if (currentStep === 3) validateStep3();
+    }
+
+    function clearAllRules() {
+        state.rules.maskingColumns = [];
+        state.rules.partialMaskingColumns = [];
+        state.rules.constraintColumns = [];
+        state.aiSuggestions = {};
+
+        if (activeRuleTable && state.columnsCache[activeRuleTable]) {
+            renderColumnList(activeRuleTable, state.columnsCache[activeRuleTable]);
+            renderTags(activeRuleTable);
+        }
+        if (currentStep === 3) validateStep3();
+    }
+
+    function getSelectedDestDepartment() {
+        const destSelect = document.getElementById('destId');
+        if (!destSelect || destSelect.selectedIndex < 0) return '';
+        const selectedOpt = destSelect.options[destSelect.selectedIndex];
+        if (selectedOpt && selectedOpt.dataset && selectedOpt.dataset.department) {
+            return selectedOpt.dataset.department;
+        }
+        const destId = destSelect.value;
+        if (state.destConnections && destId) {
+            const found = state.destConnections.find(c => String(c.id) === String(destId));
+            if (found && found.department) return found.department;
+        }
+        return '';
+    }
+
+    function updateDepartmentDisplay() {
+        const dept = getSelectedDestDepartment();
+        const deptInput = document.getElementById('department');
+        const deptDisplay = document.getElementById('departmentDisplay');
+        const deptBadge = document.getElementById('departmentBadge');
+        const deptHint = document.getElementById('departmentHint');
+
+        if (deptInput) deptInput.value = dept;
+        if (deptDisplay) {
+            deptDisplay.textContent = dept || 'Not Detected';
+        }
+        if (deptBadge) {
+            if (dept) {
+                deptBadge.textContent = 'Auto-Assigned';
+                deptBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200';
+            } else {
+                deptBadge.textContent = 'Pending Destination';
+                deptBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200';
+            }
+        }
+        if (deptHint) {
+            deptHint.textContent = dept 
+                ? `Mapped automatically from destination connection (${dept})` 
+                : 'Select a destination connection in Step 1 to detect department';
+        }
+    }
 
     async function fetchConnections() {
         // Fetch source connections for postgres
@@ -521,9 +889,14 @@
         const resDest = await fetch('/api/connections?dbType=postgres&envType=destination');
         if (resDest.ok) {
             const destConns = await resDest.json();
+            state.destConnections = destConns;
             const destSelect = document.getElementById('destId');
             destSelect.innerHTML = '<option value="">Select a destination database...</option>';
-            destConns.forEach(c => destSelect.add(new Option(c.name + ' (' + c.url + ')', c.id)));
+            destConns.forEach(c => {
+                const opt = new Option(c.name + ' (' + c.url + ')', c.id);
+                opt.dataset.department = c.department || '';
+                destSelect.add(opt);
+            });
         }
 
         validateStep1();
@@ -583,6 +956,7 @@
             if (!connectionId || !schema) allValid = false;
         });
 
+        updateDepartmentDisplay();
         document.getElementById('btnNext').disabled = !allValid;
     }
 
@@ -675,7 +1049,16 @@
             btn.innerHTML = origHtml;
             btn.disabled = false;
         }
-        if (currentStep === 2) renderRuleTables();
+        if (currentStep === 2) {
+            if (document.getElementById('aiPiiToggle')?.checked) {
+                btn.innerHTML = '<i class="fas fa-sparkles fa-spin mr-2"></i>AI Scanning...';
+                btn.disabled = true;
+                await triggerAiPiiDetection();
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+            }
+            renderRuleTables();
+        }
 
         currentStep++;
         updateUI();
@@ -800,8 +1183,16 @@
             const isPrt = state.rules.partialMaskingColumns.includes(full);
             const isEnc = state.rules.constraintColumns.includes(full);
 
+            const aiInfo = state.aiSuggestions ? state.aiSuggestions[full] : null;
+            const aiBadge = aiInfo 
+                ? `<span class="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 border border-purple-200" title="${aiInfo.reason || 'AI PII detection'}"><i class="fas fa-sparkles mr-1 text-[8px]"></i>${aiInfo.category}</span>`
+                : '';
+
             d.innerHTML = `
-                <div class="text-[11px] font-bold text-gray-700 mb-1.5 truncate" title="${col}">${col}</div>
+                <div class="flex items-center justify-between mb-1.5">
+                    <div class="text-[11px] font-bold text-gray-700 truncate" title="${col}">${col}</div>
+                    ${aiBadge}
+                </div>
                 <div class="flex gap-1.5">
                     <button class="flex-1 rule-btn rule-btn-std ${isStd ? 'ring-2 ring-bnp-emerald/50 ring-offset-1' : ''}" onclick="toggleRule('${full}','maskingColumns','${table}')">SFD</button>
                     <button class="flex-1 rule-btn rule-btn-prt ${isPrt ? 'ring-2 ring-orange-400 ring-offset-1' : ''}" onclick="toggleRule('${full}','partialMaskingColumns','${table}')">PMD</button>
@@ -859,6 +1250,8 @@
         document.getElementById('previewSrc').innerText = srcSelect.options[srcSelect.selectedIndex]?.text || '';
         document.getElementById('previewDest').innerText = destSelect.options[destSelect.selectedIndex]?.text || '';
 
+        updateDepartmentDisplay();
+
         const totalRules = state.rules.maskingColumns.length + state.rules.constraintColumns.length + state.rules.partialMaskingColumns.length;
         document.getElementById('previewTableCount').innerText = state.selectedTables.length;
         document.getElementById('previewRuleCount').innerText = totalRules;
@@ -882,14 +1275,14 @@
         const btn = document.getElementById('btnStart');
         const mNameInput = document.getElementById('migrationName');
         const migrationName = mNameInput ? mNameInput.value.trim() : '';
-        const department = document.getElementById('department').value;
+        const department = document.getElementById('department')?.value || getSelectedDestDepartment();
 
         if (!migrationName) {
             alert("Please enter a Migration Name");
             return;
         }
         if (!department) {
-            alert("Please select a Department");
+            alert("Department could not be detected from the destination connection. Please ensure the destination database connection has a department assigned.");
             return;
         }
 

@@ -42,7 +42,7 @@ services:
   # Migration Application
   migrator-app:
     build: .
-    container_name: seedm
+    container_name: anonify
     depends_on:
       postgres-source:
         condition: service_healthy

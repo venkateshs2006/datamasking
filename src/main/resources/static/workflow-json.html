@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BNP Paribas - SeEDM JSON File Migration Setup</title>
+    <title>BNP Paribas - Anonify JSON File Migration Setup</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -115,7 +115,7 @@
             <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
         </a>
         <div class="hidden md:block border-l border-gray-300 pl-6">
-            <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">SeEDM</h1>
+            <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">Anonify</h1>
             <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">JSON File Migration</p>
         </div>
     </div>
@@ -343,9 +343,21 @@
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department</label>
-                            <select id="department" class="input-field cursor-pointer bg-white" required>
-                                <option value="">Loading departments...</option>
-                            </select>
+                            <div class="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl shadow-inner">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-9 h-9 rounded-lg bg-bnp-emerald/10 text-bnp-emerald flex items-center justify-center font-bold text-sm border border-bnp-emerald/20 shadow-sm">
+                                        <i class="fas fa-building"></i>
+                                    </div>
+                                    <div>
+                                        <span id="departmentDisplay" class="font-bold text-gray-800 text-sm block">Auto-detected from Destination</span>
+                                        <p id="departmentHint" class="text-[11px] text-gray-500 font-medium">Determined automatically from destination connection endpoint</p>
+                                    </div>
+                                </div>
+                                <span id="departmentBadge" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    Auto-Assigned
+                                </span>
+                            </div>
+                            <input type="hidden" id="department" name="department" value="">
                         </div>
                     </div>
 
@@ -491,12 +503,6 @@
         }
 
         userDepartments = data.departments || [];
-        const deptSelect = document.getElementById('department');
-        deptSelect.innerHTML = '<option value="">Select a department...</option>';
-        userDepartments.forEach(d => {
-            const dName = typeof d === 'string' ? d : d.name;
-            deptSelect.add(new Option(dName, dName));
-        });
 
         fetchConnections();
         fetchCosConnections();
@@ -512,6 +518,8 @@
     let scanSuccess = false;
     let availableKeys = [];
     let state = {
+        destConnections: [],
+        destCosConnections: [],
         rules: {
             maskingColumns: [],
             partialMaskingColumns: [],
@@ -526,6 +534,50 @@
             scannedSourceId: null
         }
     };
+
+    function getSelectedDestDepartment() {
+        const isLocal = state.rules.destType === 'local';
+        const destSelect = isLocal ? document.getElementById('destId') : document.getElementById('destCosId');
+        if (!destSelect || destSelect.selectedIndex < 0) return '';
+        const selectedOpt = destSelect.options[destSelect.selectedIndex];
+        if (selectedOpt && selectedOpt.dataset && selectedOpt.dataset.department) {
+            return selectedOpt.dataset.department;
+        }
+        const destId = destSelect.value;
+        const conns = isLocal ? state.destConnections : state.destCosConnections;
+        if (conns && destId) {
+            const found = conns.find(c => String(c.id) === String(destId));
+            if (found && found.department) return found.department;
+        }
+        return '';
+    }
+
+    function updateDepartmentDisplay() {
+        const dept = getSelectedDestDepartment();
+        const deptInput = document.getElementById('department');
+        const deptDisplay = document.getElementById('departmentDisplay');
+        const deptBadge = document.getElementById('departmentBadge');
+        const deptHint = document.getElementById('departmentHint');
+
+        if (deptInput) deptInput.value = dept;
+        if (deptDisplay) {
+            deptDisplay.textContent = dept || 'Not Detected';
+        }
+        if (deptBadge) {
+            if (dept) {
+                deptBadge.textContent = 'Auto-Assigned';
+                deptBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200';
+            } else {
+                deptBadge.textContent = 'Pending Destination';
+                deptBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200';
+            }
+        }
+        if (deptHint) {
+            deptHint.textContent = dept 
+                ? `Mapped automatically from destination connection (${dept})` 
+                : 'Select a destination directory or bucket in Step 1 to detect department';
+        }
+    }
 
     function toggleStorageType(env) {
         const type = document.querySelector(`input[name="storageType${env === 'source' ? 'Src' : 'Dest'}"]:checked`).value;
@@ -560,15 +612,16 @@
                 srcSelect.add(option);
             });
         }
-
         const resDest = await fetch('/api/cos-connections?envType=destination&storageType=Local');
         if (resDest.ok) {
             const destConns = await resDest.json();
+            state.destConnections = destConns;
             const destSelect = document.getElementById('destId');
             destSelect.innerHTML = '<option value="">Select a destination directory...</option>';
             destConns.forEach(c => {
                 const option = new Option(c.cosName + ' (' + (c.storageLocation || 'N/A') + ')', c.id);
                 option.dataset.path = c.storageLocation;
+                option.dataset.department = c.department || '';
                 destSelect.add(option);
             });
         }
@@ -594,15 +647,19 @@
         const resDest = await fetch('/api/cos-connections?envType=destination&storageType=COS');
         if (resDest.ok) {
             const destConns = await resDest.json();
+            state.destCosConnections = destConns;
             const destSelect = document.getElementById('destCosId');
             destSelect.innerHTML = '<option value="">Select a destination COS bucket...</option>';
             destConns.forEach(c => {
                 const label = c.bucketName ? `${c.cosName} (${c.bucketName})` : c.cosName;
                 const option = new Option(label, c.id);
                 option.dataset.path = `cos://${c.bucketName}`;
+                option.dataset.department = c.department || '';
                 destSelect.add(option);
             });
         }
+
+        validateStep1();
     }
 
     function validateStep1() {
@@ -630,7 +687,9 @@
         }
 
         // Require both paths AND a successful scan to proceed
-        btnNext.disabled = !(srcVal && destVal && scanSuccess);
+        const valid = (srcVal && destVal && scanSuccess);
+        btnNext.disabled = !valid;
+        updateDepartmentDisplay();
     }
 
     function updateUI() {
@@ -876,6 +935,8 @@
         document.getElementById('previewSrc').innerText = srcSelect.options[srcSelect.selectedIndex]?.text || '';
         document.getElementById('previewDest').innerText = destSelect.options[destSelect.selectedIndex]?.text || '';
 
+        updateDepartmentDisplay();
+
         const totalRules = state.rules.maskingColumns.length + state.rules.partialMaskingColumns.length + state.rules.constraintFields.length;
         document.getElementById('previewRuleCount').innerText = totalRules;
     }
@@ -884,14 +945,14 @@
         const btn = document.getElementById('btnStart');
         const mNameInput = document.getElementById('migrationName');
         const migrationName = mNameInput ? mNameInput.value.trim() : '';
-        const department = document.getElementById('department').value;
+        const department = document.getElementById('department')?.value || getSelectedDestDepartment();
 
         if (!migrationName) {
             alert("Please enter a Migration Name");
             return;
         }
         if (!department) {
-            alert("Please select a Department");
+            alert("Department could not be detected from the destination connection. Please ensure the destination connection has a department assigned.");
             return;
         }
 

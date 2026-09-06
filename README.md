@@ -1,20 +1,20 @@
-Project Design Document SeEDM (Secure Enterprise Data Masking & Migration) Platform Version: 1.0
+Project Design Document Anonify (Secure Enterprise Data Masking & Migration) Platform Version: 1.0
 
 Date: January 26, 2026
 
 Executive Summary 1.1 The Business Problem In the modern software lifecycle, enterprises face a critical bottleneck: Data Friction. Developers need realistic, "production-like" data to test applications effectively. However, stringent privacy regulations (GDPR, HIPAA, DPDP, CCPA) strictly prohibit copying raw PII (Personally Identifiable Information) to lower environments (Staging/QA).
 Current solutionsâ€”manual SQL scripts or legacy ETL toolsâ€”are slow, error-prone, and expensive. This results in developers waiting days for data or using poor-quality synthetic data that hides bugs.
 
-1.2 The SeEDM Solution SeEDM (Secure Efficient Data Migration) is a purpose-built infrastructure platform that automates the secure streaming of data from Production to Non-Production environments.
+1.2 The Anonify Solution Anonify (Secure Efficient Data Migration) is a purpose-built infrastructure platform that automates the secure streaming of data from Production to Non-Production environments.
 
-By leveraging Java 25 Virtual Threads and Spring Boot 4, SeEDM moves Terabytes of data while applying military-grade obfuscation in real-time, in-memory. It ensures that sensitive data never lands on a disk in plain text, reducing data provisioning time from days to minutes.
+By leveraging Java 25 Virtual Threads and Spring Boot 4, Anonify moves Terabytes of data while applying military-grade obfuscation in real-time, in-memory. It ensures that sensitive data never lands on a disk in plain text, reducing data provisioning time from days to minutes.
 
 Key Value Propositions:
 
 Compliance: Zero PII leakage via deterministic, in-memory masking. Performance: 10x faster than traditional ETL using parallel virtual threads. Integrity: Preserves complex database relationships (Referential Integrity) even after encryption.
 
 Solution Architecture The platform follows a Hub-and-Spoke architecture, designed for high throughput and security isolation.
-2.1 Component Breakdown The SeEDM Engine (Backend): Role: The core orchestration layer. It manages the "Extract-Mask-Load" pipeline using Structured Concurrency. It reads raw data, masks it in the JVM Heap, and commits to the target. The Cockpit (Frontend): Role: A "Blind" Operational Dashboard. It visualizes throughput, progress, and health via Server-Sent Events (SSE). Crucially, it never receives or displays actual business data, ensuring the UI is not a security vector. The Vault (Metadata DB): Role: A PostgreSQL database that stores Job Profiles, Masking Rules, Audit Logs, and Checkpoints. Connectors & Adaptors: Gemini_Generated_Image_38qu9b38qu9b38qu.pngRole: Specialized JDBC components to handle complex legacy schemas (Oracle, DB2) and modern PostgeSQL/MySQL targets.
+2.1 Component Breakdown The Anonify Engine (Backend): Role: The core orchestration layer. It manages the "Extract-Mask-Load" pipeline using Structured Concurrency. It reads raw data, masks it in the JVM Heap, and commits to the target. The Cockpit (Frontend): Role: A "Blind" Operational Dashboard. It visualizes throughput, progress, and health via Server-Sent Events (SSE). Crucially, it never receives or displays actual business data, ensuring the UI is not a security vector. The Vault (Metadata DB): Role: A PostgreSQL database that stores Job Profiles, Masking Rules, Audit Logs, and Checkpoints. Connectors & Adaptors: Gemini_Generated_Image_38qu9b38qu9b38qu.pngRole: Specialized JDBC components to handle complex legacy schemas (Oracle, DB2) and modern PostgeSQL/MySQL targets.
 
 Technical Specifications 3.1 The "Power Stack" Layer
 Technology
@@ -55,17 +55,17 @@ OAuth2 / RBAC for accessing the dashboard.
 
 Core Functional Features 4.1 High-Performance Migration Chunk-Oriented Processing: Streams data in configurable batches (default: 1000 rows) to keep memory usage constant, regardless of total dataset size. Parallel Partitioning: Automatically detects large tables (>100MB) and splits them into partition ranges, processing them via parallel Virtual Threads. Intelligent Resume: Checkpoints are saved after every chunk. If a network failure occurs at Row 9,000,000, the job resumes from Row 9,000,001 rather than restarting. 4.2 Security & Data Integrity Format-Preserving Encryption (FPE): Encrypts data while keeping the original format. Example: User_ID 12345 (Integer) -> 58291 (Integer). Benefit: Maintains schema validity and foreign key joins across tables. Deterministic Masking: The same input (Seed + Value) always produces the same output. Example: john@gmail.com always becomes alice.smith@faker.com in every environment, aiding debugging. In-Memory Processing: Unmasked data is piped directly from Source to Target via the RAM. It is never written to temporary files or logs. Gemini_Generated_Image_m50jenm50jenm50j.png
 
-Legacy System Migration Strategy Legacy databases (Oracle 9i/10g, SQL Server 2008, DB2) often present unique challenges such as missing constraints or complex keys. SeEDM includes specific features to handle these "Brownfield" environments.
+Legacy System Migration Strategy Legacy databases (Oracle 9i/10g, SQL Server 2008, DB2) often present unique challenges such as missing constraints or complex keys. Anonify includes specific features to handle these "Brownfield" environments.
 
 5.1 Virtual Foreign Keys (The "Implicit Link" Solver) Legacy applications often enforce relationships in code (Java/C++) rather than in the database (FK Constraints) to improve write performance. Standard ETL tools fail here because they don't know the load order.
 
-The Feature: SeEDM allows users to define Virtual Relationships in the configuration. Mechanism: User defines: Map Table_A.Cust_Ref to Table_B.Customer_ID. SeEDM Engine treats this as a strict dependency, ensuring Table_B is migrated and masked before Table_A to prevent "Orphan Record" errors. 5.2 Composite Key Handling Many legacy banking/telecom tables do not have a single ID column. Instead, they use a combination of columns as a Primary Key (e.g., Branch_ID + Sequence_No + Fiscal_Year).
+The Feature: Anonify allows users to define Virtual Relationships in the configuration. Mechanism: User defines: Map Table_A.Cust_Ref to Table_B.Customer_ID. Anonify Engine treats this as a strict dependency, ensuring Table_B is migrated and masked before Table_A to prevent "Orphan Record" errors. 5.2 Composite Key Handling Many legacy banking/telecom tables do not have a single ID column. Instead, they use a combination of columns as a Primary Key (e.g., Branch_ID + Sequence_No + Fiscal_Year).
 
-The Feature: Custom Composite Reader. Mechanism: SeEDM implements a specialized PagingQueryProvider that generates SQL like: SQL: SELECT * FROM Transactions ORDER BY Branch_ID, Sequence_No OFFSET ? LIMIT ?
+The Feature: Custom Composite Reader. Mechanism: Anonify implements a specialized PagingQueryProvider that generates SQL like: SQL: SELECT * FROM Transactions ORDER BY Branch_ID, Sequence_No OFFSET ? LIMIT ?
 
-This ensures stable pagination and restart capability even on tables without a singular auto-increment ID. 5.3 Legacy Data Type Support LOB/CLOB Streaming: Automatic handling of legacy BLOB (Images) and CLOB (XML/Text) columns. SeEDM streams these effectively using Zero-Copy Buffers to avoid blowing up the Heap memory.
+This ensures stable pagination and restart capability even on tables without a singular auto-increment ID. 5.3 Legacy Data Type Support LOB/CLOB Streaming: Automatic handling of legacy BLOB (Images) and CLOB (XML/Text) columns. Anonify streams these effectively using Zero-Copy Buffers to avoid blowing up the Heap memory.
 
-Configuration & Rules Engine SeEDM uses a Declarative Configuration model. Migration logic is decoupled from the code, allowing Data Engineers to manage rules via simple YAML files.
+Configuration & Rules Engine Anonify uses a Declarative Configuration model. Migration logic is decoupled from the code, allowing Data Engineers to manage rules via simple YAML files.
 6.1 The Job Profile (job_config.yaml) This file defines what to move and how to mask it.
 
 YAML
@@ -142,6 +142,6 @@ Docker/Kubernetes Deployment Scripts.
 Gemini_Generated_Image_h5r3efh5r3efh5r3.png
 
 Future Roadmap (Version 2.0) We have laid the groundwork for these future features in our architectural choices:
-Distributed Remote Workers: Using Project Leyden, we will create tiny, instant-start Docker containers. If a job is too big for one server, the system will spin up 50 worker containers across a Kubernetes cluster to share the load. AI PII Auto-Discovery: An intelligent scanner that looks at column data (not just names) and suggests: "This column looks like a Passport Number. Apply Masking?" Adaptive Throttling: The engine will monitor the Production Database's latency. If Production slows down, SeEDM will automatically pause or slow its reading to prevent impacting real users ("Good Neighbor Policy").
+Distributed Remote Workers: Using Project Leyden, we will create tiny, instant-start Docker containers. If a job is too big for one server, the system will spin up 50 worker containers across a Kubernetes cluster to share the load. AI PII Auto-Discovery: An intelligent scanner that looks at column data (not just names) and suggests: "This column looks like a Passport Number. Apply Masking?" Adaptive Throttling: The engine will monitor the Production Database's latency. If Production slows down, Anonify will automatically pause or slow its reading to prevent impacting real users ("Good Neighbor Policy").
 
-Conclusion The SeEDM Platform transforms data migration from a high-risk manual task into a secure, automated infrastructure service. By solving the specific challenges of Legacy Database Compatibility and providing a flexible Configuration Engine, SeEDM fits seamlessly into complex enterprise environments while ensuring absolute data privacy.
+Conclusion The Anonify Platform transforms data migration from a high-risk manual task into a secure, automated infrastructure service. By solving the specific challenges of Legacy Database Compatibility and providing a flexible Configuration Engine, Anonify fits seamlessly into complex enterprise environments while ensuring absolute data privacy.

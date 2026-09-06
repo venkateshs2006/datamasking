@@ -31,7 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
- * Master End-to-End Test Suite for the Entire SeEDM (Anonify) Platform.
+ * Master End-to-End Test Suite for the Entire Anonify Platform.
  * Validates:
  * 1. Authentication, Authorization & RBAC
  * 2. Cloud & Local Object Storage Connection Management
