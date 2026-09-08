@@ -1,16 +1,20 @@
 package com.enterprise.seedm.service;
 
 import com.enterprise.seedm.model.AiPiiDetectionResponse.PiiEntityInfo;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.*;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.util.*;
 
 @Service
@@ -20,16 +24,75 @@ public class QwenAiClientService {
 
     private final ObjectMapper objectMapper;
     private static final int TIMEOUT_MS = 30000; // 30s timeout
+    private static final String DEFAULT_QWEN_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions";
+    private static final String DEFAULT_QWEN_MODEL = "qwen-turbo";
 
-    private RestTemplate createRestTemplate() {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(TIMEOUT_MS);
-        factory.setReadTimeout(TIMEOUT_MS);
-        return new RestTemplate(factory);
+    /**
+     * Builds an OpenAI-compatible ChatModel via Spring AI configured for Qwen / DashScope
+     */
+    public ChatModel buildChatModel(String apiUrl, String apiKey, String model, Double temperature, Integer maxTokens) {
+        if (apiUrl == null || apiUrl.isBlank()) {
+            apiUrl = DEFAULT_QWEN_URL;
+        }
+        if (model == null || model.isBlank()) {
+            model = DEFAULT_QWEN_MODEL;
+        }
+
+        String trimmedUrl = apiUrl.trim();
+        while (trimmedUrl.endsWith("/")) {
+            trimmedUrl = trimmedUrl.substring(0, trimmedUrl.length() - 1);
+        }
+
+        String baseUrl;
+        String completionsPath;
+        if (trimmedUrl.endsWith("/chat/completions")) {
+            baseUrl = trimmedUrl.substring(0, trimmedUrl.length() - "/chat/completions".length());
+            completionsPath = "/chat/completions";
+        } else if (trimmedUrl.endsWith("/v1")) {
+            baseUrl = trimmedUrl;
+            completionsPath = "/chat/completions";
+        } else {
+            baseUrl = trimmedUrl;
+            completionsPath = "/v1/chat/completions";
+        }
+
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofMillis(TIMEOUT_MS));
+        requestFactory.setReadTimeout(Duration.ofMillis(TIMEOUT_MS));
+
+        RestClient.Builder restClientBuilder = RestClient.builder().requestFactory(requestFactory);
+
+        OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
+                .baseUrl(baseUrl)
+                .completionsPath(completionsPath)
+                .restClientBuilder(restClientBuilder);
+
+        if (apiKey != null && !apiKey.isBlank()) {
+            apiBuilder.apiKey(apiKey.trim());
+        } else {
+            apiBuilder.apiKey("none");
+        }
+
+        OpenAiApi openAiApi = apiBuilder.build();
+
+        OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
+                .model(model);
+
+        if (temperature != null) {
+            optionsBuilder.temperature(temperature);
+        }
+        if (maxTokens != null) {
+            optionsBuilder.maxTokens(maxTokens);
+        }
+
+        return OpenAiChatModel.builder()
+                .openAiApi(openAiApi)
+                .defaultOptions(optionsBuilder.build())
+                .build();
     }
 
     /**
-     * Call Qwen LLM API to detect PII across database tables and columns
+     * Call Qwen LLM API via Spring AI to detect PII across database tables and columns
      */
     public Map<String, PiiEntityInfo> detectPiiWithQwen(
             Map<String, List<String>> tableColumns,
@@ -38,13 +101,13 @@ public class QwenAiClientService {
             String model) throws Exception {
 
         if (apiUrl == null || apiUrl.isBlank()) {
-            apiUrl = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions";
+            apiUrl = DEFAULT_QWEN_URL;
         }
         if (model == null || model.isBlank()) {
-            model = "qwen-turbo";
+            model = DEFAULT_QWEN_MODEL;
         }
 
-        log.info("Invoking Qwen LLM API at {} with model: {}", apiUrl, model);
+        log.info("Invoking Qwen LLM via Spring AI at {} with model: {}", apiUrl, model);
 
         String systemPrompt = """
                 You are an expert Data Privacy & PII Auto-Detection Engine for enterprise database migration & synthetic data masking.
@@ -96,87 +159,41 @@ public class QwenAiClientService {
             userPrompt.append("Columns: ").append(String.join(", ", entry.getValue())).append("\n\n");
         }
 
-        // Build OpenAI/Qwen compatible request body
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", model);
-        requestBody.put("temperature", 0.1);
+        ChatModel chatModel = buildChatModel(apiUrl, apiKey, model, 0.1, null);
+        ChatClient chatClient = ChatClient.create(chatModel);
 
-        List<Map<String, String>> messages = new ArrayList<>();
-        messages.add(Map.of("role", "system", "content", systemPrompt));
-        messages.add(Map.of("role", "user", "content", userPrompt.toString()));
-        requestBody.put("messages", messages);
+        String rawContent = chatClient.prompt()
+                .system(systemPrompt)
+                .user(userPrompt.toString())
+                .call()
+                .content();
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        if (apiKey != null && !apiKey.isBlank()) {
-            headers.setBearerAuth(apiKey.trim());
-        }
-
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-        RestTemplate restTemplate = createRestTemplate();
-
-        ResponseEntity<String> response = restTemplate.exchange(apiUrl, HttpMethod.POST, entity, String.class);
-        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-            throw new RuntimeException("Qwen API returned status " + response.getStatusCode() + ": " + response.getBody());
-        }
-
-        String rawContent = extractContentFromQwenResponse(response.getBody());
+        log.debug("Raw response from Spring AI Qwen model: {}", rawContent);
         return parseEntitiesFromJson(rawContent);
     }
 
     /**
-     * Test connection to Qwen API endpoint
+     * Test connection to Qwen API endpoint via Spring AI
      */
     public boolean testConnection(String apiUrl, String apiKey, String model) {
         try {
-            if (apiUrl == null || apiUrl.isBlank()) {
-                apiUrl = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions";
-            }
-            if (model == null || model.isBlank()) {
-                model = "qwen-turbo";
-            }
-
-            Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", model);
-            requestBody.put("max_tokens", 10);
-            requestBody.put("messages", List.of(
-                    Map.of("role", "user", "content", "Ping test. Respond with OK.")
-            ));
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            if (apiKey != null && !apiKey.isBlank()) {
-                headers.setBearerAuth(apiKey.trim());
-            }
-
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-            RestTemplate restTemplate = createRestTemplate();
-
-            ResponseEntity<String> response = restTemplate.exchange(apiUrl, HttpMethod.POST, entity, String.class);
-            return response.getStatusCode().is2xxSuccessful();
+            ChatModel chatModel = buildChatModel(apiUrl, apiKey, model, 0.1, 10);
+            ChatClient chatClient = ChatClient.create(chatModel);
+            String response = chatClient.prompt()
+                    .user("Ping test. Respond with OK.")
+                    .call()
+                    .content();
+            return response != null && !response.isBlank();
         } catch (Exception e) {
-            log.warn("Qwen API connection test failed: {}", e.getMessage());
+            log.warn("Qwen API connection test failed via Spring AI: {}", e.getMessage());
             return false;
         }
     }
 
     /**
-     * Extract assistant message content from Qwen response JSON
-     */
-    private String extractContentFromQwenResponse(String responseJson) throws Exception {
-        JsonNode root = objectMapper.readTree(responseJson);
-        JsonNode choices = root.path("choices");
-        if (choices.isArray() && !choices.isEmpty()) {
-            JsonNode message = choices.get(0).path("message");
-            return message.path("content").asText();
-        }
-        throw new RuntimeException("No valid choices in Qwen API response");
-    }
-
-    /**
      * Parse entities map from raw JSON content (handling markdown code fences if present)
      */
-    private Map<String, PiiEntityInfo> parseEntitiesFromJson(String rawContent) {
+    public Map<String, PiiEntityInfo> parseEntitiesFromJson(String rawContent) {
         Map<String, PiiEntityInfo> result = new HashMap<>();
         if (rawContent == null || rawContent.isBlank()) {
             return result;
