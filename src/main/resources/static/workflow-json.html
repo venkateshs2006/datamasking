@@ -246,10 +246,111 @@
                         </form>
                     </div>
                 </div>
+
+                <!-- AI PII Auto-Detection Toggle Card -->
+                <div class="mt-8 bg-gradient-to-r from-emerald-50/70 via-slate-50 to-purple-50/70 p-5 rounded-2xl border border-emerald-200/80 shadow-sm transition-all duration-200 hover:shadow-md">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div class="flex items-start space-x-3.5">
+                            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-bnp-emerald to-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-md shadow-bnp-emerald/20 shrink-0">
+                                <i class="fas fa-brain"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-center space-x-2">
+                                    <h4 class="text-sm font-bold text-gray-900 tracking-tight">AI-Powered PII Auto-Detection & Masking</h4>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">
+                                        <i class="fas fa-sparkles mr-1"></i> Qwen LLM
+                                    </span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-0.5">
+                                    Automatically scan discovered JSON fields to identify sensitive PII (Emails, Names, Phone numbers, Addresses, Financial details, SSN/IDs) and pre-apply synthetic Faker rules using Qwen AI.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-3 self-end sm:self-center shrink-0">
+                            <button type="button" onclick="toggleQwenConfigDrawer()" class="text-xs text-gray-700 hover:text-bnp-emerald bg-white px-3 py-1.5 rounded-lg border border-gray-200 hover:border-bnp-emerald/40 font-bold shadow-sm transition flex items-center">
+                                <i class="fas fa-sliders-h mr-1.5 text-bnp-emerald"></i> Qwen Settings <i id="qwenConfigChevron" class="fas fa-chevron-down ml-1.5 text-[10px] text-gray-400 transition-transform"></i>
+                            </button>
+                            <span id="aiPiiStatusBadge" class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <i class="fas fa-check-circle mr-1"></i> AI Active
+                            </span>
+                            <label class="relative inline-flex items-center cursor-pointer select-none">
+                                <input type="checkbox" id="aiPiiToggle" class="sr-only peer" checked onchange="toggleAiPiiDetection()">
+                                <div class="w-12 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bnp-emerald shadow-inner"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Qwen Configuration Drawer -->
+                    <div id="qwenConfigDrawer" class="hidden mt-4 pt-4 border-t border-emerald-200/60 transition-all">
+                        <div class="bg-white/95 p-4 rounded-xl border border-emerald-100 shadow-sm space-y-3">
+                            <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+                                <span class="text-xs font-bold text-gray-700 uppercase tracking-wide flex items-center">
+                                    <i class="fas fa-brain mr-1.5 text-bnp-emerald"></i> Qwen API & Model Settings
+                                </span>
+                                <span class="text-[11px] text-gray-400 font-medium"><i class="fas fa-lock mr-1"></i>Saved locally in browser</span>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div class="md:col-span-2">
+                                    <label class="text-[11px] font-bold text-gray-600 block mb-1">Qwen API Endpoint URL</label>
+                                    <input type="text" id="qwenApiUrl" class="w-full text-xs p-2.5 border border-gray-200 rounded-lg focus:border-bnp-emerald focus:ring-1 focus:ring-bnp-emerald/20 outline-none font-mono bg-gray-50/50 focus:bg-white transition" placeholder="https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions" value="https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions" oninput="saveQwenConfig()">
+                                </div>
+                                <div>
+                                    <label class="text-[11px] font-bold text-gray-600 block mb-1">Model Name</label>
+                                    <select id="qwenModel" class="w-full text-xs p-2.5 border border-gray-200 rounded-lg focus:border-bnp-emerald focus:ring-1 focus:ring-bnp-emerald/20 outline-none font-medium bg-gray-50/50 focus:bg-white transition cursor-pointer" onchange="saveQwenConfig()">
+                                        <option value="qwen-turbo">qwen-turbo (Fast & Economical)</option>
+                                        <option value="qwen-plus" selected>qwen-plus (Balanced & Recommended)</option>
+                                        <option value="qwen-max">qwen-max (Deep Reasoning)</option>
+                                        <option value="qwen2.5-72b-instruct">qwen2.5-72b-instruct</option>
+                                        <option value="qwen2.5-coder-32b-instruct">qwen2.5-coder-32b-instruct</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="text-[11px] font-bold text-gray-600 block mb-1">Qwen API Key</label>
+                                <div class="flex gap-2">
+                                    <div class="relative flex-1">
+                                        <input type="password" id="qwenApiKey" class="w-full text-xs p-2.5 pr-10 border border-gray-200 rounded-lg focus:border-bnp-emerald focus:ring-1 focus:ring-bnp-emerald/20 outline-none font-mono bg-gray-50/50 focus:bg-white transition" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" oninput="saveQwenConfig()">
+                                        <button type="button" onclick="toggleApiKeyVisibility('qwenApiKey')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs focus:outline-none" title="Toggle visibility">
+                                            <i id="qwenApiKeyEye" class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                    <button type="button" id="btnTestQwen" onclick="testQwenConnection()" class="px-4 py-2 text-xs font-bold text-bnp-emerald bg-bnp-emerald/10 border border-bnp-emerald/20 hover:bg-bnp-emerald hover:text-white rounded-lg transition shadow-sm flex items-center shrink-0">
+                                        <i class="fas fa-bolt mr-1.5"></i> Test Connection
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="qwenTestStatus" class="hidden text-xs font-semibold p-2.5 rounded-lg transition-all"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- STEP 2: RULES -->
             <div id="step2" class="step-container p-6 flex flex-col overflow-hidden">
+                <!-- AI Banner in Step 2 -->
+                <div id="aiPiiBanner" class="mb-4 p-3 bg-gradient-to-r from-emerald-50/90 via-teal-50/70 to-purple-50/80 border border-emerald-200/90 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm shrink-0">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
+                            <i class="fas fa-sparkles"></i>
+                        </div>
+                        <div>
+                            <span id="aiPiiBannerText" class="text-xs font-bold text-gray-800 block">AI Auto-Detection Ready</span>
+                            <p id="aiPiiBannerSubtext" class="text-[11px] text-gray-600">Sensitive PII fields automatically classified and Faker masking rules pre-applied.</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+                        <button type="button" onclick="runManualAiScan()" class="text-xs bg-white text-bnp-emerald border border-bnp-emerald/30 hover:bg-bnp-emerald hover:text-white px-2.5 py-1.5 rounded-lg font-bold transition shadow-sm flex items-center">
+                            <i class="fas fa-sync-alt mr-1"></i> Re-Scan AI
+                        </button>
+                        <button type="button" onclick="clearAllRules()" class="text-xs bg-white text-gray-600 border border-gray-200 hover:bg-red-50 hover:text-red-600 px-2.5 py-1.5 rounded-lg font-bold transition shadow-sm flex items-center">
+                            <i class="fas fa-trash-alt mr-1"></i> Clear Rules
+                        </button>
+                    </div>
+                </div>
+
                 <div class="flex justify-between items-start mb-4 shrink-0">
                     <div>
                         <h3 class="text-xl font-bold text-gray-800">Assign Masking Rules</h3>
@@ -504,6 +605,7 @@
 
         userDepartments = data.departments || [];
 
+        loadQwenConfig();
         fetchConnections();
         fetchCosConnections();
     });
@@ -532,8 +634,222 @@
             destCosId: null,
             maskingKey: '',
             scannedSourceId: null
-        }
+        },
+        aiSuggestions: {}
     };
+
+    // --- QWEN AI CONFIGURATION & HELPERS ---
+    function toggleQwenConfigDrawer() {
+        const drawer = document.getElementById('qwenConfigDrawer');
+        const chevron = document.getElementById('qwenConfigChevron');
+        if (drawer) {
+            drawer.classList.toggle('hidden');
+            if (chevron) {
+                chevron.style.transform = drawer.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+            }
+        }
+    }
+
+    function toggleApiKeyVisibility(inputId) {
+        const input = document.getElementById(inputId);
+        const icon = document.getElementById(inputId + 'Eye');
+        if (input && icon) {
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'fas fa-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'fas fa-eye';
+            }
+        }
+    }
+
+    function saveQwenConfig() {
+        const url = document.getElementById('qwenApiUrl')?.value || '';
+        const key = document.getElementById('qwenApiKey')?.value || '';
+        const model = document.getElementById('qwenModel')?.value || 'qwen-turbo';
+        localStorage.setItem('anonify_qwen_url', url);
+        localStorage.setItem('anonify_qwen_key', key);
+        localStorage.setItem('anonify_qwen_model', model);
+    }
+
+    function loadQwenConfig() {
+        const savedUrl = localStorage.getItem('anonify_qwen_url');
+        const savedKey = localStorage.getItem('anonify_qwen_key');
+        const savedModel = localStorage.getItem('anonify_qwen_model');
+        if (savedUrl && document.getElementById('qwenApiUrl')) {
+            document.getElementById('qwenApiUrl').value = savedUrl;
+        }
+        if (savedKey && document.getElementById('qwenApiKey')) {
+            document.getElementById('qwenApiKey').value = savedKey;
+        }
+        if (savedModel && document.getElementById('qwenModel')) {
+            document.getElementById('qwenModel').value = savedModel;
+        }
+    }
+
+    async function testQwenConnection() {
+        const btn = document.getElementById('btnTestQwen');
+        const status = document.getElementById('qwenTestStatus');
+        const url = document.getElementById('qwenApiUrl')?.value.trim();
+        const key = document.getElementById('qwenApiKey')?.value.trim();
+        const model = document.getElementById('qwenModel')?.value || 'qwen-turbo';
+
+        if (!url) {
+            status.className = 'text-xs font-semibold p-2.5 rounded-lg bg-red-50 text-red-700 border border-red-200 block';
+            status.innerHTML = '<i class="fas fa-exclamation-circle mr-1"></i> Please enter the Qwen API Endpoint URL.';
+            return;
+        }
+
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1.5"></i> Testing...';
+        btn.disabled = true;
+        status.classList.add('hidden');
+
+        try {
+            const res = await fetch('/api/ai/test-qwen', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ qwenApiUrl: url, qwenApiKey: key, qwenModel: model })
+            });
+            const data = await res.json();
+            if (data.success) {
+                status.className = 'text-xs font-semibold p-2.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 block';
+                status.innerHTML = `<i class="fas fa-check-circle mr-1 text-emerald-600"></i> ${data.message || 'Connected to Qwen API successfully!'}`;
+            } else {
+                status.className = 'text-xs font-semibold p-2.5 rounded-lg bg-red-50 text-red-700 border border-red-200 block';
+                status.innerHTML = `<i class="fas fa-times-circle mr-1 text-red-600"></i> ${data.message || 'Connection failed'}`;
+            }
+        } catch (e) {
+            status.className = 'text-xs font-semibold p-2.5 rounded-lg bg-red-50 text-red-700 border border-red-200 block';
+            status.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i> Request failed: ${e.message}`;
+        } finally {
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+        }
+    }
+
+    function toggleAiPiiDetection() {
+        const toggle = document.getElementById('aiPiiToggle');
+        const badge = document.getElementById('aiPiiStatusBadge');
+        if (toggle && badge) {
+            if (toggle.checked) {
+                badge.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200';
+                badge.innerHTML = '<i class="fas fa-check-circle mr-1"></i> AI Active';
+                if (currentStep === 2) {
+                    runManualAiScan();
+                }
+            } else {
+                badge.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200';
+                badge.innerHTML = '<i class="fas fa-minus-circle mr-1"></i> AI Inactive';
+                const bannerText = document.getElementById('aiPiiBannerText');
+                const bannerSubtext = document.getElementById('aiPiiBannerSubtext');
+                if (bannerText) bannerText.textContent = 'Manual Masking Mode Active';
+                if (bannerSubtext) bannerSubtext.textContent = 'AI auto-detection is currently switched off. Configure fields manually.';
+            }
+        }
+    }
+
+    async function triggerAiPiiDetection() {
+        const isAiEnabled = document.getElementById('aiPiiToggle')?.checked;
+        if (!isAiEnabled || availableKeys.length === 0) return;
+
+        const qwenUrl = document.getElementById('qwenApiUrl')?.value.trim() || '';
+        const qwenKey = document.getElementById('qwenApiKey')?.value.trim() || '';
+        const qwenModel = document.getElementById('qwenModel')?.value || 'qwen-turbo';
+
+        try {
+            const payload = {
+                tables: ['json'],
+                tableColumns: { 'json': availableKeys },
+                qwenApiUrl: qwenUrl,
+                qwenApiKey: qwenKey,
+                qwenModel: qwenModel
+            };
+            const res = await fetch('/api/ai/detect-pii', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                const aiData = await res.json();
+                state.aiSuggestions = {};
+                const rawEntities = aiData.detectedEntities || {};
+                
+                // Map raw entities (e.g. "json.email") to plain field key ("email")
+                Object.keys(rawEntities).forEach(full => {
+                    const fieldKey = full.startsWith('json.') ? full.substring(5) : full;
+                    state.aiSuggestions[fieldKey] = rawEntities[full];
+                });
+
+                if (aiData.maskingColumns) {
+                    aiData.maskingColumns.forEach(full => {
+                        const key = full.startsWith('json.') ? full.substring(5) : full;
+                        if (availableKeys.includes(key) && !state.rules.maskingColumns.includes(key)) {
+                            state.rules.partialMaskingColumns = state.rules.partialMaskingColumns.filter(k => k !== key);
+                            state.rules.constraintFields = state.rules.constraintFields.filter(k => k !== key);
+                            state.rules.maskingColumns.push(key);
+                        }
+                    });
+                }
+                if (aiData.partialMaskingColumns) {
+                    aiData.partialMaskingColumns.forEach(full => {
+                        const key = full.startsWith('json.') ? full.substring(5) : full;
+                        if (availableKeys.includes(key) && !state.rules.partialMaskingColumns.includes(key)) {
+                            state.rules.maskingColumns = state.rules.maskingColumns.filter(k => k !== key);
+                            state.rules.constraintFields = state.rules.constraintFields.filter(k => k !== key);
+                            state.rules.partialMaskingColumns.push(key);
+                        }
+                    });
+                }
+                if (aiData.constraintColumns) {
+                    aiData.constraintColumns.forEach(full => {
+                        const key = full.startsWith('json.') ? full.substring(5) : full;
+                        if (availableKeys.includes(key) && !state.rules.constraintFields.includes(key)) {
+                            state.rules.maskingColumns = state.rules.maskingColumns.filter(k => k !== key);
+                            state.rules.partialMaskingColumns = state.rules.partialMaskingColumns.filter(k => k !== key);
+                            state.rules.constraintFields.push(key);
+                        }
+                    });
+                }
+
+                const bannerText = document.getElementById('aiPiiBannerText');
+                const bannerSubtext = document.getElementById('aiPiiBannerSubtext');
+                const engine = aiData.engineUsed || 'Smart AI';
+                if (bannerText) {
+                    bannerText.textContent = `${engine} Scan Completed (${aiData.totalPiiColumnsFound || 0} PII Fields Found)`;
+                }
+                if (bannerSubtext) {
+                    bannerSubtext.textContent = `Automatically detected ${aiData.totalPiiColumnsFound || 0} sensitive fields and applied standard Faker masking rules.`;
+                }
+            }
+        } catch (e) {
+            console.error("AI PII Detection error:", e);
+        }
+    }
+
+    async function runManualAiScan() {
+        const isAiEnabled = document.getElementById('aiPiiToggle');
+        if (isAiEnabled) isAiEnabled.checked = true;
+        toggleAiPiiDetection();
+
+        await triggerAiPiiDetection();
+        renderAvailableKeys();
+        renderTags();
+        if (currentStep === 2) validateStep2();
+    }
+
+    function clearAllRules() {
+        state.rules.maskingColumns = [];
+        state.rules.partialMaskingColumns = [];
+        state.rules.constraintFields = [];
+        state.aiSuggestions = {};
+
+        renderAvailableKeys();
+        renderTags();
+        if (currentStep === 2) validateStep2();
+    }
 
     function getSelectedDestDepartment() {
         const isLocal = state.rules.destType === 'local';
@@ -790,12 +1106,23 @@
     }
 
     async function nextStep() {
+        const btn = document.getElementById('btnNext');
+        const origHtml = btn.innerHTML;
+
         if (currentStep === 1) {
             const destType = state.rules.destType;
             const destSelect = destType === 'local' ? document.getElementById('destId') : document.getElementById('destCosId');
             state.rules.destDir = destSelect.options[destSelect.selectedIndex]?.dataset.path;
             if(destType === 'cos') state.rules.destCosId = destSelect.value;
             renderTags();
+
+            if (document.getElementById('aiPiiToggle')?.checked && availableKeys.length > 0) {
+                btn.innerHTML = '<i class="fas fa-sparkles fa-spin mr-2"></i>AI Scanning...';
+                btn.disabled = true;
+                await triggerAiPiiDetection();
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+            }
         }
         currentStep++;
         updateUI();
@@ -822,8 +1149,16 @@
 
             const ruleType = getRuleType(key);
 
+            const aiInfo = state.aiSuggestions ? state.aiSuggestions[key] : null;
+            const aiBadge = aiInfo 
+                ? `<span class="inline-flex items-center text-[9px] font-sans font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 border border-purple-200 shrink-0 ml-2" title="${aiInfo.reason || 'AI PII detection'}"><i class="fas fa-sparkles mr-1 text-[8px]"></i>${aiInfo.category}</span>`
+                : '';
+
             el.innerHTML = `
-                <span class="truncate" title="${key}">${key}</span>
+                <div class="flex items-center min-w-0 pr-2">
+                    <span class="truncate" title="${key}">${key}</span>
+                    ${aiBadge}
+                </div>
                 <div class="flex-shrink-0 ml-4 space-x-1">
                     <button onclick="addJsonRule('${key}', 'maskingColumns')" class="rule-btn ${ruleType === 'maskingColumns' ? 'bg-bnp-emerald text-white' : 'rule-btn-std'}">SFD</button>
                     <button onclick="addJsonRule('${key}', 'partialMaskingColumns')" class="rule-btn ${ruleType === 'partialMaskingColumns' ? 'bg-orange-500 text-white' : 'rule-btn-prt'}">PMD</button>
