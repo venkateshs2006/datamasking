@@ -40,6 +40,29 @@ public class JobApprovalController {
         JobRequest request = objectMapper.convertValue(requestPayload, JobRequest.class);
         request.setSubmittedBy(user);
 
+        String fileEncKey = null;
+        if (requestPayload.containsKey("fileEncryptionKey") && requestPayload.get("fileEncryptionKey") != null) {
+            fileEncKey = requestPayload.get("fileEncryptionKey").toString().trim();
+        }
+        if ((fileEncKey == null || fileEncKey.isEmpty()) && request.getConfigDetails() != null) {
+            Object k = request.getConfigDetails().get("fileEncryptionKey");
+            if (k != null) fileEncKey = k.toString().trim();
+        }
+
+        String normalizedJobType = request.getJobType() != null ? request.getJobType().toUpperCase() : "";
+        boolean isSecureExportJob = normalizedJobType.contains("SECURE_EXPORT") || normalizedJobType.contains("SECURE-EXPORT") || normalizedJobType.contains("SECUREEXPORT");
+        if (isSecureExportJob) {
+            if (fileEncKey == null || fileEncKey.isEmpty()) {
+                fileEncKey = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+            }
+            request.setFileEncryptionKey(fileEncKey);
+            if (request.getConfigDetails() != null) {
+                request.getConfigDetails().put("fileEncryptionKey", fileEncKey);
+            }
+        } else if (fileEncKey != null && !fileEncKey.isEmpty()) {
+            request.setFileEncryptionKey(fileEncKey);
+        }
+
         if (request.getConfigDetails() != null) {
             Map<String, Object> configDetailsMap = objectMapper.convertValue(request.getConfigDetails(), Map.class);
             String department = null;

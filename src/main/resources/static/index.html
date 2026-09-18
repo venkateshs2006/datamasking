@@ -115,6 +115,41 @@
             </div>
         </div>
 
+        <!-- File Encryption Password Banner (Displayed on completion of Secure Exports) -->
+        <div id="fileEncryptionKeyBanner" class="hidden mb-8 p-6 bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white rounded-2xl shadow-xl border border-purple-400/30 transition-all duration-500">
+            <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                <div class="flex items-center space-x-4">
+                    <div class="w-14 h-14 rounded-2xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-3xl text-purple-300 shadow-inner shrink-0">
+                        <i class="fas fa-key"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                                <i class="fas fa-check-circle text-xs"></i> Export Completed & Encrypted
+                            </span>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                AES-256
+                            </span>
+                        </div>
+                        <h3 class="text-xl font-bold text-white tracking-tight">File Encryption Password</h3>
+                        <p class="text-xs text-purple-200/80 mt-0.5">Please save or copy this password. It is required to decrypt and restore this archive (.enc) during import.</p>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+                    <div class="flex items-center bg-black/40 backdrop-blur-md px-3 py-2 rounded-xl border border-white/10 shadow-inner">
+                        <input type="password" id="bannerEncryptionKeyInput" readonly class="bg-transparent text-emerald-400 font-mono text-base font-bold px-2 py-1 focus:outline-none tracking-widest w-48 sm:w-60 select-all" value="">
+                        <button type="button" onclick="toggleBannerKeyVisibility()" class="text-purple-300 hover:text-white px-2 py-1 rounded transition" title="Show / Hide Password">
+                            <i id="bannerKeyEyeIcon" class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <button type="button" id="bannerCopyKeyBtn" onclick="copyBannerEncryptionKey()" class="px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold text-xs rounded-xl shadow-lg hover:shadow-emerald-500/20 transition flex items-center justify-center gap-2 shrink-0 active:scale-95">
+                        <i class="fas fa-copy text-sm"></i>
+                        <span id="bannerCopyBtnText">Copy Password</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- KPI Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div class="card p-5 border-l-4 border-bnp-emerald relative overflow-hidden">
@@ -458,6 +493,26 @@
         const isSecureExport = activeId && activeId.startsWith('secure-export-');
         const isSecureImport = activeId && activeId.startsWith('secure-import-');
 
+        const isSecureExportJob = (activeId && (
+            activeId.startsWith('secure-export-') ||
+            activeId.startsWith('mongo-export-') ||
+            activeId.startsWith('mongo-secure-export-') ||
+            activeId.startsWith('json-export-') ||
+            activeId.startsWith('json-secure-export-')
+        ));
+
+        // Handle File Encryption Key Banner for Secure Exports
+        const banner = document.getElementById('fileEncryptionKeyBanner');
+        const bannerInput = document.getElementById('bannerEncryptionKeyInput');
+        if (banner && bannerInput) {
+            if (data.status === 'COMPLETED' && isSecureExportJob && data.fileEncryptionKey) {
+                bannerInput.value = data.fileEncryptionKey;
+                banner.classList.remove('hidden');
+            } else {
+                banner.classList.add('hidden');
+            }
+        }
+
         let totalEntities = 0;
         let completedEntities = 0;
         let totalWrites = 0;
@@ -758,6 +813,34 @@
         if (event.target == modal) {
             modal.style.display = "none";
         }
+    }
+
+    function toggleBannerKeyVisibility() {
+        const input = document.getElementById('bannerEncryptionKeyInput');
+        const icon = document.getElementById('bannerKeyEyeIcon');
+        if (input) {
+            if (input.type === 'password') {
+                input.type = 'text';
+                if (icon) icon.className = 'fas fa-eye-slash';
+            } else {
+                input.type = 'password';
+                if (icon) icon.className = 'fas fa-eye';
+            }
+        }
+    }
+
+    function copyBannerEncryptionKey() {
+        const input = document.getElementById('bannerEncryptionKeyInput');
+        if (!input || !input.value) return;
+        navigator.clipboard.writeText(input.value).then(() => {
+            const btnText = document.getElementById('bannerCopyBtnText');
+            if (btnText) {
+                btnText.textContent = 'Copied!';
+                setTimeout(() => { btnText.textContent = 'Copy Password'; }, 2000);
+            }
+        }).catch(() => {
+            alert('Password: ' + input.value);
+        });
     }
 
     document.addEventListener('DOMContentLoaded', () => {

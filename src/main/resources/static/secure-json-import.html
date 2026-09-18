@@ -216,13 +216,16 @@
                         </div>
 
                         <div id="dest-local-container">
-                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Target Directory Path</label>
-                            <input type="text" id="destDirPath" class="input-field font-mono text-sm" placeholder="e.g., /home/sv/data-restored" value="/home/sv/data-restored" oninput="validateStep2()">
+                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Target Destination Directory <span class="text-rose-500">*</span></label>
+                            <select id="destLocalSelect" class="input-field cursor-pointer bg-white" onchange="onDestLocalSelected()">
+                                <option value="">Select a registered destination directory...</option>
+                            </select>
+                            <input type="hidden" id="destDirPath" value="">
                         </div>
 
                         <div id="dest-cos-container" style="display: none;">
-                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Destination COS Connection</label>
-                            <select id="destCosSelect" class="input-field cursor-pointer bg-white" onchange="validateStep2()">
+                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Destination COS Connection <span class="text-rose-500">*</span></label>
+                            <select id="destCosSelect" class="input-field cursor-pointer bg-white" onchange="onDestCosSelected()">
                                 <option value="">Loading COS connections...</option>
                             </select>
                         </div>
@@ -252,11 +255,24 @@
                                 <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Import Job Name</label>
                                 <input type="text" id="migrationName" class="input-field" placeholder="e.g. Q3 JSON Finance Import" required oninput="validateStep3()">
                             </div>
+                            <!-- Auto-populated Department (Requirement 3) -->
                             <div>
                                 <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department</label>
-                                <select id="department" class="input-field cursor-pointer bg-white" required onchange="validateStep3()">
-                                    <option value="">Loading departments...</option>
-                                </select>
+                                <div class="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl shadow-inner">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-9 h-9 rounded-lg bg-bnp-emerald/10 text-bnp-emerald flex items-center justify-center font-bold text-sm border border-bnp-emerald/20 shadow-sm">
+                                            <i class="fas fa-building"></i>
+                                        </div>
+                                        <div>
+                                            <span id="departmentDisplay" class="font-bold text-gray-800 text-sm block">Auto-detected from Destination</span>
+                                            <p id="departmentHint" class="text-[11px] text-gray-500 font-medium">Determined automatically from destination storage endpoint</p>
+                                        </div>
+                                    </div>
+                                    <span id="departmentBadge" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                        Auto-Assigned
+                                    </span>
+                                </div>
+                                <input type="hidden" id="department" name="department" value="">
                             </div>
                         </div>
 
@@ -351,6 +367,7 @@
 
         async function initStep1() {
             try {
+                // Fetch COS connections
                 const resCos = await fetch('/api/cos-connections');
                 if (resCos.ok) {
                     cosConnections = await resCos.json();
@@ -359,12 +376,34 @@
                     cosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
                     destCosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
                     cosConnections.forEach(c => {
-                        const opt = `<option value="${c.id}">${c.cosName || c.name || 'COS'} - ${c.bucketName || 'Bucket'} (${c.department || c.departmentId || ''})</option>`;
-                        cosSelect.innerHTML += opt;
-                        destCosSelect.innerHTML += opt;
+                        const opt = document.createElement('option');
+                        opt.value = c.id;
+                        opt.textContent = `${c.cosName || c.name || 'COS'} - ${c.bucketName || 'Bucket'} (${c.department || c.departmentId || ''})`;
+                        opt.dataset.department = c.department || c.departmentId || '';
+                        destCosSelect.appendChild(opt);
+
+                        const optSrc = document.createElement('option');
+                        optSrc.value = c.id;
+                        optSrc.textContent = `${c.cosName || c.name || 'COS'} - ${c.bucketName || 'Bucket'}`;
+                        cosSelect.appendChild(optSrc);
                     });
                 }
-            } catch (e) {}
+                // Fetch Local destination connections
+                const resLocal = await fetch('/api/cos-connections?envType=destination&storageType=Local');
+                if (resLocal.ok) {
+                    const localConns = await resLocal.json();
+                    const localSelect = document.getElementById('destLocalSelect');
+                    localSelect.innerHTML = '<option value="">Select a registered destination directory...</option>';
+                    localConns.forEach(c => {
+                        const opt = new Option(`${c.cosName} (${c.storageLocation || 'N/A'})`, c.id);
+                        opt.dataset.path = c.storageLocation || '';
+                        opt.dataset.department = c.department || '';
+                        localSelect.add(opt);
+                    });
+                }
+            } catch (e) {
+                console.warn('Error loading storage connections', e);
+            }
 
             scanSourceFiles();
         }
@@ -380,7 +419,65 @@
             const type = document.querySelector('input[name="destStorageType"]:checked').value;
             document.getElementById('dest-local-container').style.display = (type === 'local') ? 'block' : 'none';
             document.getElementById('dest-cos-container').style.display = (type === 'cos') ? 'block' : 'none';
+            updateDepartmentDisplay();
             validateStep2();
+        }
+
+        function onDestLocalSelected() {
+            const select = document.getElementById('destLocalSelect');
+            const opt = select.options[select.selectedIndex];
+            if (opt && opt.dataset && opt.dataset.path) {
+                document.getElementById('destDirPath').value = opt.dataset.path;
+            } else {
+                document.getElementById('destDirPath').value = '';
+            }
+            updateDepartmentDisplay();
+            validateStep2();
+        }
+
+        function onDestCosSelected() {
+            updateDepartmentDisplay();
+            validateStep2();
+        }
+
+        function updateDepartmentDisplay() {
+            const destType = document.querySelector('input[name="destStorageType"]:checked').value;
+            let dept = '';
+            if (destType === 'local') {
+                const sel = document.getElementById('destLocalSelect');
+                const opt = sel.options[sel.selectedIndex];
+                if (opt && opt.dataset && opt.dataset.department) dept = opt.dataset.department;
+                if (!dept && userDepartments.length > 0) {
+                    const first = userDepartments[0];
+                    dept = typeof first === 'string' ? first : first.name;
+                }
+            } else {
+                const sel = document.getElementById('destCosSelect');
+                const opt = sel.options[sel.selectedIndex];
+                if (opt && opt.dataset && opt.dataset.department) dept = opt.dataset.department;
+            }
+
+            const deptInput = document.getElementById('department');
+            const deptDisplay = document.getElementById('departmentDisplay');
+            const deptBadge = document.getElementById('departmentBadge');
+            const deptHint = document.getElementById('departmentHint');
+
+            if (deptInput) deptInput.value = dept;
+            if (deptDisplay) deptDisplay.textContent = dept || 'Not Detected';
+            if (deptBadge) {
+                if (dept) {
+                    deptBadge.textContent = 'Auto-Assigned';
+                    deptBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200';
+                } else {
+                    deptBadge.textContent = 'Pending Destination';
+                    deptBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200';
+                }
+            }
+            if (deptHint) {
+                deptHint.textContent = dept
+                    ? `Mapped automatically from destination connection (${dept})`
+                    : 'Select a destination storage endpoint in Step 2 to detect department';
+            }
         }
 
         async function scanSourceFiles() {
@@ -409,11 +506,11 @@
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
-                discoveredFiles = data.files || [];
+                discoveredFiles = (data.files || []).filter(f => f.name && f.name.toLowerCase().endsWith('.json.enc'));
                 countBadge.innerText = `${discoveredFiles.length} package(s)`;
 
                 if (discoveredFiles.length === 0) {
-                    container.innerHTML = `<div class="text-xs text-amber-600 text-center py-4"><i class="fas fa-exclamation-circle mr-1"></i> No JSON or encrypted .json.enc packages found in this location.</div>`;
+                    container.innerHTML = `<div class="text-xs text-amber-600 text-center py-4"><i class="fas fa-exclamation-circle mr-1"></i> No encrypted .json.enc packages found in this location.</div>`;
                     selectedFileName = '';
                 } else {
                     container.innerHTML = '';
@@ -464,7 +561,7 @@
             const destType = document.querySelector('input[name="destStorageType"]:checked').value;
             let valid = false;
             if (destType === 'local') {
-                valid = !!document.getElementById('destDirPath').value.trim();
+                valid = !!document.getElementById('destLocalSelect').value;
             } else {
                 valid = !!document.getElementById('destCosSelect').value;
             }
@@ -545,6 +642,8 @@
 
             const isOverwrite = document.getElementById('overwriteChk').checked;
             document.getElementById('reviewOverwritePolicy').innerText = isOverwrite ? 'Overwrite: Enabled' : 'Overwrite: Disabled';
+
+            updateDepartmentDisplay();
         }
 
         async function submitWorkflow() {

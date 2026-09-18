@@ -40,4 +40,7 @@ public class JobRequest {
 
     @Column(name = "department")
     private String department;
+
+    @Column(name = "file_encryption_key")
+    private String fileEncryptionKey;
 }

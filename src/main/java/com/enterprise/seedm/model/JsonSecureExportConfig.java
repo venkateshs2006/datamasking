@@ -14,6 +14,7 @@ public class JsonSecureExportConfig {
     private StorageConfig dest;
     private StorageConfig storage;
     private RulesConfig rules;
+    private String fileEncryptionKey;
 
     @Data
     public static class StorageConfig {

@@ -31,6 +31,9 @@ public class SecureExportJob {
     @Column(name = "department")
     private String department;
 
+    @Column(name = "file_encryption_key")
+    private String fileEncryptionKey;
+
     @Column(name = "created_at")
     private Long createdAt;
 

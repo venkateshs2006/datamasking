@@ -62,7 +62,7 @@
 
         .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #f1f5f9; }
 
-        .input-field { width: 100%; padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.875rem; transition: all 0.2s; background-color: #f8fafc; color: #334155; }
+        .input-field { width: 100%; padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.875rem; transition: all 0.2s; background-color: #f8fafc; color: #344155; }
         .input-field:focus { outline: none; border-color: var(--bnp-emerald); box-shadow: 0 0 0 3px rgba(0, 150, 94, 0.15); background-color: #fff; }
         .input-field:disabled { background-color: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
 
@@ -109,30 +109,44 @@
 
             <div class="mb-8 shrink-0 text-center">
                 <h2 class="text-3xl font-bold text-gray-900">Configure Secure Import</h2>
-                <p class="text-sm text-gray-500 mt-2">Restore and import encrypted secure export files into target database schemas.</p>
+                <p class="text-sm text-gray-500 mt-2">Restore encrypted SQL relational, MongoDB BSON, or JSON export packages into target systems.</p>
             </div>
 
-            <!-- Stepper -->
+            <!-- Stepper Navigation -->
             <div class="flex items-start mb-8 px-4 w-[70%] mx-auto shrink-0">
-                <div class="stepper-item active" id="step1-indicator"><div class="stepper-circle"><i class="fas fa-archive text-sm"></i></div><div class="stepper-label">Source File</div></div>
-                <div class="stepper-item" id="step2-indicator"><div class="stepper-circle"><i class="fas fa-database text-sm"></i></div><div class="stepper-label">Target Database</div></div>
-                <div class="stepper-item" id="step3-indicator"><div class="stepper-circle"><i class="fas fa-flag-checkered text-sm"></i></div><div class="stepper-label">Review</div></div>
+                <div class="stepper-item active" id="step1-indicator">
+                    <div class="stepper-circle"><i class="fas fa-archive text-sm"></i></div>
+                    <div class="stepper-label">Source File</div>
+                </div>
+                <div class="stepper-item" id="step2-indicator">
+                    <div class="stepper-circle"><i class="fas fa-database text-sm" id="step2-icon"></i></div>
+                    <div class="stepper-label" id="step2-label">Destination Target</div>
+                </div>
+                <div class="stepper-item" id="step3-indicator">
+                    <div class="stepper-circle"><i class="fas fa-flag-checkered text-sm"></i></div>
+                    <div class="stepper-label">Review & Submit</div>
+                </div>
             </div>
 
             <!-- Main Card -->
             <div class="card flex-1 flex flex-col overflow-hidden relative shadow-md bg-white rounded-xl">
 
                 <!-- STEP 1: SOURCE STORAGE & FILE -->
-                <div id="step1" class="step-container active p-8">
+                <div id="step1" class="step-container active p-8 overflow-y-auto">
                     <div class="max-w-2xl mx-auto w-full space-y-6">
                         <div class="flex items-center pb-4 border-b border-gray-100">
                             <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 mr-4 border border-emerald-100">
                                 <i class="fas fa-archive text-lg"></i>
                             </div>
                             <div>
-                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Source Location</h3>
-                                <p class="text-xs text-gray-500">Select where the encrypted export file is located</p>
+                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Step 1: Select Source Backup Package</h3>
+                                <p class="text-xs text-gray-500">Scan and choose the encrypted relational backup package (.sql.enc)</p>
                             </div>
+                        </div>
+
+                        <div>
+                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Import Job Name <span class="text-rose-500">*</span></label>
+                            <input type="text" id="jobNameInput" class="input-field" placeholder="e.g. Finance QA Import" value="Secure Data Import" oninput="validateStep1()">
                         </div>
 
                         <div>
@@ -154,7 +168,7 @@
                             <div>
                                 <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Folder Path</label>
                                 <div class="flex gap-2">
-                                    <input type="text" id="localPath" class="input-field font-mono text-sm" placeholder="e.g., secure-export or /path/to/backup" value="secure-export" oninput="validateStep1()">
+                                    <input type="text" id="localPath" class="input-field font-mono text-sm" placeholder="e.g., secure-export" value="secure-export" oninput="validateStep1()">
                                     <button type="button" onclick="scanSourceFiles()" class="btn btn-secondary text-xs px-4 whitespace-nowrap">
                                         <i class="fas fa-search mr-1.5"></i> Scan Files
                                     </button>
@@ -180,54 +194,164 @@
                         <!-- Scanned Files List -->
                         <div class="pt-2">
                             <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2 block flex justify-between items-center">
-                                Available Export Files
+                                Available Export Packages
                                 <span id="fileCountBadge" class="text-[10px] font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">0 files</span>
                             </label>
-                            <div id="filesListContainer" class="border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2 bg-gray-50/50">
+                            <div id="filesListContainer" class="border border-gray-200 rounded-lg p-3 max-h-56 overflow-y-auto space-y-2 bg-gray-50/50">
                                 <div class="text-xs text-gray-400 text-center py-4 italic">Click "Scan Files" to discover export packages.</div>
                             </div>
+                        </div>
+
+                        <!-- Selected File Banner -->
+                        <div id="selectedFileBanner" class="hidden p-3.5 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between text-xs">
+                            <div class="flex items-center space-x-2">
+                                <i class="fas fa-info-circle text-blue-600 text-sm"></i>
+                                <div>
+                                    <span class="font-bold text-blue-900" id="selectedFileText">Detected File</span>
+                                    <p class="text-[11px] text-blue-700 mt-0.5" id="selectedFileSubtext">Destination connections will be automatically filtered.</p>
+                                </div>
+                            </div>
+                            <span id="detectedTypePill" class="px-2.5 py-1 rounded font-bold uppercase text-[10px]">SQL</span>
                         </div>
 
                     </div>
                 </div>
 
-                <!-- STEP 2: TARGET DATABASE & SCHEMA -->
-                <div id="step2" class="step-container p-8">
+                <!-- STEP 2: DESTINATION TARGET SELECTION (DYNAMIC) -->
+                <div id="step2" class="step-container p-8 overflow-y-auto">
                     <div class="max-w-2xl mx-auto w-full space-y-6">
+
+                        <!-- Step 2 Header -->
                         <div class="flex items-center pb-4 border-b border-gray-100">
                             <div class="w-10 h-10 rounded-lg bg-bnp-emerald/10 flex items-center justify-center text-bnp-emerald mr-4 border border-bnp-emerald/20">
-                                <i class="fas fa-database text-lg"></i>
+                                <i class="fas fa-server text-lg" id="step2HeaderIcon"></i>
                             </div>
                             <div>
-                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Target Database</h3>
-                                <p class="text-xs text-gray-500">Choose the destination database and schema where data will be restored</p>
+                                <h3 class="text-lg font-bold text-gray-800 leading-tight" id="step2Title">Step 2: Select Destination Target</h3>
+                                <p class="text-xs text-gray-500" id="step2Subtitle">Choose the target destination configured for your selected backup type.</p>
                             </div>
                         </div>
 
-                        <div>
-                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Target Database Connection</label>
-                            <select id="destId" class="input-field cursor-pointer bg-white" required onchange="onDestDbChanged()">
-                                <option value="">Loading databases...</option>
-                            </select>
+                        <!-- Filter Banner Info -->
+                        <div id="step2FilterInfo" class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between text-xs text-emerald-800">
+                            <div class="flex items-center space-x-2">
+                                <i class="fas fa-filter text-bnp-emerald"></i>
+                                <span id="step2FilterInfoText">Connections filtered automatically based on selected file.</span>
+                            </div>
+                            <span class="font-mono font-bold text-[10px] bg-emerald-100 px-2 py-0.5 rounded text-emerald-800" id="activeFilterBadge">SQL</span>
                         </div>
 
-                        <div class="pt-2">
-                            <div class="flex justify-between items-center mb-1">
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide block">Target Schema</label>
-                                <div class="space-x-3">
-                                    <button type="button" id="btnFetchSchemas" onclick="fetchSchemas()" class="text-xs text-bnp-emerald hover:underline font-bold disabled:opacity-50" disabled>
-                                        <i class="fas fa-sync-alt mr-1"></i> Refresh
-                                    </button>
-                                    <button type="button" id="btnCreateSchema" onclick="openCreateSchemaModal()" class="text-xs text-blue-600 hover:underline font-bold disabled:opacity-50" disabled>
-                                        <i class="fas fa-plus-circle mr-1"></i> Create Schema
-                                    </button>
+                        <!-- SECTION A: RELATIONAL SQL DESTINATION -->
+                        <div id="destSqlContainer" class="space-y-4">
+                            <div>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">
+                                    Target Relational Database Connection <span class="text-rose-500">*</span>
+                                </label>
+                                <select id="destId" class="input-field cursor-pointer bg-white" onchange="onDestSqlChanged()">
+                                    <option value="">Select a relational database...</option>
+                                </select>
+                            </div>
+
+                            <div class="pt-2">
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide block">
+                                        Target Schema <span class="text-rose-500">*</span>
+                                    </label>
+                                    <div class="space-x-3">
+                                        <button type="button" id="btnFetchSchemas" onclick="fetchSchemas()" class="text-xs text-bnp-emerald hover:underline font-bold disabled:opacity-50" disabled>
+                                            <i class="fas fa-sync-alt mr-1"></i> Refresh
+                                        </button>
+                                        <button type="button" id="btnCreateSchema" onclick="openCreateSchemaModal()" class="text-xs text-blue-600 hover:underline font-bold disabled:opacity-50" disabled>
+                                            <i class="fas fa-plus-circle mr-1"></i> Create Schema
+                                        </button>
+                                    </div>
+                                </div>
+                                <select id="destSchema" class="input-field cursor-pointer bg-white" required disabled onchange="validateStep2()">
+                                    <option value="">Select connection first...</option>
+                                </select>
+                                <p class="text-[10px] text-gray-400 mt-1">If the schema does not exist, click "Create Schema" above.</p>
+                            </div>
+                        </div>
+
+                        <!-- SECTION B: MONGODB DESTINATION -->
+                        <div id="destMongoContainer" class="space-y-4" style="display: none;">
+                            <div>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">
+                                    Destination MongoDB Connection <span class="text-rose-500">*</span>
+                                </label>
+                                <select id="destMongoId" class="input-field cursor-pointer bg-white" onchange="onDestMongoChanged()">
+                                    <option value="">Loading MongoDB connections...</option>
+                                </select>
+                            </div>
+
+                            <div class="pt-2">
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide block">
+                                        Target Database <span class="text-rose-500">*</span>
+                                    </label>
+                                    <div class="flex items-center space-x-3">
+                                        <button type="button" id="btnRefreshMongoDbs" onclick="fetchMongoDatabases()" class="text-xs text-bnp-emerald hover:underline font-bold disabled:opacity-50" disabled>
+                                            <i class="fas fa-sync-alt mr-1"></i> Refresh DBs
+                                        </button>
+                                        <button type="button" id="btnCreateMongoDb" onclick="openCreateMongoDbModal()" class="text-xs text-blue-600 hover:underline font-bold disabled:opacity-50" disabled>
+                                            <i class="fas fa-plus-circle mr-1"></i> Create New DB
+                                        </button>
+                                    </div>
+                                </div>
+                                <!-- Dropdown of all databases: NO manual entry as requested -->
+                                <select id="destMongoDatabase" class="input-field cursor-pointer bg-white" required disabled onchange="validateStep2()">
+                                    <option value="">Select MongoDB connection first...</option>
+                                </select>
+                                <p class="text-[10px] text-gray-400 mt-1">Select an existing database or click "Create New DB" to import into a new database.</p>
+                            </div>
+
+                            <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg mt-2">
+                                <label class="flex items-center space-x-2 text-xs font-medium text-gray-700 cursor-pointer">
+                                    <input type="checkbox" id="mongoDropExistingChk" checked class="text-bnp-emerald focus:ring-bnp-emerald rounded">
+                                    <span>Drop & overwrite existing collections in target database before importing</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- SECTION C: JSON DESTINATION -->
+                        <div id="destJsonContainer" class="space-y-4" style="display: none;">
+                            <div>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2 block">Destination Storage Type</label>
+                                <div class="flex gap-6">
+                                    <label class="flex items-center text-sm font-semibold cursor-pointer">
+                                        <input type="radio" name="destJsonStorageType" value="local" class="mr-2 text-bnp-emerald" checked onchange="toggleDestJsonStorageType()">
+                                        <i class="fas fa-folder text-amber-500 mr-1.5"></i> Local Directory
+                                    </label>
+                                    <label class="flex items-center text-sm font-semibold cursor-pointer">
+                                        <input type="radio" name="destJsonStorageType" value="cos" class="mr-2 text-bnp-emerald" onchange="toggleDestJsonStorageType()">
+                                        <i class="fas fa-cloud text-blue-500 mr-1.5"></i> IBM Cloud Object Storage (COS)
+                                    </label>
                                 </div>
                             </div>
-                            <select id="destSchema" class="input-field cursor-pointer bg-white" required disabled onchange="validateStep2()">
-                                <option value="">Select connection first...</option>
-                            </select>
-                            <p class="text-[10px] text-gray-400 mt-1">If the schema does not exist, you can create it directly using the "Create Schema" button above.</p>
+
+                            <div id="destJsonLocalContainer">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Target Destination Directory <span class="text-rose-500">*</span></label>
+                                <select id="destJsonLocalSelect" class="input-field cursor-pointer bg-white" onchange="onDestJsonLocalChanged()">
+                                    <option value="">Select a registered destination directory...</option>
+                                </select>
+                                <input type="hidden" id="destJsonDirPath" value="">
+                            </div>
+
+                            <div id="destJsonCosContainer" style="display: none;">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Destination COS Connection <span class="text-rose-500">*</span></label>
+                                <select id="destJsonCosSelect" class="input-field cursor-pointer bg-white" onchange="onDestJsonCosChanged()">
+                                    <option value="">Loading COS connections...</option>
+                                </select>
+                            </div>
+
+                            <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                                <label class="flex items-center space-x-2 text-xs font-semibold text-gray-700 cursor-pointer">
+                                    <input type="checkbox" id="jsonOverwriteChk" checked class="text-bnp-emerald focus:ring-bnp-emerald rounded">
+                                    <span>Overwrite existing JSON files with same names</span>
+                                </label>
+                            </div>
                         </div>
+
                     </div>
                 </div>
 
@@ -247,24 +371,41 @@
                                 <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Import Job Name</label>
                                 <input type="text" id="migrationName" class="input-field" placeholder="e.g. Q3 Finance Import" required oninput="validateStep3()">
                             </div>
+
+                            <!-- Auto-populated Department (Requirement 3) -->
                             <div>
                                 <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department</label>
-                                <select id="department" class="input-field cursor-pointer bg-white" required onchange="validateStep3()">
-                                    <option value="">Loading departments...</option>
-                                </select>
+                                <div class="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl shadow-inner">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-9 h-9 rounded-lg bg-bnp-emerald/10 text-bnp-emerald flex items-center justify-center font-bold text-sm border border-bnp-emerald/20 shadow-sm">
+                                            <i class="fas fa-building"></i>
+                                        </div>
+                                        <div>
+                                            <span id="departmentDisplay" class="font-bold text-gray-800 text-sm block">Auto-detected from Destination</span>
+                                            <p id="departmentHint" class="text-[11px] text-gray-500 font-medium">Determined automatically from destination connection endpoint</p>
+                                        </div>
+                                    </div>
+                                    <span id="departmentBadge" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                        Auto-Assigned
+                                    </span>
+                                </div>
+                                <input type="hidden" id="department" name="department" value="">
                             </div>
                         </div>
 
+                        <!-- Review Cards Grid -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                             <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Source File</span>
+                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Source Backup Package</span>
                                 <div class="font-mono text-xs font-bold text-gray-800 break-all" id="reviewSourceFile">-</div>
                                 <div class="text-[11px] text-gray-500 mt-1" id="reviewStorageType">-</div>
+                                <div class="mt-2" id="reviewFileTypeBadge"></div>
                             </div>
                             <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Destination Database</span>
+                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Destination Target</span>
                                 <div class="font-mono text-xs font-bold text-gray-800 break-all" id="reviewDestDb">-</div>
-                                <div class="text-[11px] text-bnp-emerald font-semibold mt-1" id="reviewDestSchema">-</div>
+                                <div class="text-[11px] text-bnp-emerald font-semibold mt-1" id="reviewDestTarget">-</div>
+                                <div class="text-[10px] text-gray-400 mt-1" id="reviewPolicy">-</div>
                             </div>
                         </div>
 
@@ -272,7 +413,7 @@
                             <i class="fas fa-lock text-amber-600 text-base mr-3 mt-0.5"></i>
                             <div>
                                 <strong>Decryption Key Prompt on Execution:</strong>
-                                <p class="mt-0.5 text-amber-700">Once this job is approved by the designated reviewer, you will be prompted to enter the secret key to decrypt and migrate data directly to the database.</p>
+                                <p class="mt-0.5 text-amber-700">Once this job is approved by the reviewer, you will be prompted for the secret decryption password to restore data into the target environment with real-time progress.</p>
                             </div>
                         </div>
                     </div>
@@ -292,7 +433,7 @@
         </div>
     </main>
 
-    <!-- Create Schema Modal -->
+    <!-- Create Schema Modal (for SQL) -->
     <div id="createSchemaModal" class="modal">
         <div class="modal-content p-6">
             <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-100">
@@ -312,6 +453,27 @@
         </div>
     </div>
 
+    <!-- Create Database Modal (for MongoDB) -->
+    <div id="createMongoDbModal" class="modal">
+        <div class="modal-content p-6">
+            <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-100">
+                <h3 class="text-base font-bold text-gray-800"><i class="fas fa-plus-circle text-bnp-emerald mr-2"></i> Create New Database</h3>
+                <button type="button" onclick="closeCreateMongoDbModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Database Name <span class="text-rose-500">*</span></label>
+                    <input type="text" id="newMongoDbInput" class="input-field font-mono" placeholder="e.g. customer_masked_qa" onkeydown="if(event.key==='Enter') confirmCreateMongoDb()">
+                    <p class="text-[10px] text-gray-400 mt-1">This database will be created in the target MongoDB cluster upon import.</p>
+                </div>
+                <div class="flex justify-end space-x-3 pt-2">
+                    <button type="button" onclick="closeCreateMongoDbModal()" class="btn btn-secondary text-xs">Cancel</button>
+                    <button type="button" onclick="confirmCreateMongoDb()" class="btn btn-primary text-xs">Add Database</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <footer>
         <div class="footer-content">
             <p>© BNP Paribas - 2026</p>
@@ -325,6 +487,11 @@
         let userDepartments = [];
         let discoveredFiles = [];
         let selectedFileName = '';
+        let detectedFileType = 'SQL'; // 'SQL' | 'BSON' | 'JSON'
+
+        let allDestConnections = [];
+        let localDestConnections = [];
+        let cosDestConnections = [];
 
         fetch('/api/auth/check').then(r => r.json()).then(data => {
             if (!data.authenticated) {
@@ -348,15 +515,8 @@
             }
 
             userDepartments = data.departments || [];
-            const deptSelect = document.getElementById('department');
-            deptSelect.innerHTML = '<option value="">Select a department...</option>';
-            userDepartments.forEach(d => {
-                const dName = typeof d === 'string' ? d : d.name;
-                deptSelect.add(new Option(dName, dName));
-            });
-
             initStep1();
-            fetchDestConnections();
+            fetchAllDestConnections();
         });
 
         async function logout() {
@@ -365,15 +525,18 @@
         }
 
         async function initStep1() {
-            // Load COS connections for dropdown
-            const resCos = await fetch('/api/cos-connections');
-            if (resCos.ok) {
-                const cosConns = await resCos.json();
-                const cosSelect = document.getElementById('cosConnectionId');
-                cosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
-                cosConns.forEach(c => cosSelect.add(new Option(c.connectionName + ' (' + (c.bucketName || 'Bucket') + ')', c.id)));
+            // Load COS connections for source dropdown
+            try {
+                const resCos = await fetch('/api/cos-connections');
+                if (resCos.ok) {
+                    const cosConns = await resCos.json();
+                    const cosSelect = document.getElementById('cosConnectionId');
+                    cosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
+                    cosConns.forEach(c => cosSelect.add(new Option(c.cosName || c.connectionName + ' (' + (c.bucketName || 'Bucket') + ')', c.id)));
+                }
+            } catch (e) {
+                console.warn('Error loading COS connections', e);
             }
-            // Auto scan default local path
             scanSourceFiles();
         }
 
@@ -389,9 +552,9 @@
             const container = document.getElementById('filesListContainer');
             const countBadge = document.getElementById('fileCountBadge');
 
-            container.innerHTML = '<div class="text-xs text-gray-500 text-center py-4"><i class="fas fa-spinner fa-spin mr-1"></i> Scanning files...</div>';
+            container.innerHTML = '<div class="text-xs text-gray-500 text-center py-4"><i class="fas fa-spinner fa-spin mr-1"></i> Scanning export packages...</div>';
 
-            const payload = { type: type };
+            const payload = { type: type, fileType: 'sql' };
             if (type === 'local') {
                 payload.path = document.getElementById('localPath').value.trim() || 'secure-export';
             } else {
@@ -405,35 +568,50 @@
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
-                discoveredFiles = data.files || [];
+                discoveredFiles = (data.files || []).filter(f => f.name && f.name.toLowerCase().endsWith('.sql.enc'));
                 countBadge.innerText = `${discoveredFiles.length} file(s)`;
 
                 if (discoveredFiles.length === 0) {
-                    container.innerHTML = `<div class="text-xs text-amber-600 text-center py-4"><i class="fas fa-exclamation-circle mr-1"></i> No export SQL or encrypted .sql.enc files found in this location.</div>`;
+                    container.innerHTML = `<div class="text-xs text-amber-600 text-center py-4"><i class="fas fa-exclamation-circle mr-1"></i> No encrypted .sql.enc files found in this location.</div>`;
                     selectedFileName = '';
+                    document.getElementById('selectedFileBanner').classList.add('hidden');
                 } else {
                     container.innerHTML = '';
                     discoveredFiles.forEach((file, idx) => {
                         const isSelected = idx === 0 || file.name === selectedFileName;
-                        if (isSelected && !selectedFileName) selectedFileName = file.name;
+                        if (isSelected && !selectedFileName) {
+                            selectedFileName = file.name;
+                            onFileSelected(file.name);
+                        }
 
                         const sizeKb = (file.sizeBytes / 1024).toFixed(1);
                         const isEnc = file.encrypted || file.name.endsWith('.enc');
+                        const fileType = detectFileType(file.name);
+
+                        let typeBadge = '';
+                        if (fileType === 'BSON') {
+                            typeBadge = '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200"><i class="fas fa-leaf mr-1"></i>MongoDB BSON</span>';
+                        } else if (fileType === 'JSON') {
+                            typeBadge = '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200"><i class="fas fa-file-code mr-1"></i>JSON File</span>';
+                        } else {
+                            typeBadge = '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200"><i class="fas fa-database mr-1"></i>Relational SQL</span>';
+                        }
 
                         const div = document.createElement('label');
-                        div.className = 'flex items-center justify-between p-2.5 bg-white rounded-lg border border-gray-200 hover:border-bnp-emerald cursor-pointer transition shadow-sm';
+                        div.className = `flex items-center justify-between p-3 bg-white rounded-lg border ${isSelected ? 'border-bnp-emerald shadow-sm bg-emerald-50/10' : 'border-gray-200'} hover:border-bnp-emerald cursor-pointer transition select-none`;
                         div.innerHTML = `
-                            <div class="flex items-center space-x-3">
-                                <input type="radio" name="selectedFileRadio" value="${file.name}" ${isSelected ? 'checked' : ''} onchange="onFileSelected('${file.name}')" class="text-bnp-emerald">
+                            <div class="flex items-center space-x-3 truncate">
+                                <input type="radio" name="selectedFileRadio" value="${file.name}" ${isSelected ? 'checked' : ''} onchange="onFileSelected('${file.name}')" class="text-bnp-emerald focus:ring-bnp-emerald">
                                 <div>
-                                    <div class="text-xs font-mono font-bold text-gray-800 flex items-center gap-1.5">
-                                        <i class="fas fa-file-code text-gray-400"></i> ${file.name}
+                                    <div class="text-xs font-mono font-bold text-gray-800 flex items-center gap-1.5 truncate">
+                                        <i class="fas fa-file-archive ${fileType === 'BSON' ? 'text-emerald-500' : (fileType === 'JSON' ? 'text-amber-500' : 'text-blue-500')}"></i> ${file.name}
                                     </div>
-                                    <div class="text-[10px] text-gray-400">${sizeKb} KB</div>
+                                    <div class="text-[10px] text-gray-400 mt-0.5">${sizeKb} KB</div>
                                 </div>
                             </div>
-                            <div>
-                                ${isEnc ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-700 border border-purple-200"><i class="fas fa-lock mr-1"></i>AES-256</span>' : '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">Plain SQL</span>'}
+                            <div class="flex items-center space-x-2 shrink-0">
+                                ${typeBadge}
+                                ${isEnc ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-700 border border-purple-200"><i class="fas fa-lock mr-1"></i>AES-256</span>' : '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">Plain</span>'}
                             </div>
                         `;
                         container.appendChild(div);
@@ -446,22 +624,153 @@
             validateStep1();
         }
 
+        function detectFileType(name) {
+            if (!name) return 'SQL';
+            const lower = name.toLowerCase();
+            if (lower.includes('.bson')) return 'BSON';
+            if (lower.includes('.json')) return 'JSON';
+            return 'SQL';
+        }
+
         function onFileSelected(name) {
             selectedFileName = name;
+            detectedFileType = detectFileType(name);
+
+            // Update Step 1 banner
+            const banner = document.getElementById('selectedFileBanner');
+            banner.classList.remove('hidden');
+            document.getElementById('selectedFileText').textContent = `Selected: ${name}`;
+
+            const pill = document.getElementById('detectedTypePill');
+            const subtext = document.getElementById('selectedFileSubtext');
+            if (detectedFileType === 'BSON') {
+                pill.className = 'px-2.5 py-1 rounded font-bold uppercase text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300';
+                pill.textContent = 'MongoDB NoSQL';
+                subtext.textContent = 'Destination connections will be strictly filtered to MongoDB cluster endpoints.';
+            } else if (detectedFileType === 'JSON') {
+                pill.className = 'px-2.5 py-1 rounded font-bold uppercase text-[10px] bg-amber-100 text-amber-800 border border-amber-300';
+                pill.textContent = 'JSON File Import';
+                subtext.textContent = 'Destination options configured for local directories or cloud object storage.';
+            } else {
+                pill.className = 'px-2.5 py-1 rounded font-bold uppercase text-[10px] bg-blue-100 text-blue-800 border border-blue-300';
+                pill.textContent = 'Relational SQL';
+                subtext.textContent = 'Destination connections will be strictly filtered to Relational databases (Postgres, Oracle, MySQL).';
+            }
+
+            // Apply filter to Step 2
+            applyStep2Mode();
             validateStep1();
         }
 
-        async function fetchDestConnections() {
-            const res = await fetch('/api/connections?envType=destination');
-            if (res.ok) {
-                const conns = await res.json();
-                const select = document.getElementById('destId');
-                select.innerHTML = '<option value="">Select a destination database...</option>';
-                conns.forEach(c => select.add(new Option(c.name + ' (' + c.url + ')', c.id)));
+        async function fetchAllDestConnections() {
+            try {
+                // Fetch destination DB connections
+                const res = await fetch('/api/connections?envType=destination');
+                if (res.ok) {
+                    allDestConnections = await res.json();
+                }
+                // Fetch destination Local storage
+                const resLocal = await fetch('/api/cos-connections?envType=destination&storageType=Local');
+                if (resLocal.ok) {
+                    localDestConnections = await resLocal.json();
+                }
+                // Fetch destination COS connections
+                const resCos = await fetch('/api/cos-connections?envType=destination&storageType=COS');
+                if (resCos.ok) {
+                    cosDestConnections = await resCos.json();
+                }
+            } catch (e) {
+                console.error('Failed to load destination connections', e);
+            }
+            applyStep2Mode();
+        }
+
+        function applyStep2Mode() {
+            const sqlContainer = document.getElementById('destSqlContainer');
+            const mongoContainer = document.getElementById('destMongoContainer');
+            const jsonContainer = document.getElementById('destJsonContainer');
+
+            const step2Label = document.getElementById('step2-label');
+            const step2Icon = document.getElementById('step2-icon');
+            const step2Title = document.getElementById('step2Title');
+            const step2Subtitle = document.getElementById('step2Subtitle');
+            const filterBadge = document.getElementById('activeFilterBadge');
+            const filterText = document.getElementById('step2FilterInfoText');
+
+            if (detectedFileType === 'BSON') {
+                // MongoDB Mode
+                sqlContainer.style.display = 'none';
+                mongoContainer.style.display = 'block';
+                jsonContainer.style.display = 'none';
+
+                step2Label.textContent = 'Target MongoDB';
+                step2Icon.className = 'fas fa-leaf text-sm text-emerald-600';
+                step2Title.textContent = 'Step 2: Select Target MongoDB & Database';
+                step2Subtitle.textContent = 'Filtered to MongoDB endpoints. Target databases are automatically discovered live.';
+                filterBadge.textContent = 'MongoDB Only';
+                filterBadge.className = 'font-mono font-bold text-[10px] bg-emerald-100 px-2 py-0.5 rounded text-emerald-800 border border-emerald-200';
+                filterText.textContent = 'Filtered connections to NoSQL MongoDB clusters only.';
+
+                populateMongoConnections();
+            } else if (detectedFileType === 'JSON') {
+                // JSON Mode
+                sqlContainer.style.display = 'none';
+                mongoContainer.style.display = 'none';
+                jsonContainer.style.display = 'block';
+
+                step2Label.textContent = 'Target Storage';
+                step2Icon.className = 'fas fa-hdd text-sm text-amber-600';
+                step2Title.textContent = 'Step 2: Select Target JSON Storage';
+                step2Subtitle.textContent = 'Filtered to file storage endpoints (Local Directory or IBM COS Bucket).';
+                filterBadge.textContent = 'JSON Storage Only';
+                filterBadge.className = 'font-mono font-bold text-[10px] bg-amber-100 px-2 py-0.5 rounded text-amber-800 border border-amber-200';
+                filterText.textContent = 'Configured for file storage destinations.';
+
+                populateJsonStorageConnections();
+            } else {
+                // Relational SQL Mode
+                sqlContainer.style.display = 'block';
+                mongoContainer.style.display = 'none';
+                jsonContainer.style.display = 'none';
+
+                step2Label.textContent = 'Target Database';
+                step2Icon.className = 'fas fa-database text-sm text-blue-600';
+                step2Title.textContent = 'Step 2: Select Target Relational Database';
+                step2Subtitle.textContent = 'Filtered to relational SQL databases (PostgreSQL, Oracle, MySQL).';
+                filterBadge.textContent = 'Relational DB Only';
+                filterBadge.className = 'font-mono font-bold text-[10px] bg-blue-100 px-2 py-0.5 rounded text-blue-800 border border-blue-200';
+                filterText.textContent = 'Filtered connections to relational databases only.';
+
+                populateSqlConnections();
+            }
+
+            updateDepartmentDisplay();
+            validateStep2();
+        }
+
+        // --- SQL Helpers ---
+        function populateSqlConnections() {
+            const select = document.getElementById('destId');
+            const prevVal = select.value;
+            select.innerHTML = '<option value="">Select a relational database...</option>';
+
+            const filtered = allDestConnections.filter(c => {
+                const dbType = (c.dbType || '').toLowerCase();
+                return dbType !== 'mongo' && dbType !== 'json';
+            });
+
+            filtered.forEach(c => {
+                const opt = new Option(c.name + ' (' + (c.url || 'Relational') + ')', c.id);
+                opt.dataset.department = c.department || '';
+                select.add(opt);
+            });
+
+            if (prevVal && filtered.some(c => String(c.id) === String(prevVal))) {
+                select.value = prevVal;
             }
         }
 
-        async function onDestDbChanged() {
+        async function onDestSqlChanged() {
             const destId = document.getElementById('destId').value;
             const btnFetch = document.getElementById('btnFetchSchemas');
             const btnCreate = document.getElementById('btnCreateSchema');
@@ -478,6 +787,7 @@
                 schemaSelect.disabled = true;
                 schemaSelect.innerHTML = '<option value="">Select connection first...</option>';
             }
+            updateDepartmentDisplay();
             validateStep2();
         }
 
@@ -550,17 +860,255 @@
             }
         }
 
+        // --- MongoDB Helpers ---
+        function populateMongoConnections() {
+            const select = document.getElementById('destMongoId');
+            const prevVal = select.value;
+            select.innerHTML = '<option value="">Select a MongoDB connection...</option>';
+
+            const filtered = allDestConnections.filter(c => {
+                const dbType = (c.dbType || '').toLowerCase();
+                return dbType === 'mongo';
+            });
+
+            filtered.forEach(c => {
+                const opt = new Option(c.name + ' (' + (c.url || 'mongodb') + ')', c.id);
+                opt.dataset.department = c.department || '';
+                select.add(opt);
+            });
+
+            if (prevVal && filtered.some(c => String(c.id) === String(prevVal))) {
+                select.value = prevVal;
+            }
+        }
+
+        async function onDestMongoChanged() {
+            const destMongoId = document.getElementById('destMongoId').value;
+            const dbSelect = document.getElementById('destMongoDatabase');
+            const btnRefresh = document.getElementById('btnRefreshMongoDbs');
+            const btnCreate = document.getElementById('btnCreateMongoDb');
+
+            if (destMongoId) {
+                btnRefresh.disabled = false;
+                if (btnCreate) btnCreate.disabled = false;
+                dbSelect.disabled = false;
+                await fetchMongoDatabases();
+            } else {
+                btnRefresh.disabled = true;
+                if (btnCreate) btnCreate.disabled = true;
+                dbSelect.disabled = true;
+                dbSelect.innerHTML = '<option value="">Select MongoDB connection first...</option>';
+            }
+            updateDepartmentDisplay();
+            validateStep2();
+        }
+
+        async function fetchMongoDatabases() {
+            const destMongoId = document.getElementById('destMongoId').value;
+            if (!destMongoId) return;
+
+            const dbSelect = document.getElementById('destMongoDatabase');
+            dbSelect.innerHTML = '<option value="">Loading databases from MongoDB cluster...</option>';
+
+            try {
+                const res = await fetch(`/api/mongo/databases/${destMongoId}`);
+                if (res.ok) {
+                    const dbs = await res.json();
+                    if (dbs && dbs.length > 0) {
+                        dbSelect.innerHTML = '<option value="">Select a target database...</option>';
+                        dbs.forEach(d => dbSelect.add(new Option(d, d)));
+                    } else {
+                        dbSelect.innerHTML = '<option value="">No existing databases discovered</option>';
+                    }
+                } else {
+                    // Fallback to schemas endpoint
+                    const res2 = await fetch(`/api/connections/${destMongoId}/schemas`);
+                    if (res2.ok) {
+                        const dbs = await res2.json();
+                        dbSelect.innerHTML = '<option value="">Select a target database...</option>';
+                        dbs.forEach(d => dbSelect.add(new Option(d, d)));
+                    } else {
+                        dbSelect.innerHTML = '<option value="admin">admin</option>';
+                    }
+                }
+            } catch (e) {
+                console.warn('Error discovering MongoDB databases', e);
+                dbSelect.innerHTML = '<option value="admin">admin</option>';
+            }
+            validateStep2();
+        }
+
+        function openCreateMongoDbModal() {
+            const connId = document.getElementById('destMongoId').value;
+            if (!connId) {
+                alert('Please select a destination MongoDB connection first.');
+                return;
+            }
+            document.getElementById('newMongoDbInput').value = '';
+            document.getElementById('createMongoDbModal').style.display = 'block';
+            setTimeout(() => document.getElementById('newMongoDbInput').focus(), 100);
+        }
+
+        function closeCreateMongoDbModal() {
+            document.getElementById('createMongoDbModal').style.display = 'none';
+        }
+
+        function confirmCreateMongoDb() {
+            const newDb = document.getElementById('newMongoDbInput').value.trim();
+            if (!newDb) {
+                alert('Please enter a valid database name.');
+                return;
+            }
+            if (/[\/\s\.\\"$\0]/.test(newDb)) {
+                alert('Database name cannot contain spaces, dots, slashes, or special characters like "$".');
+                return;
+            }
+
+            const select = document.getElementById('destMongoDatabase');
+            select.disabled = false;
+
+            let exists = false;
+            for (let i = 0; i < select.options.length; i++) {
+                if (select.options[i].value.toLowerCase() === newDb.toLowerCase()) {
+                    select.selectedIndex = i;
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) {
+                const opt = new Option(`${newDb} (New Database)`, newDb, true, true);
+                select.add(opt);
+            }
+
+            closeCreateMongoDbModal();
+            updateDepartmentDisplay();
+            validateStep2();
+        }
+
+        // --- JSON Helpers ---
+        function toggleDestJsonStorageType() {
+            const type = document.querySelector('input[name="destJsonStorageType"]:checked').value;
+            document.getElementById('destJsonLocalContainer').style.display = (type === 'local') ? 'block' : 'none';
+            document.getElementById('destJsonCosContainer').style.display = (type === 'cos') ? 'block' : 'none';
+            updateDepartmentDisplay();
+            validateStep2();
+        }
+
+        function populateJsonStorageConnections() {
+            const localSelect = document.getElementById('destJsonLocalSelect');
+            localSelect.innerHTML = '<option value="">Select a destination directory...</option>';
+            localDestConnections.forEach(c => {
+                const opt = new Option(c.cosName + ' (' + (c.storageLocation || 'N/A') + ')', c.id);
+                opt.dataset.path = c.storageLocation || '';
+                opt.dataset.department = c.department || '';
+                localSelect.add(opt);
+            });
+
+            const cosSelect = document.getElementById('destJsonCosSelect');
+            cosSelect.innerHTML = '<option value="">Select destination COS bucket...</option>';
+            cosDestConnections.forEach(c => {
+                const opt = new Option(c.cosName + ' (' + (c.bucketName || 'Bucket') + ')', c.id);
+                opt.dataset.department = c.department || '';
+                cosSelect.add(opt);
+            });
+        }
+
+        function onDestJsonLocalChanged() {
+            const select = document.getElementById('destJsonLocalSelect');
+            const opt = select.options[select.selectedIndex];
+            if (opt && opt.dataset && opt.dataset.path) {
+                document.getElementById('destJsonDirPath').value = opt.dataset.path;
+            } else {
+                document.getElementById('destJsonDirPath').value = '';
+            }
+            updateDepartmentDisplay();
+            validateStep2();
+        }
+
+        function onDestJsonCosChanged() {
+            updateDepartmentDisplay();
+            validateStep2();
+        }
+
+        // --- Department Auto-Assignment (Requirement 3) ---
+        function getSelectedDestDepartment() {
+            if (detectedFileType === 'BSON') {
+                const select = document.getElementById('destMongoId');
+                const opt = select.options[select.selectedIndex];
+                if (opt && opt.dataset && opt.dataset.department) return opt.dataset.department;
+                const found = allDestConnections.find(c => String(c.id) === String(select.value));
+                if (found && found.department) return found.department;
+            } else if (detectedFileType === 'JSON') {
+                const isLocal = document.querySelector('input[name="destJsonStorageType"]:checked').value === 'local';
+                const select = isLocal ? document.getElementById('destJsonLocalSelect') : document.getElementById('destJsonCosSelect');
+                const opt = select.options[select.selectedIndex];
+                if (opt && opt.dataset && opt.dataset.department) return opt.dataset.department;
+            } else {
+                // SQL
+                const select = document.getElementById('destId');
+                const opt = select.options[select.selectedIndex];
+                if (opt && opt.dataset && opt.dataset.department) return opt.dataset.department;
+                const found = allDestConnections.find(c => String(c.id) === String(select.value));
+                if (found && found.department) return found.department;
+            }
+            return '';
+        }
+
+        function updateDepartmentDisplay() {
+            const dept = getSelectedDestDepartment();
+            const deptInput = document.getElementById('department');
+            const deptDisplay = document.getElementById('departmentDisplay');
+            const deptBadge = document.getElementById('departmentBadge');
+            const deptHint = document.getElementById('departmentHint');
+
+            if (deptInput) deptInput.value = dept;
+            if (deptDisplay) {
+                deptDisplay.textContent = dept || 'Not Detected';
+            }
+            if (deptBadge) {
+                if (dept) {
+                    deptBadge.textContent = 'Auto-Assigned';
+                    deptBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200';
+                } else {
+                    deptBadge.textContent = 'Pending Destination';
+                    deptBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200';
+                }
+            }
+            if (deptHint) {
+                deptHint.textContent = dept
+                    ? `Mapped automatically from destination connection (${dept})`
+                    : 'Select a destination connection in Step 2 to detect department';
+            }
+        }
+
+        // --- Step Validations ---
         function validateStep1() {
+            const jobName = document.getElementById('jobNameInput').value.trim();
             const btnNext = document.getElementById('btnNext');
             const hasFile = selectedFileName || (discoveredFiles && discoveredFiles.length > 0);
-            btnNext.disabled = !hasFile;
+            btnNext.disabled = !(jobName && hasFile);
         }
 
         function validateStep2() {
-            const destId = document.getElementById('destId').value;
-            const destSchema = document.getElementById('destSchema').value;
             const btnNext = document.getElementById('btnNext');
-            btnNext.disabled = !(destId && destSchema);
+            if (detectedFileType === 'BSON') {
+                const conn = document.getElementById('destMongoId').value;
+                const db = document.getElementById('destMongoDatabase').value;
+                btnNext.disabled = !(conn && db);
+            } else if (detectedFileType === 'JSON') {
+                const type = document.querySelector('input[name="destJsonStorageType"]:checked').value;
+                if (type === 'local') {
+                    btnNext.disabled = !document.getElementById('destJsonLocalSelect').value;
+                } else {
+                    const cosId = document.getElementById('destJsonCosSelect').value;
+                    btnNext.disabled = !cosId;
+                }
+            } else {
+                // SQL
+                const destId = document.getElementById('destId').value;
+                const destSchema = document.getElementById('destSchema').value;
+                btnNext.disabled = !(destId && destSchema);
+            }
         }
 
         function validateStep3() {
@@ -605,6 +1153,10 @@
         }
 
         function nextStep() {
+            if (currentStep === 1) {
+                const jobName = document.getElementById('jobNameInput').value.trim();
+                document.getElementById('migrationName').value = jobName;
+            }
             if (currentStep < totalSteps) {
                 currentStep++;
                 updateUI();
@@ -619,32 +1171,69 @@
         }
 
         function populateReview() {
-            const type = document.querySelector('input[name="storageType"]:checked').value;
-            const destSelect = document.getElementById('destId');
-            const destText = destSelect.options[destSelect.selectedIndex]?.text || '-';
-            const schema = document.getElementById('destSchema').value || 'public';
-
+            const srcType = document.querySelector('input[name="storageType"]:checked').value;
             document.getElementById('reviewSourceFile').innerText = selectedFileName || 'secure-export.sql.enc';
-            document.getElementById('reviewStorageType').innerText = (type === 'cos') ? 'IBM Cloud Object Storage' : 'Local Storage Directory';
-            document.getElementById('reviewDestDb').innerText = destText;
-            document.getElementById('reviewDestSchema').innerText = 'Schema: ' + schema;
+            document.getElementById('reviewStorageType').innerText = (srcType === 'cos') ? 'IBM Cloud Object Storage' : 'Local Storage Directory';
+
+            // File type badge
+            const badgeContainer = document.getElementById('reviewFileTypeBadge');
+            if (detectedFileType === 'BSON') {
+                badgeContainer.innerHTML = '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200"><i class="fas fa-leaf mr-1"></i>MongoDB BSON Package</span>';
+            } else if (detectedFileType === 'JSON') {
+                badgeContainer.innerHTML = '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200"><i class="fas fa-file-code mr-1"></i>JSON Archive</span>';
+            } else {
+                badgeContainer.innerHTML = '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200"><i class="fas fa-database mr-1"></i>Relational SQL Package</span>';
+            }
+
+            // Destination Review
+            if (detectedFileType === 'BSON') {
+                const connSelect = document.getElementById('destMongoId');
+                const connText = connSelect.options[connSelect.selectedIndex]?.text || '-';
+                const dbName = document.getElementById('destMongoDatabase').value || '-';
+                const dropChk = document.getElementById('mongoDropExistingChk').checked;
+
+                document.getElementById('reviewDestDb').innerText = connText;
+                document.getElementById('reviewDestTarget').innerText = 'Database: ' + dbName;
+                document.getElementById('reviewPolicy').innerText = dropChk ? 'Collection Policy: Drop & Overwrite' : 'Collection Policy: Append';
+            } else if (detectedFileType === 'JSON') {
+                const destType = document.querySelector('input[name="destJsonStorageType"]:checked').value;
+                const overwrite = document.getElementById('jsonOverwriteChk').checked;
+
+                if (destType === 'local') {
+                    document.getElementById('reviewDestDb').innerText = 'Local Destination';
+                    document.getElementById('reviewDestTarget').innerText = 'Path: ' + document.getElementById('destJsonDirPath').value;
+                } else {
+                    const cosSelect = document.getElementById('destJsonCosSelect');
+                    document.getElementById('reviewDestDb').innerText = 'IBM Cloud Object Storage';
+                    document.getElementById('reviewDestTarget').innerText = 'Bucket: ' + (cosSelect.options[cosSelect.selectedIndex]?.text || '-');
+                }
+                document.getElementById('reviewPolicy').innerText = overwrite ? 'Overwrite: Enabled' : 'Overwrite: Disabled';
+            } else {
+                // SQL
+                const destSelect = document.getElementById('destId');
+                const destText = destSelect.options[destSelect.selectedIndex]?.text || '-';
+                const schema = document.getElementById('destSchema').value || 'public';
+
+                document.getElementById('reviewDestDb').innerText = destText;
+                document.getElementById('reviewDestTarget').innerText = 'Target Schema: ' + schema;
+                document.getElementById('reviewPolicy').innerText = 'Target Engine: Relational SQL';
+            }
+
+            updateDepartmentDisplay();
         }
 
         async function submitWorkflow() {
             const btn = document.getElementById('btnStart');
             const migrationName = document.getElementById('migrationName').value.trim();
             const department = document.getElementById('department').value;
-            const type = document.querySelector('input[name="storageType"]:checked').value;
-            const destSelect = document.getElementById('destId');
-            const destId = destSelect.value;
-            const schema = document.getElementById('destSchema').value;
+            const srcType = document.querySelector('input[name="storageType"]:checked').value;
 
             if (!migrationName) {
                 alert("Please enter an Import Name");
                 return;
             }
             if (!department) {
-                alert("Please select a Department");
+                alert("Please select a destination connection that has an assigned department.");
                 return;
             }
 
@@ -653,29 +1242,75 @@
             btn.disabled = true;
 
             const storageConfig = {
-                type: type,
+                type: srcType,
                 fileName: selectedFileName
             };
-
-            if (type === 'local') {
+            if (srcType === 'local') {
                 storageConfig.path = document.getElementById('localPath').value.trim() || 'secure-export';
             } else {
                 storageConfig.id = document.getElementById('cosConnectionId').value;
             }
 
-            const payload = {
-                migrationName: migrationName,
-                department: department,
-                jobType: 'SECURE_IMPORT',
-                configDetails: {
-                    storage: storageConfig,
-                    dest: {
-                        id: destId,
-                        url: destSelect.options[destSelect.selectedIndex]?.text,
-                        schema: schema
+            let payload = {};
+
+            if (detectedFileType === 'BSON') {
+                const destMongoId = document.getElementById('destMongoId').value;
+                const destMongoDb = document.getElementById('destMongoDatabase').value;
+                const dropExisting = document.getElementById('mongoDropExistingChk').checked;
+
+                payload = {
+                    jobType: 'MONGO_SECURE_IMPORT',
+                    migrationName: migrationName,
+                    department: department,
+                    configDetails: {
+                        jobName: migrationName,
+                        storage: storageConfig,
+                        dest: {
+                            id: Number(destMongoId),
+                            database: destMongoDb,
+                            dropExisting: dropExisting
+                        }
                     }
-                }
-            };
+                };
+            } else if (detectedFileType === 'JSON') {
+                const destType = document.querySelector('input[name="destJsonStorageType"]:checked').value;
+                const overwrite = document.getElementById('jsonOverwriteChk').checked;
+
+                payload = {
+                    jobType: 'JSON_SECURE_IMPORT',
+                    migrationName: migrationName,
+                    department: department,
+                    configDetails: {
+                        jobName: migrationName,
+                        storage: storageConfig,
+                        dest: {
+                            type: destType,
+                            path: destType === 'local' ? document.getElementById('destJsonDirPath').value.trim() : null,
+                            cosId: destType === 'cos' ? Number(document.getElementById('destJsonCosSelect').value) : null,
+                            overwrite: overwrite
+                        }
+                    }
+                };
+            } else {
+                // SQL
+                const destSelect = document.getElementById('destId');
+                const destId = destSelect.value;
+                const schema = document.getElementById('destSchema').value;
+
+                payload = {
+                    jobType: 'SECURE_IMPORT',
+                    migrationName: migrationName,
+                    department: department,
+                    configDetails: {
+                        storage: storageConfig,
+                        dest: {
+                            id: destId,
+                            url: destSelect.options[destSelect.selectedIndex]?.text,
+                            schema: schema
+                        }
+                    }
+                };
+            }
 
             try {
                 const res = await fetch('/api/jobs/request', {

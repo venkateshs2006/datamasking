@@ -271,6 +271,9 @@ public class MigrationController {
                     SecureExportConfig.RulesConfig rulesConfig = objectMapper.convertValue(configDetailsMap.get("rules"), SecureExportConfig.RulesConfig.class);
                     config.setRules(rulesConfig);
                 }
+                if (config.getFileEncryptionKey() == null && jobRequest.getFileEncryptionKey() != null) {
+                    config.setFileEncryptionKey(jobRequest.getFileEncryptionKey());
+                }
 
                 String executionId = "secure-export-" + secureExportSequence.getAndIncrement();
                 taskExecutor.execute(() -> {
@@ -518,6 +521,9 @@ public class MigrationController {
                 config = new MongoSecureExportConfig();
             }
             config.setJobName(jobRequest.getMigrationName());
+            if (config.getFileEncryptionKey() == null && jobRequest.getFileEncryptionKey() != null) {
+                config.setFileEncryptionKey(jobRequest.getFileEncryptionKey());
+            }
 
             String executionId = "mongo-export-" + mongoSecureExportSequence.getAndIncrement();
             final MongoSecureExportConfig finalConfig = config;
@@ -596,6 +602,9 @@ public class MigrationController {
                 config = new JsonSecureExportConfig();
             }
             config.setJobName(jobRequest.getMigrationName());
+            if (config.getFileEncryptionKey() == null && jobRequest.getFileEncryptionKey() != null) {
+                config.setFileEncryptionKey(jobRequest.getFileEncryptionKey());
+            }
 
             String executionId = "json-export-" + jsonSecureExportSequence.getAndIncrement();
             final JsonSecureExportConfig finalConfig = config;

@@ -11,6 +11,7 @@ public class SecureExportConfig {
     private DestinationConfig dest;
     private StorageConfig storage;
     private RulesConfig rules;
+    private String fileEncryptionKey;
 
     @Data
     public static class SourceConfig {

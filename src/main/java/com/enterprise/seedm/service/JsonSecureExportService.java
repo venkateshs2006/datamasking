@@ -53,6 +53,7 @@ public class JsonSecureExportService {
         public final AtomicLong totalRecords = new AtomicLong(0);
         public final List<Map<String, Object>> fileProgress = Collections.synchronizedList(new ArrayList<>());
         public final List<String> completedFiles = Collections.synchronizedList(new ArrayList<>());
+        public volatile String fileEncryptionKey = null;
         public volatile String status = "PENDING";
         public volatile String errorMessage = null;
         public volatile long startTime = System.currentTimeMillis();
@@ -61,6 +62,7 @@ public class JsonSecureExportService {
         public Map<String, Object> toMap() {
             Map<String, Object> map = new HashMap<>();
             map.put("status", status);
+            map.put("fileEncryptionKey", fileEncryptionKey);
             map.put("totalFiles", totalFiles.get());
             map.put("processedFiles", processedFiles.get());
             map.put("totalTables", totalFiles.get()); // Compatible with dashboard
@@ -251,6 +253,10 @@ public class JsonSecureExportService {
 
             final Path effectiveSourceDir = sourceDir;
             String saltKey = config.getRules() != null ? config.getRules().getMaskingKey() : null;
+            String fileEncryptionKey = (config.getFileEncryptionKey() != null && !config.getFileEncryptionKey().trim().isEmpty())
+                    ? config.getFileEncryptionKey().trim()
+                    : saltKey;
+            progress.fileEncryptionKey = fileEncryptionKey;
 
             List<String> targetFiles = new ArrayList<>();
             if (config.getRules() != null) {
@@ -326,9 +332,10 @@ public class JsonSecureExportService {
 
             // Encrypt output bundle file
             Path finalExportFile = tempBundlePath;
-            if (saltKey != null && !saltKey.trim().isEmpty()) {
+            String encryptKey = (fileEncryptionKey != null && !fileEncryptionKey.trim().isEmpty()) ? fileEncryptionKey : saltKey;
+            if (encryptKey != null && !encryptKey.trim().isEmpty()) {
                 Path encFilePath = destDir.resolve("secure-json-export.json.enc");
-                encryptFileWithSalt(tempBundlePath, encFilePath, saltKey);
+                encryptFileWithSalt(tempBundlePath, encFilePath, encryptKey);
                 try {
                     Files.deleteIfExists(tempBundlePath);
                 } catch (Exception ex) {
@@ -632,6 +639,7 @@ public class JsonSecureExportService {
             }
             job.setStatus(status);
             job.setErrorMessage(errorMessage);
+            job.setFileEncryptionKey(config.getFileEncryptionKey());
             if ("COMPLETED".equals(status) || "FAILED".equals(status)) {
                 job.setCompletedAt(System.currentTimeMillis());
             }
@@ -657,6 +665,7 @@ public class JsonSecureExportService {
         map.put("jobName", job.getJobName());
         map.put("status", job.getStatus());
         map.put("errorMessage", job.getErrorMessage());
+        map.put("fileEncryptionKey", job.getFileEncryptionKey());
         map.put("startTime", job.getCreatedAt());
         map.put("completedTime", job.getCompletedAt() != null ? job.getCompletedAt() : 0);
         return map;

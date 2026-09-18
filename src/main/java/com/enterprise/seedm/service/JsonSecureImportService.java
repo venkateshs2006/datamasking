@@ -87,7 +87,7 @@ public class JsonSecureImportService {
                         List<Map<String, Object>> filesList = cosObjects.stream()
                                 .filter(o -> {
                                     String name = (String) o.get("name");
-                                    return name != null && (name.endsWith(".json") || name.endsWith(".json.enc") || name.endsWith(".enc"));
+                                    return name != null && name.toLowerCase().endsWith(".json.enc");
                                 })
                                 .toList();
 
@@ -105,15 +105,18 @@ public class JsonSecureImportService {
 
             if (Files.exists(dirPath)) {
                 if (Files.isRegularFile(dirPath)) {
-                    Map<String, Object> fInfo = new HashMap<>();
-                    fInfo.put("name", dirPath.getFileName().toString());
-                    fInfo.put("sizeBytes", Files.size(dirPath));
-                    fInfo.put("encrypted", dirPath.toString().endsWith(".enc"));
-                    filesList.add(fInfo);
+                    String fname = dirPath.getFileName().toString();
+                    if (fname.toLowerCase().endsWith(".json.enc")) {
+                        Map<String, Object> fInfo = new HashMap<>();
+                        fInfo.put("name", fname);
+                        fInfo.put("sizeBytes", Files.size(dirPath));
+                        fInfo.put("encrypted", true);
+                        filesList.add(fInfo);
+                    }
                 } else if (Files.isDirectory(dirPath)) {
                     try (Stream<Path> stream = Files.list(dirPath)) {
                         stream.filter(Files::isRegularFile)
-                                .filter(p -> p.toString().endsWith(".json") || p.toString().endsWith(".json.enc") || p.toString().endsWith(".enc"))
+                                .filter(p -> p.toString().toLowerCase().endsWith(".json.enc"))
                                 .forEach(p -> {
                                     Map<String, Object> fInfo = new HashMap<>();
                                     fInfo.put("name", p.getFileName().toString());
@@ -122,7 +125,7 @@ public class JsonSecureImportService {
                                     } catch (IOException e) {
                                         fInfo.put("sizeBytes", 0);
                                     }
-                                    fInfo.put("encrypted", p.toString().endsWith(".enc"));
+                                    fInfo.put("encrypted", true);
                                     filesList.add(fInfo);
                                 });
                     }

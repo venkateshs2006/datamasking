@@ -11,6 +11,7 @@ public class MongoSecureExportConfig {
     private SourceConfig source;
     private DestinationConfig dest;
     private RulesConfig rules;
+    private String fileEncryptionKey;
 
     @Data
     public static class SourceConfig {

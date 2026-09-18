@@ -678,11 +678,35 @@
 
                 if (rules.maskingKey) {
                     html += `<div class="mt-3 pt-3 border-t border-gray-100">
-                                <h4 class="text-[10px] font-bold text-purple-800 uppercase mb-1 flex items-center"><i class="fas fa-lock mr-1"></i> Salt & File Encryption Key</h4>
-                                <span class="text-xs font-mono text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-1 rounded-md inline-block shadow-sm">AES-256 (.sql.enc) & FPH Active (${rules.maskingKey.length} chars)</span>
+                                <h4 class="text-[10px] font-bold text-purple-800 uppercase mb-1 flex items-center"><i class="fas fa-lock mr-1"></i> Salt Key</h4>
+                                <span class="text-xs font-mono text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-1 rounded-md inline-block shadow-sm">FPH Active (${rules.maskingKey.length} chars)</span>
                              </div>`;
                 }
                 html += `</div>`;
+            }
+
+            if (job.fileEncryptionKey) {
+                html += `<div class="mb-6 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl shadow-sm">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <h4 class="text-xs font-bold text-purple-900 uppercase flex items-center">
+                                    <i class="fas fa-key text-purple-600 mr-1.5"></i> File Encryption Password
+                                </h4>
+                                <span class="text-[10px] bg-purple-200/70 text-purple-900 font-bold px-2 py-0.5 rounded">AES-256 Archive Key</span>
+                            </div>
+                            <p class="text-xs text-purple-700 mb-3">Password generated specifically to encrypt the exported archive. Required when importing this file.</p>
+                            <div class="flex items-center gap-2">
+                                <div class="relative flex-1">
+                                    <input type="password" id="jobModalKeyInput" readonly value="${job.fileEncryptionKey}" class="bg-white border border-purple-300 text-purple-900 font-mono text-sm px-3 py-1.5 rounded-lg w-full tracking-wider focus:outline-none select-all font-bold pr-9">
+                                    <button type="button" onclick="toggleJobModalKeyVisibility()" class="absolute right-2.5 top-2 text-purple-400 hover:text-purple-700 transition" title="Show / Hide Password">
+                                        <i id="jobModalKeyEye" class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <button type="button" onclick="copyJobModalKey('${job.fileEncryptionKey}')" class="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg shadow-sm transition flex items-center gap-1.5 shrink-0">
+                                    <i class="fas fa-copy"></i>
+                                    <span id="jobModalCopyText">Copy</span>
+                                </button>
+                            </div>
+                         </div>`;
             }
 
             container.innerHTML = html;
@@ -880,6 +904,33 @@
                 btn.innerHTML = origHtml;
                 btn.disabled = false;
             }
+        }
+
+        function toggleJobModalKeyVisibility() {
+            const input = document.getElementById('jobModalKeyInput');
+            const icon = document.getElementById('jobModalKeyEye');
+            if (input) {
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    if (icon) icon.className = 'fas fa-eye-slash';
+                } else {
+                    input.type = 'password';
+                    if (icon) icon.className = 'fas fa-eye';
+                }
+            }
+        }
+
+        function copyJobModalKey(key) {
+            if (!key) return;
+            navigator.clipboard.writeText(key).then(() => {
+                const btnText = document.getElementById('jobModalCopyText');
+                if (btnText) {
+                    btnText.textContent = 'Copied!';
+                    setTimeout(() => { btnText.textContent = 'Copy'; }, 2000);
+                }
+            }).catch(() => {
+                alert('Password: ' + key);
+            });
         }
     </script>
 

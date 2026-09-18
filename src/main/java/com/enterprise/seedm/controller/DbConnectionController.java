@@ -5,6 +5,7 @@ import com.enterprise.seedm.model.DbConnectionRequest;
 import com.enterprise.seedm.model.Department;
 import com.enterprise.seedm.service.DbConnectionService;
 import com.enterprise.seedm.service.DynamicDataSourceService;
+import com.enterprise.seedm.service.MongoDiscoveryService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class DbConnectionController {
 
     private final DbConnectionService connectionService;
     private final DynamicDataSourceService dynamicDataSourceService;
+    private final MongoDiscoveryService mongoDiscoveryService;
 
     private void resolveConnection(DbConnectionRequest request) {
         if (request.getId() != null) {
@@ -171,6 +173,12 @@ public class DbConnectionController {
 
     @PostMapping("/schemas")
     public List<String> getSchemasLegacy(@RequestBody DbConnectionRequest request) {
+        if (request.getId() != null) {
+            DbConnection saved = connectionService.getConnection(request.getId());
+            if (saved != null && "mongo".equalsIgnoreCase(saved.getDbType())) {
+                return mongoDiscoveryService.getDatabases(request.getId());
+            }
+        }
         resolveConnection(request);
         log.info("Fetching schemas for {} connection", request.getType());
         return dynamicDataSourceService.fetchSchemas(request);
@@ -178,6 +186,10 @@ public class DbConnectionController {
 
     @GetMapping("/{id}/schemas")
     public List<String> getSchemas(@PathVariable Long id) {
+        DbConnection saved = connectionService.getConnection(id);
+        if (saved != null && "mongo".equalsIgnoreCase(saved.getDbType())) {
+            return mongoDiscoveryService.getDatabases(id);
+        }
         DbConnectionRequest request = new DbConnectionRequest();
         request.setId(id);
         resolveConnection(request);

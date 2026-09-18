@@ -107,6 +107,11 @@ public class SecureExportService {
                 ? config.getRules().getMaskingKey().trim()
                 : (maskingConfigService != null && maskingConfigService.getConfig() != null ? maskingConfigService.getConfig().getMaskingKey() : null);
 
+        String fileEncryptionKey = (config.getFileEncryptionKey() != null && !config.getFileEncryptionKey().trim().isEmpty())
+                ? config.getFileEncryptionKey().trim()
+                : saltKey;
+        progress.setFileEncryptionKey(fileEncryptionKey);
+
         try (Connection connection = DriverManager.getConnection(config.getSource().getUrl(), config.getSource().getUsername(), config.getSource().getPassword())) {
             DatabaseMetaData metaData = connection.getMetaData();
             DbDialect dialect = getDbDialect(metaData);
@@ -170,11 +175,12 @@ public class SecureExportService {
                 writeSequences(writer, connection, dialect, schema);
             }
 
-            // Encrypt the export file using the salt key
+            // Encrypt the export file using fileEncryptionKey (or fallback to saltKey)
             Path finalExportFile = filePath;
-            if (saltKey != null && !saltKey.trim().isEmpty()) {
+            String encryptKey = (fileEncryptionKey != null && !fileEncryptionKey.trim().isEmpty()) ? fileEncryptionKey : saltKey;
+            if (encryptKey != null && !encryptKey.trim().isEmpty()) {
                 Path encFilePath = destDir.resolve("secure-export.sql.enc");
-                encryptFileWithSalt(filePath, encFilePath, saltKey);
+                encryptFileWithSalt(filePath, encFilePath, encryptKey);
                 try {
                     Files.deleteIfExists(filePath);
                 } catch (Exception ex) {
@@ -743,6 +749,7 @@ public class SecureExportService {
         map.put("executionId", job.getExecutionId());
         map.put("status", job.getStatus());
         map.put("errorMessage", job.getErrorMessage());
+        map.put("fileEncryptionKey", job.getFileEncryptionKey());
         map.put("startTime", job.getCreatedAt());
         map.put("endTime", job.getCompletedAt());
         return map;
@@ -782,6 +789,7 @@ public class SecureExportService {
         job.setJobName(config.getJobName());
         job.setStatus(status);
         job.setErrorMessage(errorMessage);
+        job.setFileEncryptionKey(config.getFileEncryptionKey());
         job.setCreatedAt(System.currentTimeMillis());
         try {
             job.setConfigDetails(objectMapper.writeValueAsString(config));
@@ -818,6 +826,7 @@ public class SecureExportService {
     private static class SecureExportProgress {
         private String executionId;
         private String status = "PENDING";
+        private String fileEncryptionKey;
         private AtomicInteger totalTables = new AtomicInteger(0);
         private AtomicInteger processedTables = new AtomicInteger(0);
         private AtomicInteger totalRecords = new AtomicInteger(0);
@@ -829,6 +838,8 @@ public class SecureExportService {
 
         public String getStatus() { return status; }
         public void setStatus(String status) { this.status = status; }
+        public String getFileEncryptionKey() { return fileEncryptionKey; }
+        public void setFileEncryptionKey(String fileEncryptionKey) { this.fileEncryptionKey = fileEncryptionKey; }
         public Long getStartTime() { return startTime; }
         public void setStartTime(Long startTime) { this.startTime = startTime; }
         public Long getEndTime() { return endTime; }
@@ -840,6 +851,7 @@ public class SecureExportService {
             Map<String, Object> map = new HashMap<>();
             map.put("executionId", executionId);
             map.put("status", status);
+            map.put("fileEncryptionKey", fileEncryptionKey);
             map.put("totalTables", totalTables.get());
             map.put("processedTables", processedTables.get());
             map.put("totalRecords", totalRecords.get());

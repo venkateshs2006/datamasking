@@ -64,6 +64,7 @@ public class MongoSecureExportService {
         public final AtomicLong totalRecords = new AtomicLong(0);
         public final List<Map<String, Object>> collectionProgress = Collections.synchronizedList(new ArrayList<>());
         public final List<String> completedCollections = Collections.synchronizedList(new ArrayList<>());
+        public volatile String fileEncryptionKey = null;
         public volatile String status = "PENDING";
         public volatile String errorMessage = null;
         public volatile long startTime = System.currentTimeMillis();
@@ -72,6 +73,7 @@ public class MongoSecureExportService {
         public Map<String, Object> toMap() {
             Map<String, Object> map = new HashMap<>();
             map.put("status", status);
+            map.put("fileEncryptionKey", fileEncryptionKey);
             map.put("totalCollections", totalCollections.get());
             map.put("processedCollections", processedCollections.get());
             map.put("totalTables", totalCollections.get()); // Compatible with dashboard
@@ -103,6 +105,10 @@ public class MongoSecureExportService {
 
             String dbName = resolveMongoDatabase(config);
             String saltKey = config.getRules() != null ? config.getRules().getMaskingKey() : null;
+            String fileEncryptionKey = (config.getFileEncryptionKey() != null && !config.getFileEncryptionKey().trim().isEmpty())
+                    ? config.getFileEncryptionKey().trim()
+                    : saltKey;
+            progress.fileEncryptionKey = fileEncryptionKey;
 
             if (dbName == null) {
                 throw new IllegalArgumentException("MongoDB source database name is missing");
@@ -182,9 +188,10 @@ public class MongoSecureExportService {
 
                 // Encrypt output BSON file
                 Path finalFileToExport = tempBsonPath;
-                if (saltKey != null && !saltKey.trim().isEmpty()) {
+                String encryptKey = (fileEncryptionKey != null && !fileEncryptionKey.trim().isEmpty()) ? fileEncryptionKey : saltKey;
+                if (encryptKey != null && !encryptKey.trim().isEmpty()) {
                     Path encFilePath = destDir.resolve("secure-mongo-export.bson.enc");
-                    encryptFileWithSalt(tempBsonPath, encFilePath, saltKey);
+                    encryptFileWithSalt(tempBsonPath, encFilePath, encryptKey);
                     try {
                         Files.deleteIfExists(tempBsonPath);
                     } catch (Exception ex) {
@@ -461,6 +468,7 @@ public class MongoSecureExportService {
             }
             job.setStatus(status);
             job.setErrorMessage(errorMessage);
+            job.setFileEncryptionKey(config.getFileEncryptionKey());
             if ("COMPLETED".equals(status) || "FAILED".equals(status)) {
                 job.setCompletedAt(System.currentTimeMillis());
             }
@@ -486,6 +494,7 @@ public class MongoSecureExportService {
         map.put("jobName", job.getJobName());
         map.put("status", job.getStatus());
         map.put("errorMessage", job.getErrorMessage());
+        map.put("fileEncryptionKey", job.getFileEncryptionKey());
         map.put("startTime", job.getCreatedAt());
         map.put("completedTime", job.getCompletedAt() != null ? job.getCompletedAt() : 0);
         return map;

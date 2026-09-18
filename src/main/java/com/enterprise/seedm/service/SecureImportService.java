@@ -125,15 +125,23 @@ public class SecureImportService {
             if (Files.isRegularFile(encFile)) {
                 return encFile;
             }
+            Path bsonFile = candidatePath.resolve("secure-export.bson.enc");
+            if (Files.isRegularFile(bsonFile)) {
+                return bsonFile;
+            }
+            Path jsonFile = candidatePath.resolve("secure-export.json.enc");
+            if (Files.isRegularFile(jsonFile)) {
+                return jsonFile;
+            }
             Path sqlFile = candidatePath.resolve("secure-export.sql");
             if (Files.isRegularFile(sqlFile)) {
                 return sqlFile;
             }
 
-            // Scan directory for any .sql.enc or .sql file
+            // Scan directory for any supported export file
             try (Stream<Path> stream = Files.walk(candidatePath, 1)) {
                 Optional<Path> found = stream.filter(Files::isRegularFile)
-                        .filter(p -> p.toString().endsWith(".sql.enc") || p.toString().endsWith(".sql"))
+                        .filter(p -> isSupportedImportFile(p.getFileName().toString(), "all"))
                         .findFirst();
                 if (found.isPresent()) {
                     return found.get();
@@ -497,6 +505,8 @@ public class SecureImportService {
                 } catch (Exception ignored) {}
             }
 
+            String targetFileType = (String) request.getOrDefault("fileType", "sql");
+
             Path dirPath = null;
             if ("cos".equalsIgnoreCase(type) && cosId != null && cosConnectionService != null) {
                 CosConnection cos = cosConnectionService.getConnection(cosId);
@@ -506,7 +516,11 @@ public class SecureImportService {
                         List<Map<String, Object>> filesList = cosObjects.stream()
                                 .filter(o -> {
                                     String name = (String) o.get("name");
-                                    return name != null && (name.endsWith(".sql") || name.endsWith(".sql.enc"));
+                                    return isSupportedImportFile(name, targetFileType);
+                                })
+                                .peek(o -> {
+                                    String name = (String) o.get("name");
+                                    o.put("fileType", detectFileType(name));
                                 })
                                 .collect(Collectors.toList());
 
@@ -531,24 +545,30 @@ public class SecureImportService {
             List<Map<String, Object>> filesList = new ArrayList<>();
             if (Files.exists(dirPath)) {
                 if (Files.isRegularFile(dirPath)) {
-                    Map<String, Object> fInfo = new HashMap<>();
-                    fInfo.put("name", dirPath.getFileName().toString());
-                    fInfo.put("sizeBytes", Files.size(dirPath));
-                    fInfo.put("encrypted", dirPath.toString().endsWith(".enc"));
-                    filesList.add(fInfo);
+                    String fname = dirPath.getFileName().toString();
+                    if (isSupportedImportFile(fname, targetFileType)) {
+                        Map<String, Object> fInfo = new HashMap<>();
+                        fInfo.put("name", fname);
+                        fInfo.put("sizeBytes", Files.size(dirPath));
+                        fInfo.put("encrypted", fname.endsWith(".enc"));
+                        fInfo.put("fileType", detectFileType(fname));
+                        filesList.add(fInfo);
+                    }
                 } else if (Files.isDirectory(dirPath)) {
                     try (Stream<Path> stream = Files.list(dirPath)) {
                         stream.filter(Files::isRegularFile)
-                                .filter(p -> p.toString().endsWith(".sql") || p.toString().endsWith(".sql.enc"))
+                                .filter(p -> isSupportedImportFile(p.getFileName().toString(), targetFileType))
                                 .forEach(p -> {
+                                    String fname = p.getFileName().toString();
                                     Map<String, Object> fInfo = new HashMap<>();
-                                    fInfo.put("name", p.getFileName().toString());
+                                    fInfo.put("name", fname);
                                     try {
                                         fInfo.put("sizeBytes", Files.size(p));
                                     } catch (IOException e) {
                                         fInfo.put("sizeBytes", 0);
                                     }
-                                    fInfo.put("encrypted", p.toString().endsWith(".enc"));
+                                    fInfo.put("encrypted", fname.endsWith(".enc"));
+                                    fInfo.put("fileType", detectFileType(fname));
                                     filesList.add(fInfo);
                                 });
                     }
@@ -566,6 +586,31 @@ public class SecureImportService {
             response.put("message", e.getMessage());
             return response;
         }
+    }
+
+    private boolean isSupportedImportFile(String name, String targetFileType) {
+        if (name == null) return false;
+        String lower = name.toLowerCase();
+        if ("bson".equalsIgnoreCase(targetFileType)) {
+            return lower.endsWith(".bson.enc");
+        } else if ("json".equalsIgnoreCase(targetFileType)) {
+            return lower.endsWith(".json.enc");
+        } else if ("all".equalsIgnoreCase(targetFileType)) {
+            return lower.endsWith(".sql.enc") || lower.endsWith(".sql")
+                    || lower.endsWith(".bson.enc") || lower.endsWith(".bson")
+                    || lower.endsWith(".json.enc") || lower.endsWith(".json");
+        } else {
+            // Default "sql" - strictly encrypted sql files
+            return lower.endsWith(".sql.enc");
+        }
+    }
+
+    private String detectFileType(String name) {
+        if (name == null) return "SQL";
+        String lower = name.toLowerCase();
+        if (lower.contains(".bson")) return "BSON";
+        if (lower.contains(".json")) return "JSON";
+        return "SQL";
     }
 
     public Map<String, Object> getProgress(String executionId) {
