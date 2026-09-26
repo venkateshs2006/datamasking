@@ -107,6 +107,6 @@ seedm:
     masking-key: SecretKey123
   ai:
     qwen:
-      api-url: https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions
+      api-url: https://ws-m883gchtem8pwzb4.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions
       api-key: ${QWEN_API_KEY:}
       model: qwen-turbo

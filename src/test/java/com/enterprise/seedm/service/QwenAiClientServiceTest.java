@@ -120,5 +120,130 @@ class QwenAiClientServiceTest {
         assertNotNull(nullMap);
         assertTrue(nullMap.isEmpty());
     }
+
+    @Test
+    void testParseEntitiesFromJsonWithPiiPciSecureAndKeyMappings() {
+        String json = """
+                {
+                  "detectedEntities": {
+                    "customers.id": {
+                      "table": "customers",
+                      "column": "id",
+                      "category": "PRIMARY_KEY",
+                      "ruleType": "FPH",
+                      "fakerMethod": "DeterministicFPH()",
+                      "confidence": 0.99,
+                      "reason": "Primary key surrogate identifier",
+                      "keyType": "PRIMARY_KEY"
+                    },
+                    "customers.email": {
+                      "table": "customers",
+                      "column": "email",
+                      "category": "EMAIL",
+                      "ruleType": "SFD",
+                      "fakerMethod": "faker.internet().emailAddress()",
+                      "confidence": 0.99,
+                      "reason": "Customer email contact"
+                    },
+                    "orders.customer_id": {
+                      "table": "orders",
+                      "column": "customer_id",
+                      "category": "FOREIGN_KEY",
+                      "ruleType": "FPH",
+                      "fakerMethod": "DeterministicFPH()",
+                      "confidence": 0.98,
+                      "reason": "Foreign key referencing customers.id",
+                      "keyType": "FOREIGN_KEY",
+                      "targetTable": "customers",
+                      "targetColumn": "id"
+                    },
+                    "payments.card_number": {
+                      "table": "payments",
+                      "column": "card_number",
+                      "category": "CREDIT_CARD",
+                      "ruleType": "SFD",
+                      "fakerMethod": "faker.finance().creditCard()",
+                      "confidence": 0.99,
+                      "reason": "PCI credit card number"
+                    },
+                    "users.password_hash": {
+                      "table": "users",
+                      "column": "password_hash",
+                      "category": "PASSWORD_SECRET",
+                      "ruleType": "SFD",
+                      "fakerMethod": "faker.internet().password(12, true)",
+                      "confidence": 0.97,
+                      "reason": "Sensitive password hash credential"
+                    },
+                    "users.username": {
+                      "table": "users",
+                      "column": "username",
+                      "category": "UNIQUE_KEY",
+                      "ruleType": "SFD",
+                      "fakerMethod": "faker.name().fullName()",
+                      "confidence": 0.95,
+                      "reason": "Unique user handle",
+                      "keyType": "UNIQUE_KEY"
+                    },
+                    "user_roles.role_id": {
+                      "table": "user_roles",
+                      "column": "role_id",
+                      "category": "TABLE_MAPPING",
+                      "ruleType": "FPH",
+                      "fakerMethod": "DeterministicFPH()",
+                      "confidence": 0.96,
+                      "reason": "Junction table mapping to roles table",
+                      "keyType": "TABLE_MAPPING",
+                      "targetTable": "roles",
+                      "targetColumn": "id"
+                    }
+                  }
+                }
+                """;
+
+        Map<String, PiiEntityInfo> entities = qwenAiClientService.parseEntitiesFromJson(json);
+        assertNotNull(entities);
+        assertEquals(7, entities.size());
+
+        // Primary Key
+        PiiEntityInfo pk = entities.get("customers.id");
+        assertNotNull(pk);
+        assertEquals("PRIMARY_KEY", pk.getKeyType());
+        assertEquals("FPH", pk.getRuleType());
+
+        // PII
+        PiiEntityInfo email = entities.get("customers.email");
+        assertNotNull(email);
+        assertEquals("EMAIL", email.getCategory());
+        assertEquals("SFD", email.getRuleType());
+
+        // Foreign Key
+        PiiEntityInfo fk = entities.get("orders.customer_id");
+        assertNotNull(fk);
+        assertEquals("FOREIGN_KEY", fk.getKeyType());
+        assertEquals("customers", fk.getTargetTable());
+        assertEquals("id", fk.getTargetColumn());
+
+        // PCI
+        PiiEntityInfo cc = entities.get("payments.card_number");
+        assertNotNull(cc);
+        assertEquals("CREDIT_CARD", cc.getCategory());
+
+        // Secure secret
+        PiiEntityInfo pwd = entities.get("users.password_hash");
+        assertNotNull(pwd);
+        assertEquals("PASSWORD_SECRET", pwd.getCategory());
+
+        // Unique Key
+        PiiEntityInfo uk = entities.get("users.username");
+        assertNotNull(uk);
+        assertEquals("UNIQUE_KEY", uk.getKeyType());
+
+        // Table Mapping
+        PiiEntityInfo mapping = entities.get("user_roles.role_id");
+        assertNotNull(mapping);
+        assertEquals("TABLE_MAPPING", mapping.getKeyType());
+        assertEquals("roles", mapping.getTargetTable());
+    }
 }
 

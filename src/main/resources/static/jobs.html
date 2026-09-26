@@ -152,7 +152,8 @@
         }
 
         /* Specific to Approver UI adjustments */
-        body.role-approver .scheduler-only {
+        body.role-approver .scheduler-only,
+        body.role-approver #topNewMigrationBtn {
             display: none !important;
         }
 
@@ -216,7 +217,7 @@
                 <h2 class="text-3xl font-bold text-gray-900 leading-tight">Migration Hub</h2>
                 <p class="text-sm text-gray-500 mt-2">Track, review, and manage database masking requests.</p>
             </div>
-            <div class="flex space-x-3 scheduler-only">
+            <div id="topNewMigrationBtn" class="flex space-x-3 scheduler-only" style="display: none;">
                 <a href="/select-db.html"
                     class="bg-bnp-emerald text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-md hover:bg-[#007a4c] transition flex items-center">
                     <i class="fas fa-plus mr-2"></i> New Migration
@@ -360,9 +361,18 @@
             currentUserRole = (data.role || '').toUpperCase();
             userDepartments = data.departments || [];
 
-            if (currentUserRole !== 'APPROVER') {
+            if (currentUserRole === 'APPROVER') {
+                document.body.classList.add('role-approver');
+                const newMig = document.getElementById('navNewMigration');
+                if (newMig) newMig.style.display = 'none';
+                const topBtn = document.getElementById('topNewMigrationBtn');
+                if (topBtn) topBtn.style.display = 'none';
+            } else {
+                document.body.classList.remove('role-approver');
                 const newMig = document.getElementById('navNewMigration');
                 if (newMig) newMig.style.display = 'block';
+                const topBtn = document.getElementById('topNewMigrationBtn');
+                if (topBtn) topBtn.style.display = 'flex';
             }
             if (currentUserRole === 'ADMIN' || currentUserRole === 'MANAGER') {
                 const dbLink = document.getElementById('adminDbLink');
