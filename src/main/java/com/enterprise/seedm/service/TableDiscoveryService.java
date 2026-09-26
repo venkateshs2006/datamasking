@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import javax.sql.DataSource;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -189,5 +190,19 @@ public class TableDiscoveryService {
         String sql = String.format("SELECT COUNT(*) FROM %s.%s", schemaConfig.getSourceSchema(), tableName);
         Long count = sourceJdbcTemplate.queryForObject(sql, Long.class);
         return count != null ? count : 0;
+    }
+
+    /**
+     * Fetch sample rows for a table (capped between 1 and 10)
+     */
+    public List<Map<String, Object>> getSampleRows(String tableName, int limit) {
+        int rowLimit = Math.min(Math.max(limit, 1), 10);
+        try {
+            String sql = String.format("SELECT * FROM %s.%s LIMIT %d", schemaConfig.getSourceSchema(), tableName, rowLimit);
+            return sourceJdbcTemplate.queryForList(sql);
+        } catch (Exception e) {
+            log.warn("Could not query sample rows for {}.{}: {}", schemaConfig.getSourceSchema(), tableName, e.getMessage());
+            return Collections.emptyList();
+        }
     }
 }

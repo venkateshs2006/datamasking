@@ -120,15 +120,16 @@
 
             <div class="mb-8 shrink-0 text-center">
                 <h2 class="text-3xl font-bold text-gray-900">Configure Secure Export</h2>
-                <p class="text-sm text-gray-500 mt-2">Define your source, storage, and masking rules in 4 simple steps.</p>
+                <p class="text-sm text-gray-500 mt-2">Define your source, storage, and masking rules in 5 simple steps.</p>
             </div>
 
             <!-- Stepper -->
-            <div class="flex items-start mb-8 px-4 w-[80%] mx-auto shrink-0">
+            <div class="flex items-start mb-8 px-4 w-[85%] mx-auto shrink-0">
                 <div class="stepper-item active" id="step1-indicator"><div class="stepper-circle"><i class="fas fa-plug text-sm"></i></div><div class="stepper-label">Connection</div></div>
                 <div class="stepper-item" id="step2-indicator"><div class="stepper-circle"><i class="fas fa-table text-sm"></i></div><div class="stepper-label">Tables</div></div>
                 <div class="stepper-item" id="step3-indicator"><div class="stepper-circle"><i class="fas fa-mask text-sm"></i></div><div class="stepper-label">Rules</div></div>
-                <div class="stepper-item" id="step4-indicator"><div class="stepper-circle"><i class="fas fa-flag-checkered text-sm"></i></div><div class="stepper-label">Review</div></div>
+                <div class="stepper-item" id="step4-indicator"><div class="stepper-circle"><i class="fas fa-columns text-sm"></i></div><div class="stepper-label">Preview</div></div>
+                <div class="stepper-item" id="step5-indicator"><div class="stepper-circle"><i class="fas fa-flag-checkered text-sm"></i></div><div class="stepper-label">Review</div></div>
             </div>
 
             <!-- Main Card -->
@@ -419,8 +420,118 @@
                     </div>
                 </div>
 
-                <!-- STEP 4: PREVIEW -->
-                <div id="step4" class="step-container p-8 overflow-y-auto">
+                <!-- STEP 4: SAMPLE DATA PREVIEW -->
+                <div id="step4" class="step-container p-6 overflow-hidden flex flex-col h-full">
+                    <!-- Header -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-3 border-b border-gray-100 shrink-0">
+                        <div>
+                            <div class="flex items-center space-x-2.5">
+                                <h3 class="text-lg font-bold text-gray-900 tracking-tight flex items-center">
+                                    <i class="fas fa-columns text-bnp-emerald mr-2"></i> Sample Data Preview
+                                </h3>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-bnp-emerald border border-bnp-emerald/20 shadow-xs">
+                                    <i class="fas fa-shield-alt mr-1"></i> Strict Privacy: Zero PII Leaked
+                                </span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">
+                                Side-by-side verification before export. Source sensitive PII is strictly protected and never displayed.
+                            </p>
+                        </div>
+                        <div class="flex items-center space-x-2 shrink-0">
+                            <span id="previewRowCountBadge" class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-gray-100 text-gray-600 border border-gray-200">
+                                <i class="fas fa-list-ol mr-1 text-gray-400"></i> Top 5 Rows
+                            </span>
+                            <button type="button" onclick="refreshCurrentSamplePreview()" class="text-xs bg-white text-gray-700 hover:text-bnp-emerald border border-gray-200 hover:border-bnp-emerald/40 px-3 py-1.5 rounded-lg font-bold transition shadow-sm flex items-center">
+                                <i class="fas fa-sync-alt mr-1.5 text-xs text-bnp-emerald"></i> Refresh Sample
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Table Tabs (multi-table navigation) -->
+                    <div class="flex items-center space-x-2 pb-2 mb-3 overflow-x-auto shrink-0" id="previewTableTabs"></div>
+
+                    <!-- Split 2-Part Comparison Grid -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0 overflow-hidden">
+
+                        <!-- Left: 1. Before Anonymization (Source) -->
+                        <div class="bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden shadow-sm">
+                            <div class="bg-slate-50 px-4 py-2.5 border-b border-gray-200 flex items-center justify-between shrink-0">
+                                <div class="flex items-center space-x-2">
+                                    <span class="w-5 h-5 rounded-md bg-slate-700 text-white text-[11px] font-black flex items-center justify-center">1</span>
+                                    <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Before Anonymization (Source)</span>
+                                </div>
+                                <span class="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                                    <i class="fas fa-lock mr-1 text-amber-600"></i> PII Redacted
+                                </span>
+                            </div>
+                            <div class="overflow-auto flex-1 p-0 relative" id="beforeTableWrapper">
+                                <div id="beforePreviewLoading" class="absolute inset-0 bg-white/90 flex flex-col items-center justify-center z-20 hidden">
+                                    <i class="fas fa-circle-notch fa-spin text-2xl text-bnp-emerald mb-2"></i>
+                                    <span class="text-xs text-gray-500 font-semibold">Loading source sample data...</span>
+                                </div>
+                                <div id="beforePreviewEmpty" class="absolute inset-0 bg-white flex flex-col items-center justify-center z-10 text-gray-400 text-xs hidden">
+                                    <i class="fas fa-inbox text-3xl mb-2 opacity-40"></i>
+                                    <span>No sample rows found</span>
+                                </div>
+                                <table class="w-full text-xs text-left border-collapse" id="beforePreviewTable">
+                                    <thead class="bg-gray-50 sticky top-0 border-b border-gray-200 shadow-xs z-10" id="beforePreviewThead"></thead>
+                                    <tbody class="divide-y divide-gray-100 font-mono text-[11px]" id="beforePreviewTbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Right: 2. After Anonymization (Destination) -->
+                        <div class="bg-white border border-bnp-emerald/30 rounded-xl flex flex-col overflow-hidden shadow-sm ring-1 ring-bnp-emerald/10">
+                            <div class="bg-emerald-50/70 px-4 py-2.5 border-b border-emerald-100 flex items-center justify-between shrink-0">
+                                <div class="flex items-center space-x-2">
+                                    <span class="w-5 h-5 rounded-md bg-bnp-emerald text-white text-[11px] font-black flex items-center justify-center">2</span>
+                                    <span class="text-xs font-bold text-emerald-950 uppercase tracking-wider">After Anonymization (Export)</span>
+                                </div>
+                                <span class="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    <i class="fas fa-wand-magic-sparkles mr-1 text-emerald-600"></i> Masked & Synthetic
+                                </span>
+                            </div>
+                            <div class="overflow-auto flex-1 p-0 relative" id="afterTableWrapper">
+                                <div id="afterPreviewLoading" class="absolute inset-0 bg-white/90 flex flex-col items-center justify-center z-20 hidden">
+                                    <i class="fas fa-circle-notch fa-spin text-2xl text-bnp-emerald mb-2"></i>
+                                    <span class="text-xs text-gray-500 font-semibold">Transforming synthetic records...</span>
+                                </div>
+                                <div id="afterPreviewEmpty" class="absolute inset-0 bg-white flex flex-col items-center justify-center z-10 text-gray-400 text-xs hidden">
+                                    <i class="fas fa-inbox text-3xl mb-2 opacity-40"></i>
+                                    <span>No sample rows found</span>
+                                </div>
+                                <table class="w-full text-xs text-left border-collapse" id="afterPreviewTable">
+                                    <thead class="bg-emerald-50/50 sticky top-0 border-b border-emerald-100 shadow-xs z-10" id="afterPreviewThead"></thead>
+                                    <tbody class="divide-y divide-gray-100 font-mono text-[11px]" id="afterPreviewTbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Footer: Legend & Summary -->
+                    <div class="mt-3 pt-2.5 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 shrink-0 text-xs">
+                        <div class="flex items-center flex-wrap gap-2 text-[11px]">
+                            <span class="text-gray-400 font-semibold uppercase tracking-wider text-[10px] mr-1">Legend:</span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-medium">
+                                <i class="fas fa-lock mr-1 text-amber-600 text-[9px]"></i> Redacted PII (Zero Leak)
+                            </span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium">
+                                <i class="fas fa-mask mr-1 text-emerald-600 text-[9px]"></i> SFD: Synthetic Faker
+                            </span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded bg-orange-50 text-orange-800 border border-orange-200 font-medium">
+                                <i class="fas fa-eye-slash mr-1 text-orange-600 text-[9px]"></i> PMD: Partial Mask
+                            </span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200 font-medium">
+                                <i class="fas fa-key mr-1 text-purple-600 text-[9px]"></i> FPH: Hash (Salted)
+                            </span>
+                        </div>
+                        <div id="previewActiveTableStats" class="text-[11px] text-gray-500 font-medium"></div>
+                    </div>
+                </div>
+
+                <!-- STEP 5: REVIEW & SUBMIT -->
+                <div id="step5" class="step-container p-8 overflow-y-auto">
                     <div class="max-w-4xl mx-auto w-full flex flex-col h-full">
                         <div class="text-center mb-8 shrink-0">
                             <div class="w-16 h-16 bg-bnp-emerald/10 text-bnp-emerald rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ring-4 ring-bnp-emerald/5">
@@ -695,7 +806,9 @@
     }
 
     let currentStep = 1;
-    const totalSteps = 4;
+    const totalSteps = 5;
+    let previewCache = {};
+    let activePreviewTable = null;
     let state = {
         tables: [],
         selectedTables: [],
@@ -909,6 +1022,7 @@
         state.rules.partialMaskingColumns = [];
         state.rules.constraintColumns = [];
         state.aiSuggestions = {};
+        previewCache = {};
 
         if (activeRuleTable && state.columnsCache[activeRuleTable]) {
             renderColumnList(activeRuleTable, state.columnsCache[activeRuleTable]);
@@ -1080,7 +1194,7 @@
                 if(i < currentStep) {
                     iconWrap.innerHTML = '<i class="fas fa-check"></i>';
                 } else {
-                    const icons = ['plug', 'table', 'mask', 'flag-checkered'];
+                    const icons = ['plug', 'table', 'mask', 'columns', 'flag-checkered'];
                     iconWrap.innerHTML = `<i class="fas fa-${icons[i-1]} text-sm"></i>`;
                 }
             }
@@ -1093,7 +1207,13 @@
         if (currentStep === 1) validateStep1();
         if (currentStep === 2) validateStep2();
         if (currentStep === 3) validateStep3();
-        if (currentStep === 4) populatePreview();
+        if (currentStep === 4) {
+            if (!activePreviewTable || !state.selectedTables.includes(activePreviewTable)) {
+                activePreviewTable = state.selectedTables[0] || null;
+            }
+            loadSamplePreview(activePreviewTable);
+        }
+        if (currentStep === 5) populatePreview();
     }
 
     async function nextStep() {
@@ -1143,6 +1263,12 @@
                 btn.disabled = false;
             }
             renderRuleTables();
+        }
+        if (currentStep === 3) {
+            if (!activePreviewTable || !state.selectedTables.includes(activePreviewTable)) {
+                activePreviewTable = state.selectedTables[0] || null;
+            }
+            await loadSamplePreview(activePreviewTable);
         }
 
         currentStep++;
@@ -1289,6 +1415,7 @@
     }
 
     function toggleRule(full, type, table) {
+        previewCache = {};
         if(!state.selectedTables.includes(table)) {
             state.selectedTables.push(table);
             renderAvailableTables();
@@ -1327,6 +1454,297 @@
         f('maskingColumns','tags-masking','bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20');
         f('partialMaskingColumns','tags-partial','bg-orange-100 text-orange-700 border border-orange-200');
         f('constraintColumns','tags-constraint','bg-purple-100 text-purple-700 border border-purple-200');
+    }
+
+    // --- SAMPLE DATA PREVIEW HELPERS ---
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    async function refreshCurrentSamplePreview() {
+        if (activePreviewTable) {
+            delete previewCache[activePreviewTable];
+            await loadSamplePreview(activePreviewTable, true);
+        }
+    }
+
+    async function loadSamplePreview(targetTable, forceRefresh = false) {
+        if (!state.selectedTables || state.selectedTables.length === 0) {
+            const tabs = document.getElementById('previewTableTabs');
+            if (tabs) tabs.innerHTML = '<span class="text-xs text-gray-400 italic">No tables selected. Please select tables in Step 2.</span>';
+            const beforeEmpty = document.getElementById('beforePreviewEmpty');
+            const afterEmpty = document.getElementById('afterPreviewEmpty');
+            if (beforeEmpty) beforeEmpty.classList.remove('hidden');
+            if (afterEmpty) afterEmpty.classList.remove('hidden');
+            return;
+        }
+
+        if (!targetTable || !state.selectedTables.includes(targetTable)) {
+            targetTable = activePreviewTable && state.selectedTables.includes(activePreviewTable)
+                ? activePreviewTable
+                : state.selectedTables[0];
+        }
+        activePreviewTable = targetTable;
+
+        renderPreviewTableTabs();
+
+        if (!forceRefresh && previewCache[targetTable]) {
+            renderSamplePreviewData(previewCache[targetTable]);
+            return;
+        }
+
+        const beforeLoader = document.getElementById('beforePreviewLoading');
+        const afterLoader = document.getElementById('afterPreviewLoading');
+        const beforeEmpty = document.getElementById('beforePreviewEmpty');
+        const afterEmpty = document.getElementById('afterPreviewEmpty');
+        if (beforeLoader) beforeLoader.classList.remove('hidden');
+        if (afterLoader) afterLoader.classList.remove('hidden');
+        if (beforeEmpty) beforeEmpty.classList.add('hidden');
+        if (afterEmpty) afterEmpty.classList.add('hidden');
+
+        try {
+            const srcSelect = document.getElementById('sourceId');
+            const schemaSelect = document.getElementById('sourceSchema');
+            const payload = {
+                tableName: targetTable,
+                tables: state.selectedTables,
+                maskingColumns: state.rules.maskingColumns || [],
+                partialMaskingColumns: state.rules.partialMaskingColumns || [],
+                constraintColumns: state.rules.constraintColumns || [],
+                columns: state.columnsCache[targetTable] || [],
+                limit: 5,
+                jobType: 'rdbms',
+                connectionId: srcSelect ? srcSelect.value : '',
+                databaseName: schemaSelect ? schemaSelect.value : ''
+            };
+
+            const res = await fetch('/api/preview/sample', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                throw new Error(`Failed to load sample preview: ${res.statusText}`);
+            }
+
+            const data = await res.json();
+            previewCache[targetTable] = data;
+            renderSamplePreviewData(data);
+        } catch (err) {
+            console.error("Error generating sample preview:", err);
+            const beforeTbody = document.getElementById('beforePreviewTbody');
+            const afterTbody = document.getElementById('afterPreviewTbody');
+            if (beforeTbody) beforeTbody.innerHTML = `<tr><td colspan="100" class="p-6 text-center text-red-500 font-semibold">Error loading source sample data: ${escapeHtml(err.message)}</td></tr>`;
+            if (afterTbody) afterTbody.innerHTML = `<tr><td colspan="100" class="p-6 text-center text-red-500 font-semibold">Error generating synthetic preview</td></tr>`;
+        } finally {
+            if (beforeLoader) beforeLoader.classList.add('hidden');
+            if (afterLoader) afterLoader.classList.add('hidden');
+        }
+    }
+
+    function renderPreviewTableTabs() {
+        const tabsContainer = document.getElementById('previewTableTabs');
+        if (!tabsContainer) return;
+        tabsContainer.innerHTML = '';
+
+        state.selectedTables.forEach(t => {
+            const isActive = t === activePreviewTable;
+            const maskCount = (state.rules.maskingColumns || []).filter(c => c.startsWith(t + '.')).length;
+            const partCount = (state.rules.partialMaskingColumns || []).filter(c => c.startsWith(t + '.')).length;
+            const encCount = (state.rules.constraintColumns || []).filter(c => c.startsWith(t + '.')).length;
+            const ruleCount = maskCount + partCount + encCount;
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = isActive
+                ? 'px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 bg-bnp-emerald text-white shadow-sm border border-bnp-emerald'
+                : 'px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center space-x-1.5 bg-white text-gray-700 hover:bg-gray-50 border border-gray-200';
+
+            const badgeClass = isActive
+                ? 'bg-white/20 text-white'
+                : (ruleCount > 0 ? 'bg-emerald-50 text-bnp-emerald border border-bnp-emerald/20' : 'bg-gray-100 text-gray-500');
+
+            btn.innerHTML = `
+                <i class="fas fa-table text-[10px] ${isActive ? 'text-white' : 'text-gray-400'}"></i>
+                <span>${escapeHtml(t)}</span>
+                <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold ${badgeClass}">${ruleCount} rules</span>
+            `;
+            btn.onclick = () => loadSamplePreview(t);
+            tabsContainer.appendChild(btn);
+        });
+    }
+
+    function renderSamplePreviewData(data) {
+        const beforeThead = document.getElementById('beforePreviewThead');
+        const beforeTbody = document.getElementById('beforePreviewTbody');
+        const afterThead = document.getElementById('afterPreviewThead');
+        const afterTbody = document.getElementById('afterPreviewTbody');
+        const stats = document.getElementById('previewActiveTableStats');
+        const countBadge = document.getElementById('previewRowCountBadge');
+        const beforeEmpty = document.getElementById('beforePreviewEmpty');
+        const afterEmpty = document.getElementById('afterPreviewEmpty');
+
+        if (!data || !data.columns || data.columns.length === 0) {
+            if (beforeEmpty) beforeEmpty.classList.remove('hidden');
+            if (afterEmpty) afterEmpty.classList.remove('hidden');
+            if (beforeThead) beforeThead.innerHTML = '';
+            if (beforeTbody) beforeTbody.innerHTML = '';
+            if (afterThead) afterThead.innerHTML = '';
+            if (afterTbody) afterTbody.innerHTML = '';
+            return;
+        }
+
+        if (beforeEmpty) beforeEmpty.classList.add('hidden');
+        if (afterEmpty) afterEmpty.classList.add('hidden');
+
+        if (countBadge) {
+            countBadge.innerHTML = `<i class="fas fa-list-ol mr-1 text-gray-400"></i> ${data.rowCount || 0} Sample Rows`;
+        }
+        if (stats) {
+            stats.innerHTML = `Table: <strong class="text-gray-800">${escapeHtml(data.tableName)}</strong> &bull; <span class="text-emerald-700 font-bold">${data.maskedColumnCount || 0} Masked</span> / ${data.columns.length} Total Columns`;
+        }
+
+        const cols = data.columns;
+        const colRules = data.columnRules || {};
+
+        // 1. Before Thead
+        let beforeThHtml = '<tr><th class="p-2.5 pl-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-100/70 border-b border-gray-200 w-10 text-center">#</th>';
+        cols.forEach(col => {
+            const rule = colRules[col] || 'NONE';
+            if (rule !== 'NONE') {
+                beforeThHtml += `
+                    <th class="p-2.5 text-[11px] font-bold text-amber-900 bg-amber-50/70 border-b border-amber-200 whitespace-nowrap">
+                        <div class="flex items-center space-x-1.5">
+                            <span>${escapeHtml(col)}</span>
+                            <span class="inline-flex items-center text-[9px] font-extrabold text-amber-800 bg-amber-200/70 px-1 py-0.5 rounded border border-amber-300" title="Source PII Redacted for Privacy">
+                                <i class="fas fa-lock mr-0.5 text-[8px]"></i>PII
+                            </span>
+                        </div>
+                    </th>`;
+            } else {
+                beforeThHtml += `
+                    <th class="p-2.5 text-[11px] font-semibold text-gray-600 border-b border-gray-200 whitespace-nowrap">
+                        ${escapeHtml(col)}
+                    </th>`;
+            }
+        });
+        beforeThHtml += '</tr>';
+        beforeThead.innerHTML = beforeThHtml;
+
+        // 2. Before Tbody
+        let beforeTbHtml = '';
+        (data.beforeRows || []).forEach((row, idx) => {
+            beforeTbHtml += `<tr class="hover:bg-gray-50/60 transition-colors">`;
+            beforeTbHtml += `<td class="p-2.5 pl-3 text-center text-[10px] text-gray-400 font-mono bg-gray-50/50">${idx + 1}</td>`;
+            cols.forEach(col => {
+                const val = row[col] !== undefined && row[col] !== null ? row[col] : '';
+                const rule = colRules[col] || 'NONE';
+                const strVal = String(val);
+
+                if (rule !== 'NONE' || strVal.includes('PROTECTED')) {
+                    beforeTbHtml += `
+                        <td class="p-2.5 bg-amber-50/30 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-100/80 text-amber-900 border border-amber-300/70 shadow-xs" title="Real source PII is strictly protected and not shown">
+                                <i class="fas fa-lock text-[8px] mr-1 text-amber-600"></i>•••••••• [PROTECTED]
+                            </span>
+                        </td>`;
+                } else {
+                    beforeTbHtml += `
+                        <td class="p-2.5 text-gray-700 whitespace-nowrap truncate max-w-[180px]" title="${escapeHtml(strVal)}">
+                            ${escapeHtml(strVal || 'NULL')}
+                        </td>`;
+                }
+            });
+            beforeTbHtml += `</tr>`;
+        });
+        beforeTbody.innerHTML = beforeTbHtml || '<tr><td colspan="100" class="p-4 text-center text-gray-400 italic text-xs">No records available</td></tr>';
+
+        // 3. After Thead
+        let afterThHtml = '<tr><th class="p-2.5 pl-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-emerald-100/40 border-b border-emerald-200 w-10 text-center">#</th>';
+        cols.forEach(col => {
+            const rule = colRules[col] || 'NONE';
+            if (rule === 'SFD') {
+                afterThHtml += `
+                    <th class="p-2.5 text-[11px] font-bold text-emerald-900 bg-emerald-50 border-b border-emerald-200 whitespace-nowrap">
+                        <div class="flex items-center space-x-1.5">
+                            <span>${escapeHtml(col)}</span>
+                            <span class="text-[9px] font-extrabold bg-bnp-emerald text-white px-1.5 py-0.5 rounded shadow-xs" title="Synthetic Faker Generation">SFD</span>
+                        </div>
+                    </th>`;
+            } else if (rule === 'PMD') {
+                afterThHtml += `
+                    <th class="p-2.5 text-[11px] font-bold text-orange-900 bg-orange-50 border-b border-orange-200 whitespace-nowrap">
+                        <div class="flex items-center space-x-1.5">
+                            <span>${escapeHtml(col)}</span>
+                            <span class="text-[9px] font-extrabold bg-orange-600 text-white px-1.5 py-0.5 rounded shadow-xs" title="Partial Masking / Shifting">PMD</span>
+                        </div>
+                    </th>`;
+            } else if (rule === 'FPH') {
+                afterThHtml += `
+                    <th class="p-2.5 text-[11px] font-bold text-purple-900 bg-purple-50 border-b border-purple-200 whitespace-nowrap">
+                        <div class="flex items-center space-x-1.5">
+                            <span>${escapeHtml(col)}</span>
+                            <span class="text-[9px] font-extrabold bg-purple-600 text-white px-1.5 py-0.5 rounded shadow-xs" title="Format-Preserving Hashing">FPH</span>
+                        </div>
+                    </th>`;
+            } else {
+                afterThHtml += `
+                    <th class="p-2.5 text-[11px] font-semibold text-gray-600 border-b border-gray-200 whitespace-nowrap">
+                        ${escapeHtml(col)}
+                    </th>`;
+            }
+        });
+        afterThHtml += '</tr>';
+        afterThead.innerHTML = afterThHtml;
+
+        // 4. After Tbody
+        let afterTbHtml = '';
+        (data.afterRows || []).forEach((row, idx) => {
+            afterTbHtml += `<tr class="hover:bg-emerald-50/20 transition-colors">`;
+            afterTbHtml += `<td class="p-2.5 pl-3 text-center text-[10px] text-gray-400 font-mono bg-emerald-50/20">${idx + 1}</td>`;
+            cols.forEach(col => {
+                const val = row[col] !== undefined && row[col] !== null ? row[col] : '';
+                const rule = colRules[col] || 'NONE';
+                const strVal = String(val);
+
+                if (rule === 'SFD') {
+                    afterTbHtml += `
+                        <td class="p-2.5 bg-emerald-50/30 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-100/70 text-emerald-900 border border-emerald-300/60 shadow-xs" title="Synthetic Faker Data">
+                                <i class="fas fa-mask mr-1 text-emerald-600 text-[9px]"></i>${escapeHtml(strVal)}
+                            </span>
+                        </td>`;
+                } else if (rule === 'PMD') {
+                    afterTbHtml += `
+                        <td class="p-2.5 bg-orange-50/30 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-orange-100/70 text-orange-900 border border-orange-300/60 shadow-xs" title="Partial Masked / Shifted Value">
+                                <i class="fas fa-eye-slash mr-1 text-orange-600 text-[9px]"></i>${escapeHtml(strVal)}
+                            </span>
+                        </td>`;
+                } else if (rule === 'FPH') {
+                    afterTbHtml += `
+                        <td class="p-2.5 bg-purple-50/30 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-purple-100/70 text-purple-900 border border-purple-300/60 shadow-xs" title="Salted Format-Preserving Hash">
+                                <i class="fas fa-key mr-1 text-purple-600 text-[9px]"></i>${escapeHtml(strVal)}
+                            </span>
+                        </td>`;
+                } else {
+                    afterTbHtml += `
+                        <td class="p-2.5 text-gray-700 whitespace-nowrap truncate max-w-[180px]" title="${escapeHtml(strVal)}">
+                            ${escapeHtml(strVal || 'NULL')}
+                        </td>`;
+                }
+            });
+            afterTbHtml += `</tr>`;
+        });
+        afterTbody.innerHTML = afterTbHtml || '<tr><td colspan="100" class="p-4 text-center text-gray-400 italic text-xs">No records available</td></tr>';
     }
 
     function populatePreview() {

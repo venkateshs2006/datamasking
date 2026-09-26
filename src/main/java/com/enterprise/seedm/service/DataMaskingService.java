@@ -60,6 +60,20 @@ public class DataMaskingService {
         return maskDataInternal(collectionName, row, false);
     }
 
+    public Map<String, Object> maskDataWithRules(String tableName, Map<String, Object> row,
+                                                 List<String> maskingColumns,
+                                                 List<String> constraintColumns,
+                                                 List<String> partialMaskingColumns) {
+        Map<String, Set<String>> maskingRules = parseRules(maskingColumns);
+        Map<String, Set<String>> constraintRules = parseRules(constraintColumns);
+        Map<String, Set<String>> partialMaskingRules = parseRules(partialMaskingColumns);
+
+        Map<String, Object> maskedRow = new Document(row);
+        List<ColumnMetadata> metadata = getCachedMetadata(tableName);
+        traverseAndMask(tableName, maskedRow, "", maskingRules, constraintRules, partialMaskingRules, metadata);
+        return maskedRow;
+    }
+
     private Map<String, Object> maskDataInternal(String rootName, Map<String, Object> row, boolean fetchMetadata) {
         MaskingConfig config = maskingConfigService.getConfig();
         Map<String, Set<String>> maskingRules = parseRules(config.getMaskingColumns());
