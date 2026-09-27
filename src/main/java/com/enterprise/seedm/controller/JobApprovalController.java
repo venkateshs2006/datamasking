@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -68,7 +69,7 @@ public class JobApprovalController {
             String department = null;
 
             // Try to get department from source connection
-            if (configDetailsMap.containsKey("source")) {
+            if (configDetailsMap.containsKey("source") && configDetailsMap.get("source") instanceof Map) {
                 Map<String, Object> sourceMap = (Map<String, Object>) configDetailsMap.get("source");
                 if (sourceMap.containsKey("id") && sourceMap.get("id") != null) {
                     try {
@@ -89,7 +90,7 @@ public class JobApprovalController {
             }
 
             // If department not found, try destination connection
-            if (department == null && configDetailsMap.containsKey("dest")) {
+            if (department == null && configDetailsMap.containsKey("dest") && configDetailsMap.get("dest") instanceof Map) {
                 Map<String, Object> destMap = (Map<String, Object>) configDetailsMap.get("dest");
                 if (destMap.containsKey("id") && destMap.get("id") != null) {
                     DbConnection destConnection = dbConnectionService.getConnection(Long.valueOf(destMap.get("id").toString()));
@@ -105,7 +106,7 @@ public class JobApprovalController {
             }
 
             // If department still not found, try storage connection
-            if (department == null && configDetailsMap.containsKey("storage")) {
+            if (department == null && configDetailsMap.containsKey("storage") && configDetailsMap.get("storage") instanceof Map) {
                 Map<String, Object> storageMap = (Map<String, Object>) configDetailsMap.get("storage");
                 if (storageMap.containsKey("id") && storageMap.get("id") != null) {
                     CosConnection cosConnection = cosConnectionService.getConnection(Long.valueOf(storageMap.get("id").toString()));
@@ -200,19 +201,21 @@ public class JobApprovalController {
     }
 
     @PostMapping("/{id}/approve")
-    public ResponseEntity<?> approveJob(@PathVariable Long id, @RequestBody Map<String, String> payload) {
-        JobRequest job = jobApprovalService.approveJob(id, payload.get("comments"));
+    public ResponseEntity<?> approveJob(@PathVariable Long id, @RequestBody(required = false) Map<String, String> payload) {
+        String comments = (payload != null && payload.get("comments") != null) ? payload.get("comments") : "Approved";
+        JobRequest job = jobApprovalService.approveJob(id, comments);
         if (job == null) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Job not found with ID: " + id));
         }
         return ResponseEntity.ok(job);
     }
 
     @PostMapping("/{id}/reject")
-    public ResponseEntity<?> rejectJob(@PathVariable Long id, @RequestBody Map<String, String> payload) {
-        JobRequest job = jobApprovalService.rejectJob(id, payload.get("comments"));
+    public ResponseEntity<?> rejectJob(@PathVariable Long id, @RequestBody(required = false) Map<String, String> payload) {
+        String comments = (payload != null && payload.get("comments") != null) ? payload.get("comments") : "Rejected";
+        JobRequest job = jobApprovalService.rejectJob(id, comments);
         if (job == null) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Job not found with ID: " + id));
         }
         return ResponseEntity.ok(job);
     }

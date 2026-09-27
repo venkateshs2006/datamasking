@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNP Paribas - Anonify MongoDB Bulk Document Dump</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4', darkGreen: '#007a4c' }
+                    },
+                    fontFamily: {
+                        sans: ['Open Sans', 'sans-serif'],
+                        display: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Open Sans', sans-serif; background-color: #f8fafc; color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
+
+        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 100; }
+        .bnp-logo { height: 48px; display: block; }
+        nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
+        nav ul li { margin-left: 25px; }
+        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
+        nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+        nav ul li a.active { color: var(--bnp-emerald); border-bottom: 2px solid var(--bnp-emerald); padding-bottom: 4px; font-weight: 700; }
+
+        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 35px 8%; font-size: 0.8rem; margin-top: auto; z-index: 20; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.85; }
+
+        .card { background: white; border-radius: 14px; box-shadow: 0 4px 12px -2px rgba(0,0,0,0.06), 0 2px 6px -1px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; }
+
+        .input-field { width: 100%; padding: 0.65rem 1rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.875rem; transition: all 0.2s; background-color: #ffffff; color: #334155; }
+        .input-field:focus { outline: none; border-color: var(--bnp-emerald); box-shadow: 0 0 0 3px rgba(0, 150, 94, 0.15); }
+        .input-field:disabled { background-color: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+
+        .btn { padding: 0.65rem 1.6rem; border-radius: 8px; font-weight: 700; font-size: 0.875rem; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+        .btn-primary { background-color: var(--bnp-emerald); color: white; border: 1px solid transparent; }
+        .btn-primary:hover:not(:disabled) { background-color: #007a4c; box-shadow: 0 4px 10px rgba(0, 150, 94, 0.25); transform: translateY(-1px); }
+        .btn-success { background-color: #10b981; color: white; border: 1px solid transparent; }
+        .btn-success:hover:not(:disabled) { background-color: #059669; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.25); transform: translateY(-1px); }
+        .btn-secondary { background-color: #fff; color: #475569; border: 1px solid #cbd5e1; }
+        .btn-secondary:hover:not(:disabled) { background-color: #f8fafc; color: #0f172a; border-color: #94a3b8; }
+
+        .stepper-item { flex: 1; text-align: center; position: relative; }
+        .stepper-item::after { content: ''; position: absolute; top: 16px; left: 50%; width: 100%; height: 2px; background-color: #e2e8f0; z-index: 1; }
+        .stepper-item:last-child::after { display: none; }
+        .stepper-item.completed::after { background-color: var(--bnp-emerald); }
+        .stepper-circle { width: 34px; height: 34px; border-radius: 50%; background-color: #fff; border: 2px solid #cbd5e1; color: #94a3b8; display: flex; align-items: center; justify-content: center; font-weight: 700; margin: 0 auto; position: relative; z-index: 2; transition: all 0.3s ease; }
+        .stepper-item.active .stepper-circle { border-color: var(--bnp-emerald); color: var(--bnp-emerald); box-shadow: 0 0 0 4px rgba(0, 150, 94, 0.15); }
+        .stepper-item.completed .stepper-circle { background-color: var(--bnp-emerald); border-color: var(--bnp-emerald); color: #fff; }
+        .stepper-label { font-size: 0.72rem; font-weight: 700; color: #64748b; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stepper-item.active .stepper-label { color: var(--bnp-emerald); }
+        .stepper-item.completed .stepper-label { color: #1e293b; }
+
+        .modal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); z-index: 1050; backdrop-filter: blur(5px); overflow-y: auto; padding: 20px; }
+        .modal-content { background: white; margin: 2rem auto; border-radius: 16px; width: 100%; max-width: 720px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); border: 1px solid #e2e8f0; }
+
+        .progress-striped {
+            background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+            background-size: 1rem 1rem;
+            animation: progress-stripes 1s linear infinite;
+        }
+        @keyframes progress-stripes { from { background-position: 1rem 0; } to { background-position: 0 0; } }
+    </style>
+</head>
+<body>
+
+    <!-- Header without top menu -->
+    <header>
+        <div class="flex items-center">
+            <a href="/select-db.html" class="logo-link mr-6">
+                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+            </a>
+            <div class="hidden md:block border-l border-gray-300 pl-6">
+                <h1 class="text-xl font-extrabold text-bnp-dark-grey tracking-tight leading-none font-display">Anonify</h1>
+                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">MongoDB Bulk Document Dump</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="/select-db.html" class="px-3.5 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:text-bnp-emerald hover:border-bnp-emerald transition-all flex items-center gap-1.5 shadow-sm bg-white">
+                <i class="fas fa-arrow-left text-[10px]"></i> Back to Hub
+            </a>
+            <button onclick="logout()" class="px-3.5 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:text-red-600 hover:border-red-200 transition-all flex items-center gap-1.5 shadow-sm bg-white">
+                <i class="fas fa-sign-out-alt text-[10px]"></i> Sign Out
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 py-10 px-4 md:px-8 max-w-6xl mx-auto w-full">
+
+        <!-- Title Banner -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold uppercase tracking-wider mb-2">
+                <i class="fas fa-leaf text-emerald-600 text-[11px]"></i> NoSQL Document Database Engine
+            </div>
+            <h2 class="text-3xl font-extrabold text-gray-900 tracking-tight font-display">MongoDB Bulk Collection Dump</h2>
+            <p class="text-sm text-gray-500 mt-1 max-w-2xl mx-auto">Discover MongoDB database collections, configure document count requirements, send for governance approval, and execute high-speed BSON document batch insertion.</p>
+        </div>
+
+        <!-- 7-Step Stepper -->
+        <div class="flex items-start mb-10 px-2 max-w-4xl mx-auto">
+            <div class="stepper-item active" id="step1-ind"><div class="stepper-circle"><i class="fas fa-plug text-xs"></i></div><div class="stepper-label">1. Connection</div></div>
+            <div class="stepper-item" id="step2-ind"><div class="stepper-circle"><i class="fas fa-cubes text-xs"></i></div><div class="stepper-label">2. Collections</div></div>
+            <div class="stepper-item" id="step3-ind"><div class="stepper-circle"><i class="fas fa-sort-numeric-up text-xs"></i></div><div class="stepper-label">3. Counts</div></div>
+            <div class="stepper-item" id="step4-ind"><div class="stepper-circle"><i class="fas fa-paper-plane text-xs"></i></div><div class="stepper-label">4. Approval</div></div>
+            <div class="stepper-item" id="step5-ind"><div class="stepper-circle"><i class="fas fa-check-double text-xs"></i></div><div class="stepper-label">5. Run Setup</div></div>
+            <div class="stepper-item" id="step6-ind"><div class="stepper-circle"><i class="fas fa-spinner text-xs"></i></div><div class="stepper-label">6. Dumping</div></div>
+            <div class="stepper-item" id="step7-ind"><div class="stepper-circle"><i class="fas fa-chart-bar text-xs"></i></div><div class="stepper-label">7. Report</div></div>
+        </div>
+
+        <!-- STEP 1: MONGO CONNECTION DETAILS -->
+        <div class="card p-6 md:p-8 mb-8" id="cardStep1">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-100 mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg font-bold">
+                        <i class="fas fa-leaf"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-gray-900">Step 1: MongoDB Connection & Database</h3>
+                        <p class="text-xs text-gray-500">Select target MongoDB connection instance and specify the target database.</p>
+                    </div>
+                </div>
+                <span class="text-xs font-bold px-3 py-1 bg-emerald-50 text-emerald-800 rounded-full border border-emerald-200 uppercase font-mono">MongoDB</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">MongoDB Connection</label>
+                    <select id="mongoConnSelect" class="input-field font-mono" onchange="onConnectionSelected()">
+                        <option value="">-- Choose MongoDB Connection --</option>
+                    </select>
+                    <p class="text-[11px] text-gray-400 mt-1.5"><i class="fas fa-info-circle mr-1"></i> Pre-configured cluster connections.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Target Database Name</label>
+                    <input type="text" id="targetDatabase" class="input-field font-mono" value="test" placeholder="e.g. test or enterprise_app">
+                    <p class="text-[11px] text-gray-400 mt-1.5"><i class="fas fa-database mr-1"></i> Database namespace to inspect collections.</p>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button type="button" id="btnFetchCollections" onclick="discoverCollections()" class="btn btn-primary">
+                    <i class="fas fa-search mr-2"></i> Inspect Database Collections
+                </button>
+            </div>
+        </div>
+
+        <!-- STEP 2 & 3: COLLECTIONS & DOCUMENT TARGET COUNTS -->
+        <div class="card p-6 md:p-8 mb-8 hidden" id="cardStep23">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-100 mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg font-bold">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-gray-900">Step 2 & 3: Collection Inventory & Target Document Counts</h3>
+                        <p class="text-xs text-gray-500">Configure target document batch quantities for each collection.</p>
+                    </div>
+                </div>
+
+                <!-- Global Multipliers -->
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-gray-400 uppercase mr-1">Set All:</span>
+                    <button type="button" onclick="setAllCounts(100)" class="px-2.5 py-1 text-xs font-bold rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-mono transition-colors">100</button>
+                    <button type="button" onclick="setAllCounts(500)" class="px-2.5 py-1 text-xs font-bold rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-mono transition-colors">500</button>
+                    <button type="button" onclick="setAllCounts(1000)" class="px-2.5 py-1 text-xs font-bold rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-mono transition-colors">1K</button>
+                    <button type="button" onclick="setAllCounts(5000)" class="px-2.5 py-1 text-xs font-bold rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-mono transition-colors">5K</button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto rounded-xl border border-gray-200 mb-6">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-200 text-gray-600 uppercase font-bold tracking-wider">
+                            <th class="p-3 w-12 text-center">
+                                <input type="checkbox" id="selectAllColls" onchange="toggleSelectAll(this.checked)" checked class="rounded text-bnp-emerald focus:ring-bnp-emerald">
+                            </th>
+                            <th class="p-3">Collection Name</th>
+                            <th class="p-3">Fields Preview</th>
+                            <th class="p-3 text-right">Current Documents</th>
+                            <th class="p-3 text-right w-44">Target Dump Count</th>
+                        </tr>
+                    </thead>
+                    <tbody id="collectionListTbody" class="divide-y divide-gray-100 font-mono">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Summary -->
+            <div class="flex flex-col sm:flex-row justify-between items-center bg-gray-50 p-4 rounded-xl border border-gray-200 gap-4">
+                <div class="text-xs text-gray-600">
+                    Selected Collections: <strong id="selectedCollCount" class="text-gray-900 font-mono">0</strong> |
+                    Total Documents to Insert: <strong id="totalTargetDocs" class="text-emerald-700 font-mono font-bold text-sm">0</strong>
+                </div>
+                <div class="text-xs text-gray-500 font-mono">
+                    <i class="fas fa-fingerprint text-emerald-600 mr-1"></i> Auto-generated <code>_id: ObjectId(...)</code> on all documents
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 4 & 5: SEND FOR APPROVAL & DYNAMIC RUN SETUP BUTTON -->
+        <div class="card p-6 md:p-8 mb-8 hidden" id="cardStep45">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-100 mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-lg font-bold">
+                        <i class="fas fa-clipboard-check"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-gray-900">Step 4 & 5: Governance Approval & Run Setup</h3>
+                        <p class="text-xs text-gray-500">Submit MongoDB dump request for compliance authorization. The button will dynamically become Run Setup once approved.</p>
+                    </div>
+                </div>
+                <div id="jobStatusBadge" class="hidden text-xs font-bold px-3 py-1 rounded-full uppercase font-mono"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Job Name</label>
+                    <input type="text" id="migrationJobName" class="input-field" placeholder="e.g. MongoDB Customer Datasets Bulk Seeding">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Department</label>
+                    <input type="text" id="userDepartment" class="input-field font-semibold bg-gray-50" readonly value="Loading...">
+                </div>
+            </div>
+
+            <!-- Approval Banner -->
+            <div id="approvalBanner" class="p-5 rounded-xl border mb-6 hidden">
+                <div class="flex items-start gap-4">
+                    <div id="approvalBannerIcon" class="text-2xl mt-0.5"></div>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between">
+                            <h4 id="approvalBannerTitle" class="text-sm font-bold text-gray-900"></h4>
+                            <span id="submittedJobId" class="text-xs font-mono font-bold text-gray-500"></span>
+                        </div>
+                        <p id="approvalBannerText" class="text-xs text-gray-600 mt-1 leading-relaxed"></p>
+                    </div>
+                    <button type="button" id="btnQuickApprove" onclick="quickApproveJob()" class="btn btn-primary text-xs px-3 py-1.5 hidden">
+                        <i class="fas fa-check mr-1.5"></i> Quick Approve
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-2">
+                <button type="button" id="btnSendApproval" onclick="submitForApproval()" class="btn btn-primary">
+                    <i class="fas fa-paper-plane mr-2"></i> Step 4: Send for Approval
+                </button>
+                <button type="button" id="btnRunSetup" onclick="startBulkDumpRun()" class="btn btn-success hidden text-base px-8 py-3">
+                    <i class="fas fa-play mr-2"></i> Step 5: Run Setup
+                </button>
+            </div>
+        </div>
+
+        <!-- STEP 7: REPORT & DOCUMENT VIEWER -->
+        <div class="card p-6 md:p-8 mb-8 hidden" id="cardStep7">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-100 mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-bnp-emerald flex items-center justify-center text-lg font-bold">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-gray-900">Step 7: MongoDB Bulk Dump Execution Report</h3>
+                        <p class="text-xs text-gray-500">MongoDB bulk data generation finished successfully.</p>
+                    </div>
+                </div>
+                <button type="button" onclick="window.location.href='/jobs.html'" class="btn btn-secondary text-xs">
+                    <i class="fas fa-arrow-left mr-1.5"></i> View Jobs Table
+                </button>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <div class="text-[10px] font-bold uppercase text-gray-400 mb-1">Status</div>
+                    <div class="text-lg font-bold text-emerald-600 font-mono">COMPLETED</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <div class="text-[10px] font-bold uppercase text-gray-400 mb-1">Collections Dumped</div>
+                    <div class="text-lg font-bold text-gray-900 font-mono" id="repTotalColls">0</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <div class="text-[10px] font-bold uppercase text-gray-400 mb-1">Total Documents Inserted</div>
+                    <div class="text-lg font-bold text-emerald-700 font-mono" id="repTotalDocs">0</div>
+                </div>
+            </div>
+
+            <!-- Sample Documents -->
+            <h4 class="text-xs font-bold uppercase text-gray-500 mb-3 tracking-wider flex items-center gap-1.5">
+                <i class="fas fa-file-alt"></i> Sample Documents (First 5 JSON Documents per Collection)
+            </h4>
+            <div id="sampleTabs" class="flex flex-wrap gap-2 mb-4 border-b border-gray-200 pb-2"></div>
+            <div id="sampleDocContent" class="overflow-x-auto rounded-xl border border-gray-200 bg-slate-900 text-slate-100 font-mono text-xs p-4 min-h-[160px]">
+                <div class="text-gray-400 italic">Select a collection tab above to preview generated documents.</div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- STEP 6: PROGRESS MODAL -->
+    <div class="modal" id="progressModal">
+        <div class="modal-content p-6 md:p-8">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-100 mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg font-bold">
+                        <i class="fas fa-sync-alt fa-spin"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-gray-900">Step 6: MongoDB Insertion In Progress...</h3>
+                        <p class="text-xs text-gray-500 font-mono" id="modalExecutionId">Initializing...</p>
+                    </div>
+                </div>
+                <span class="text-xs font-bold px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200 uppercase font-mono" id="modalOverallPercentBadge">0%</span>
+            </div>
+
+            <!-- Overall Progress Bar -->
+            <div class="mb-6">
+                <div class="flex justify-between text-xs font-bold text-gray-700 mb-2">
+                    <span>Overall Document Progress</span>
+                    <span id="modalProgressText" class="font-mono">0 / 0 docs</span>
+                </div>
+                <div class="w-full bg-gray-100 rounded-full h-3.5 overflow-hidden border border-gray-200 p-0.5">
+                    <div id="modalProgressBar" class="bg-emerald-600 progress-striped h-full rounded-full transition-all duration-300 w-0"></div>
+                </div>
+            </div>
+
+            <!-- Current Collection -->
+            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
+                <div class="flex justify-between items-center text-xs mb-1.5">
+                    <span class="font-bold text-gray-800 flex items-center gap-1.5">
+                        <i class="fas fa-leaf text-emerald-600 text-[11px]"></i> Current Collection: <span id="modalCurrentTable" class="font-mono text-emerald-700">--</span>
+                    </span>
+                    <span id="modalTableProgressRatio" class="font-mono text-gray-500 text-[11px]">0 / 0</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div id="modalTableProgressBar" class="bg-emerald-500 h-full rounded-full transition-all duration-200 w-0"></div>
+                </div>
+            </div>
+
+            <!-- Checklist -->
+            <div class="mb-6">
+                <div class="text-[11px] font-bold uppercase text-gray-400 mb-2 tracking-wider">Collections Queue</div>
+                <div id="modalTableChecklist" class="space-y-1.5 max-h-36 overflow-y-auto pr-1"></div>
+            </div>
+
+            <!-- Live Logs -->
+            <div class="mb-2">
+                <div class="text-[11px] font-bold uppercase text-gray-400 mb-2 tracking-wider flex items-center justify-between">
+                    <span>Live MongoDB Driver Stream</span>
+                    <span class="text-[10px] text-gray-400 font-mono">Auto-scroll enabled</span>
+                </div>
+                <div id="modalLogConsole" class="bg-slate-900 text-slate-200 font-mono text-[11px] p-3 rounded-lg h-32 overflow-y-auto leading-relaxed border border-slate-800">
+                    <div class="text-slate-400">[00:00:00] Initializing MongoDB client connection...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <p>&copy; 2026 BNP Paribas. Anonify High-Volume Bulk Data Seeding Platform. Confidential & Proprietary.</p>
+            <p class="font-mono text-xs">v2.5.0-PROD</p>
+        </div>
+    </footer>
+
+    <!-- Logic -->
+    <script>
+        const state = {
+            dbType: 'mongo',
+            connections: [],
+            selectedConnId: null,
+            targetDatabase: 'test',
+            collections: [],
+            activeJobId: null,
+            activeJobStatus: null,
+            executionId: null,
+            userRole: null,
+            userDept: null,
+            sampleReport: {}
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await fetchCurrentUser();
+            await loadMongoConnections();
+
+            const params = new URLSearchParams(window.location.search);
+            const qJobId = params.get('jobId');
+            const qAutoRun = params.get('autoRun');
+
+            if (qJobId) {
+                state.activeJobId = qJobId;
+                await loadJobDetails(qJobId, qAutoRun === 'true');
+            }
+        });
+
+        async function fetchCurrentUser() {
+            try {
+                const res = await fetch('/api/auth/check');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (!data.authenticated) {
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                    state.userRole = (data.role || 'USER').toUpperCase();
+                    state.userDept = data.department || (data.departments && data.departments[0] ? data.departments[0].name : 'Operations');
+                    document.getElementById('userDepartment').value = state.userDept;
+                }
+            } catch (e) {
+                document.getElementById('userDepartment').value = 'Operations';
+            }
+        }
+
+        async function loadMongoConnections() {
+            try {
+                const res = await fetch('/api/connections');
+                if (res.ok) {
+                    const list = await res.json();
+                    state.connections = list.filter(c => (c.dbType || '').toLowerCase().includes('mongo'));
+
+                    const select = document.getElementById('mongoConnSelect');
+                    select.innerHTML = '<option value="">-- Choose MongoDB Connection --</option>';
+                    state.connections.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.id;
+                        opt.textContent = `${c.name || 'MongoDB #' + c.id} - ${c.url || ''}`;
+                        select.appendChild(opt);
+                    });
+
+                    if (state.connections.length > 0) {
+                        select.selectedIndex = 1;
+                        onConnectionSelected();
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load Mongo connections", e);
+            }
+        }
+
+        function onConnectionSelected() {
+            const select = document.getElementById('mongoConnSelect');
+            state.selectedConnId = select.value ? Number(select.value) : null;
+            if (state.selectedConnId) {
+                const conn = state.connections.find(c => c.id === state.selectedConnId);
+                if (conn && conn.department) {
+                    document.getElementById('userDepartment').value = conn.department;
+                }
+            }
+        }
+
+        async function discoverCollections() {
+            if (!state.selectedConnId) {
+                alert("Please select a MongoDB connection first.");
+                return;
+            }
+
+            const dbName = document.getElementById('targetDatabase').value.trim() || 'test';
+            state.targetDatabase = dbName;
+
+            const btn = document.getElementById('btnFetchCollections');
+            const origHtml = btn.innerHTML;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Scanning Collections...`;
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/bulk-dump/tables', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        dbType: 'mongo',
+                        connectionId: state.selectedConnId,
+                        database: dbName
+                    })
+                });
+
+                if (!res.ok) throw new Error(await res.text() || "Failed to scan MongoDB collections");
+
+                const data = await res.json();
+                const list = Array.isArray(data) ? data : (data.tables || []);
+                state.collections = list.map(c => ({
+                    ...c,
+                    selected: true,
+                    targetCount: c.targetCount || 100
+                }));
+
+                renderCollectionList();
+                setStepActive(2);
+
+                document.getElementById('cardStep23').classList.remove('hidden');
+                document.getElementById('cardStep45').classList.remove('hidden');
+
+                const connObj = state.connections.find(c => c.id === state.selectedConnId);
+                const connName = connObj ? (connObj.name || 'MongoDB') : 'MongoDB';
+                document.getElementById('migrationJobName').value = `${connName} Bulk Document Seeding (${dbName})`;
+
+            } catch (e) {
+                alert("Error inspecting MongoDB collections: " + e.message);
+            } finally {
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+            }
+        }
+
+        function renderCollectionList() {
+            const tbody = document.getElementById('collectionListTbody');
+            tbody.innerHTML = '';
+
+            if (state.collections.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-gray-400 italic">No collections found in database '${state.targetDatabase}'.</td></tr>`;
+                updateSummaryStats();
+                return;
+            }
+
+            state.collections.forEach((c, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50/80 transition-colors';
+
+                const fieldTags = (c.columns || []).slice(0, 5).map(f =>
+                    `<span class="bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded text-[10px] border border-gray-200 mr-1">${f}</span>`
+                ).join('');
+
+                tr.innerHTML = `
+                    <td class="p-3 text-center">
+                        <input type="checkbox" ${c.selected ? 'checked' : ''} onchange="toggleSelect(${idx}, this.checked)" class="rounded text-bnp-emerald focus:ring-bnp-emerald">
+                    </td>
+                    <td class="p-3 font-bold text-gray-800">
+                        <div class="flex items-center gap-1.5">
+                            <i class="fas fa-folder text-emerald-600 text-xs"></i>
+                            <span>${c.tableName}</span>
+                        </div>
+                    </td>
+                    <td class="p-3">
+                        <div class="flex flex-wrap items-center gap-0.5">${fieldTags} ${(c.columns || []).length > 5 ? `<span class="text-[10px] text-gray-400">+${c.columns.length - 5} more</span>` : ''}</div>
+                    </td>
+                    <td class="p-3 text-right text-gray-500 font-mono">
+                        ${(c.currentCount || 0).toLocaleString()}
+                    </td>
+                    <td class="p-3 text-right">
+                        <input type="number" min="0" max="1000000" step="50" value="${c.targetCount}" oninput="updateTargetCount(${idx}, this.value)" class="input-field text-right font-mono py-1 px-2 w-32 border-gray-300 focus:border-bnp-emerald inline-block">
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            updateSummaryStats();
+        }
+
+        function toggleSelect(idx, val) {
+            state.collections[idx].selected = val;
+            updateSummaryStats();
+        }
+
+        function toggleSelectAll(val) {
+            state.collections.forEach(c => c.selected = val);
+            renderCollectionList();
+        }
+
+        function updateTargetCount(idx, val) {
+            state.collections[idx].targetCount = Math.max(0, parseInt(val) || 0);
+            updateSummaryStats();
+        }
+
+        function setAllCounts(count) {
+            state.collections.forEach(c => c.targetCount = count);
+            renderCollectionList();
+            setStepActive(3);
+        }
+
+        function updateSummaryStats() {
+            const selected = state.collections.filter(c => c.selected);
+            const total = selected.reduce((sum, c) => sum + (c.targetCount || 0), 0);
+
+            document.getElementById('selectedCollCount').textContent = selected.length;
+            document.getElementById('totalTargetDocs').textContent = total.toLocaleString();
+        }
+
+        async function submitForApproval() {
+            const selected = state.collections.filter(c => c.selected && c.targetCount > 0);
+            if (selected.length === 0) {
+                alert("Please select at least one collection with a target count greater than 0.");
+                return;
+            }
+
+            const jobName = document.getElementById('migrationJobName').value.trim() || `MongoDB Bulk Dump (${state.targetDatabase})`;
+            const department = document.getElementById('userDepartment').value.trim() || 'Operations';
+
+            const btn = document.getElementById('btnSendApproval');
+            const origHtml = btn.innerHTML;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Submitting Request...`;
+            btn.disabled = true;
+
+            const payload = {
+                dbType: 'mongo',
+                connectionId: state.selectedConnId,
+                database: state.targetDatabase,
+                jobName: jobName,
+                department: department,
+                tables: selected.map(c => ({
+                    tableName: c.tableName,
+                    currentCount: c.currentCount,
+                    targetCount: c.targetCount,
+                    columnCount: c.columnCount,
+                    columns: c.columns
+                }))
+            };
+
+            try {
+                const res = await fetch('/api/bulk-dump/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ config: payload })
+                });
+
+                const data = await res.json();
+                if (res.ok && data.status === 'SUCCESS') {
+                    state.activeJobId = data.jobId;
+                    state.activeJobStatus = data.jobStatus || 'WAITING';
+                    renderApprovalState(state.activeJobStatus, data.jobId);
+                    setStepActive(4);
+                } else {
+                    alert("Submission failed: " + (data.message || 'Error'));
+                    btn.innerHTML = origHtml;
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                alert("Failed to submit job: " + e.message);
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+            }
+        }
+
+        function renderApprovalState(status, jobId) {
+            const banner = document.getElementById('approvalBanner');
+            const submittedJobId = document.getElementById('submittedJobId');
+            const badge = document.getElementById('jobStatusBadge');
+            const title = document.getElementById('approvalBannerTitle');
+            const text = document.getElementById('approvalBannerText');
+            const icon = document.getElementById('approvalBannerIcon');
+            const btnSendApproval = document.getElementById('btnSendApproval');
+            const btnRunSetup = document.getElementById('btnRunSetup');
+            const btnQuickApprove = document.getElementById('btnQuickApprove');
+
+            banner.classList.remove('hidden');
+            badge.classList.remove('hidden');
+            submittedJobId.textContent = `Job ID: #${jobId}`;
+            badge.textContent = status;
+
+            if (status === 'WAITING') {
+                banner.className = "p-5 rounded-xl border border-amber-200 bg-amber-50/70 mb-6";
+                badge.className = "text-xs font-bold px-3 py-1 rounded-full uppercase font-mono bg-amber-100 text-amber-800 border border-amber-300";
+                title.textContent = "Job Submitted for MongoDB Governance Review (Waiting)";
+                text.innerHTML = `Your bulk MongoDB dump job has been submitted. A compliance officer or department manager must approve it before running.`;
+                icon.innerHTML = `<i class="fas fa-clock text-amber-600"></i>`;
+
+                btnSendApproval.classList.add('hidden');
+                btnRunSetup.classList.add('hidden');
+
+                if (state.userRole === 'ADMIN' || state.userRole === 'APPROVER' || state.userRole === 'MANAGER') {
+                    btnQuickApprove.classList.remove('hidden');
+                }
+
+                pollJobApproval(jobId);
+
+            } else if (status === 'APPROVED') {
+                banner.className = "p-5 rounded-xl border border-emerald-200 bg-emerald-50/70 mb-6";
+                badge.className = "text-xs font-bold px-3 py-1 rounded-full uppercase font-mono bg-emerald-100 text-emerald-800 border border-emerald-300";
+                title.textContent = "Job Approved - Ready for Execution";
+                text.innerHTML = `Job <strong>#${jobId}</strong> has been authorized. You can now run setup to begin dumping BSON documents.`;
+                icon.innerHTML = `<i class="fas fa-check-circle text-emerald-600"></i>`;
+
+                btnQuickApprove.classList.add('hidden');
+                btnSendApproval.classList.add('hidden');
+                btnRunSetup.classList.remove('hidden');
+
+                setStepActive(5);
+            }
+        }
+
+        async function quickApproveJob() {
+            if (!state.activeJobId) return;
+
+            try {
+                const res = await fetch(`/api/bulk-dump/approve/${state.activeJobId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ comments: "Approved for MongoDB document seeding" })
+                });
+
+                const data = await res.json();
+                if (res.ok && (data.status === 'SUCCESS' || data.id)) {
+                    state.activeJobStatus = 'APPROVED';
+                    renderApprovalState('APPROVED', state.activeJobId);
+                } else {
+                    alert("Approval failed: " + (data.message || 'Error'));
+                }
+            } catch (e) {
+                alert("Approval error: " + e.message);
+            }
+        }
+
+        function pollJobApproval(jobId) {
+            const timer = setInterval(async () => {
+                if (state.activeJobStatus === 'APPROVED') {
+                    clearInterval(timer);
+                    return;
+                }
+                try {
+                    const res = await fetch(`/api/bulk-dump/job/${jobId}`);
+                    if (res.ok) {
+                        const job = await res.json();
+                        if (job.status === 'APPROVED') {
+                            state.activeJobStatus = 'APPROVED';
+                            renderApprovalState('APPROVED', jobId);
+                            clearInterval(timer);
+                        }
+                    }
+                } catch (ignored) {}
+            }, 3000);
+        }
+
+        async function startBulkDumpRun() {
+            if (!state.activeJobId) return;
+
+            const btn = document.getElementById('btnRunSetup');
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Launching Setup...`;
+
+            try {
+                const res = await fetch(`/api/bulk-dump/start/${state.activeJobId}`, { method: 'POST' });
+                const data = await res.json();
+
+                if (res.ok && data.status === 'SUCCESS') {
+                    state.executionId = data.executionId;
+                    openProgressModal(data.executionId);
+                    setStepActive(6);
+                    pollExecutionProgress(data.executionId);
+                } else {
+                    alert("Failed to start run setup: " + (data.message || 'Error'));
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fas fa-play mr-2"></i> Step 5: Run Setup`;
+                }
+            } catch (e) {
+                alert("Execution error: " + e.message);
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fas fa-play mr-2"></i> Step 5: Run Setup`;
+            }
+        }
+
+        function openProgressModal(executionId) {
+            document.getElementById('modalExecutionId').textContent = `Run ID: ${executionId}`;
+            document.getElementById('progressModal').style.display = 'block';
+        }
+
+        function pollExecutionProgress(executionId) {
+            const timer = setInterval(async () => {
+                try {
+                    const res = await fetch(`/api/bulk-dump/status/${executionId}`);
+                    if (!res.ok) return;
+
+                    const prog = await res.json();
+
+                    const pct = prog.overallPercent || 0;
+                    document.getElementById('modalProgressBar').style.width = pct + '%';
+                    document.getElementById('modalOverallPercentBadge').textContent = pct + '%';
+                    document.getElementById('modalProgressText').textContent =
+                        `${(prog.totalInsertedRecords || 0).toLocaleString()} / ${(prog.totalTargetRecords || 0).toLocaleString()} docs`;
+
+                    document.getElementById('modalCurrentTable').textContent = prog.currentTable || '--';
+                    document.getElementById('modalTableProgressRatio').textContent =
+                        `${(prog.currentTableInserted || 0).toLocaleString()} / ${(prog.currentTableTarget || 0).toLocaleString()} (${prog.currentTablePercent || 0}%)`;
+                    document.getElementById('modalTableProgressBar').style.width = (prog.currentTablePercent || 0) + '%';
+
+                    renderTableChecklist(prog.tableProgress || []);
+                    renderConsoleLogs(prog.logs || []);
+
+                    if (prog.status === 'COMPLETED') {
+                        clearInterval(timer);
+                        setTimeout(() => {
+                            document.getElementById('progressModal').style.display = 'none';
+                            renderCompletedReport(prog);
+                            setStepActive(7);
+                        }, 1200);
+                    } else if (prog.status === 'FAILED') {
+                        clearInterval(timer);
+                        alert("MongoDB bulk dump failed: " + prog.message);
+                    }
+
+                } catch (e) {
+                    console.error("Progress poll error", e);
+                }
+            }, 600);
+        }
+
+        function renderTableChecklist(items) {
+            const container = document.getElementById('modalTableChecklist');
+            container.innerHTML = items.map(item => {
+                let badge = '<span class="text-gray-400"><i class="fas fa-clock"></i> Pending</span>';
+                if (item.status === 'RUNNING') {
+                    badge = '<span class="text-emerald-600 font-bold"><i class="fas fa-spinner fa-spin"></i> Seeding...</span>';
+                } else if (item.status === 'COMPLETED') {
+                    badge = '<span class="text-emerald-600 font-bold"><i class="fas fa-check-circle"></i> Done</span>';
+                } else if (item.status === 'FAILED') {
+                    badge = '<span class="text-red-600 font-bold"><i class="fas fa-times-circle"></i> Failed</span>';
+                }
+
+                return `
+                    <div class="flex items-center justify-between py-1 px-2.5 rounded bg-white border border-gray-100 text-xs">
+                        <span class="font-mono text-gray-700 font-semibold">${item.tableName}</span>
+                        <div class="flex items-center gap-3">
+                            <span class="font-mono text-gray-500 text-[11px]">${(item.insertedCount || 0).toLocaleString()} / ${(item.targetCount || 0).toLocaleString()}</span>
+                            ${badge}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderConsoleLogs(logs) {
+            const consoleEl = document.getElementById('modalLogConsole');
+            consoleEl.innerHTML = logs.map(l => `<div>${l}</div>`).join('');
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function renderCompletedReport(prog) {
+            document.getElementById('cardStep7').classList.remove('hidden');
+            document.getElementById('repTotalColls').textContent = prog.totalTables || 0;
+            document.getElementById('repTotalDocs').textContent = (prog.totalInsertedRecords || 0).toLocaleString();
+
+            state.sampleReport = prog.sampleDataReport || {};
+            const collNames = Object.keys(state.sampleReport);
+
+            const tabsContainer = document.getElementById('sampleTabs');
+            tabsContainer.innerHTML = '';
+
+            collNames.forEach((name, i) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `px-3.5 py-1.5 rounded-lg text-xs font-bold font-mono transition-all ${i === 0 ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`;
+                btn.textContent = name;
+                btn.onclick = () => showSampleDocs(name, btn);
+                tabsContainer.appendChild(btn);
+            });
+
+            if (collNames.length > 0) {
+                showSampleDocs(collNames[0], tabsContainer.children[0]);
+            }
+        }
+
+        function showSampleDocs(collName, activeBtn) {
+            const tabs = document.getElementById('sampleTabs').children;
+            for (let t of tabs) {
+                t.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold font-mono transition-all bg-gray-100 text-gray-700 hover:bg-gray-200';
+            }
+            if (activeBtn) {
+                activeBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold font-mono transition-all bg-emerald-600 text-white';
+            }
+
+            const docs = state.sampleReport[collName] || [];
+            const container = document.getElementById('sampleDocContent');
+
+            if (docs.length === 0) {
+                container.innerHTML = `<div class="p-4 text-gray-400 italic">No sample documents available for ${collName}.</div>`;
+                return;
+            }
+
+            container.innerHTML = `<pre class="leading-relaxed">${JSON.stringify(docs, null, 2)}</pre>`;
+        }
+
+        function setStepActive(stepNum) {
+            for (let i = 1; i <= 7; i++) {
+                const el = document.getElementById(`step${i}-ind`);
+                if (!el) continue;
+                el.classList.remove('active', 'completed');
+                if (i < stepNum) {
+                    el.classList.add('completed');
+                } else if (i === stepNum) {
+                    el.classList.add('active');
+                }
+            }
+        }
+
+        async function loadJobDetails(jobId, autoRun) {
+            try {
+                const res = await fetch(`/api/bulk-dump/job/${jobId}`);
+                if (res.ok) {
+                    const job = await res.json();
+                    state.activeJobStatus = job.status;
+                    const config = job.configDetails || {};
+
+                    state.selectedConnId = config.connectionId;
+                    state.targetDatabase = config.database || 'test';
+                    document.getElementById('targetDatabase').value = state.targetDatabase;
+                    document.getElementById('migrationJobName').value = job.migrationName || 'MongoDB Bulk Dump';
+                    document.getElementById('userDepartment').value = job.department || 'Operations';
+
+                    if (config.tables && config.tables.length > 0) {
+                        state.collections = config.tables.map(t => ({ ...t, selected: true }));
+                        renderCollectionList();
+                        document.getElementById('cardStep23').classList.remove('hidden');
+                        document.getElementById('cardStep45').classList.remove('hidden');
+                    }
+
+                    renderApprovalState(job.status, jobId);
+
+                    if (job.status === 'APPROVED' && autoRun) {
+                        startBulkDumpRun();
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load job details", e);
+            }
+        }
+
+        function logout() {
+            fetch('/api/auth/logout', { method: 'POST' }).then(() => {
+                window.location.href = '/login.html';
+            });
+        }
+    </script>
+</body>
+</html>

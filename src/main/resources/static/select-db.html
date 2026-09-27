@@ -298,6 +298,67 @@
                 </div>
             </div>
 
+            <!-- SECTION 4: BULK DATA DUMP & HIGH-VOLUME SEEDING -->
+            <div>
+                <div class="flex items-center gap-3 mb-5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500">Bulk Data Generation & Database Dump</h3>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Option 10: SQL Bulk Dump (Emerald) -->
+                    <div class="db-card p-6 border-2 border-emerald-100/80 hover:border-bnp-emerald group" onclick="selectDbType('bulk-sql')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-emerald-500 to-teal-600 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-emerald-50 text-bnp-emerald group-hover:bg-bnp-emerald group-hover:text-white shadow-sm border border-emerald-100">
+                                <i class="fas fa-database"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-bnp-emerald border border-emerald-200 tracking-wide uppercase font-mono">SQL Seed</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-bnp-emerald transition-colors">SQL Bulk Data Dump</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Discover tables & current row counts, get approval, and execute high-speed synthetic bulk data seeding into SQL tables.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-bnp-emerald">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
+
+                    <!-- Option 11: Mongo Bulk Dump (Green) -->
+                    <div class="db-card p-6 border-2 border-green-100/80 hover:border-green-600 group" onclick="selectDbType('bulk-mongo')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-green-500 to-emerald-600 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-green-50 text-green-700 group-hover:bg-green-600 group-hover:text-white shadow-sm border border-green-100">
+                                <i class="fas fa-leaf"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-green-50 text-green-800 border border-green-200 tracking-wide uppercase font-mono">BSON Seed</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-green-700 transition-colors">Mongo Bulk Data Dump</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Discover collections & current counts, get approval, and dump large-scale realistic mock documents into MongoDB collections.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-green-700">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
+
+                    <!-- Option 12: JSON Bulk Dump (Amber) -->
+                    <div class="db-card p-6 border-2 border-amber-100/80 hover:border-amber-500 group" onclick="selectDbType('bulk-json')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-amber-500 to-orange-600 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-amber-50 text-amber-600 group-hover:bg-amber-500 group-hover:text-white shadow-sm border border-amber-100">
+                                <i class="fas fa-file-code"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 tracking-wide uppercase font-mono">JSON Seed</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-amber-600 transition-colors">JSON Bulk Data Dump</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Discover JSON files, inspect fields, get governance approval, and generate high-volume JSON datasets into local or COS storage.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-amber-600">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </main>
 
@@ -347,6 +408,9 @@
             else if (type === 'mongo-secure-import') window.location.href = '/secure-mongo-import.html';
             else if (type === 'json-secure-export') window.location.href = '/secure-json-export.html';
             else if (type === 'json-secure-import') window.location.href = '/secure-json-import.html';
+            else if (type === 'bulk-dump' || type === 'bulk-sql') window.location.href = '/bulk-dump-sql.html';
+            else if (type === 'bulk-mongo') window.location.href = '/bulk-dump-mongo.html';
+            else if (type === 'bulk-json') window.location.href = '/bulk-dump-json.html';
         }
     </script>
 </body>

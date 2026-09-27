@@ -455,6 +455,13 @@
                                     <i class="fas fa-folder-open text-amber-500 text-[10px]"></i> <span>${pathVal}</span>
                                 </div>`;
                             }
+                        } else if (jType.includes('bulk-dump') || jType.includes('bulk_dump')) {
+                            const dbType = (cfg.dbType || 'SQL').toUpperCase();
+                            const target = cfg.schema || cfg.database || cfg.dirPath || 'Default';
+                            const tblCount = (cfg.tables || []).length;
+                            destSubtext = `<div class="text-[11px] text-gray-500 mt-1 flex items-center gap-1 font-mono truncate max-w-xs" title="Target: ${target} (${tblCount} entities)">
+                                <i class="fas fa-layer-group text-emerald-500 text-[10px]"></i> <span>Bulk Dump (${dbType}): ${target} (${tblCount} tables)</span>
+                            </div>`;
                         }
 
                         tr.innerHTML = `
@@ -508,6 +515,7 @@
             const isJsonExport = rawType === 'json-secure-export';
             const isJsonImport = rawType === 'json-secure-import';
             const isJson = rawType === 'json';
+            const isBulkDump = rawType.includes('bulk-dump') || rawType.includes('bulk_dump');
 
             html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Environment Scope</h3>`;
             html += `<div class="grid grid-cols-2 gap-4">`;
@@ -595,7 +603,33 @@
             }
             html += `</div></div>`;
 
-            if (isSecureImport || isMongoImport || isJsonImport) {
+            if (isBulkDump) {
+                const tables = config.tables || [];
+                const totalTarget = tables.reduce((sum, t) => sum + (t.targetCount || 0), 0);
+                html += `<div class="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                            <h4 class="text-xs font-bold text-emerald-900 uppercase mb-1 flex items-center"><i class="fas fa-database mr-1.5"></i> Bulk Data Dump Configuration</h4>
+                            <p class="text-xs text-emerald-800">Target Engine: <strong>${(config.dbType || 'SQL').toUpperCase()}</strong> | Scope: <strong>${config.schema || config.database || config.dirPath || 'Default'}</strong> | Total Tables: <strong>${tables.length}</strong> | Target Rows: <strong>${totalTarget.toLocaleString()}</strong></p>
+                         </div>`;
+                html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Target Tables & Record Counts</h3>`;
+                html += `<div class="overflow-x-auto border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-gray-50 text-gray-600 font-bold uppercase border-b">
+                                    <tr>
+                                        <th class="p-2">Table / Entity</th>
+                                        <th class="p-2 text-right">Existing Rows</th>
+                                        <th class="p-2 text-right">Target Dump Count</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100 font-mono">
+                                    ${tables.map(t => `<tr>
+                                        <td class="p-2 font-bold text-gray-800">${t.tableName}</td>
+                                        <td class="p-2 text-right text-gray-500">${(t.currentCount || 0).toLocaleString()}</td>
+                                        <td class="p-2 text-right font-bold text-emerald-700">${(t.targetCount || 0).toLocaleString()}</td>
+                                    </tr>`).join('')}
+                                </tbody>
+                            </table>
+                         </div></div>`;
+            } else if (isSecureImport || isMongoImport || isJsonImport) {
                 html += `<div class="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
                             <h4 class="text-xs font-bold text-purple-900 uppercase mb-1 flex items-center"><i class="fas fa-shield-alt mr-1.5"></i> Secure Decryption & Database Restore</h4>
                             <p class="text-xs text-purple-700">This job decrypts the backup archive and restores data into the destination target with full integrity.</p>
@@ -760,14 +794,23 @@
         }
 
         async function approveJob() {
-            const comments = document.getElementById('approverComments').value;
-            await fetch(`/api/jobs/${activeJobId}/approve`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ comments })
-            });
-            closeModal();
-            fetchJobs();
+            try {
+                const comments = document.getElementById('approverComments').value;
+                const res = await fetch(`/api/jobs/${activeJobId}/approve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ comments: comments || 'Approved' })
+                });
+                if (!res.ok) {
+                    const text = await res.text();
+                    alert("Approval failed: " + (text || res.statusText));
+                    return;
+                }
+                closeModal();
+                fetchJobs();
+            } catch (err) {
+                alert("Error during approval: " + err.message);
+            }
         }
 
         async function rejectJob() {
@@ -776,13 +819,22 @@
                 alert("Please provide rejection comments.");
                 return;
             }
-            await fetch(`/api/jobs/${activeJobId}/reject`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ comments })
-            });
-            closeModal();
-            fetchJobs();
+            try {
+                const res = await fetch(`/api/jobs/${activeJobId}/reject`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ comments })
+                });
+                if (!res.ok) {
+                    const text = await res.text();
+                    alert("Rejection failed: " + (text || res.statusText));
+                    return;
+                }
+                closeModal();
+                fetchJobs();
+            } catch (err) {
+                alert("Error during rejection: " + err.message);
+            }
         }
 
         async function runJob() {
@@ -792,6 +844,16 @@
             }
 
             const normalizedJobType = (activeJobType || '').toLowerCase().replace(/[_\s]/g, '-');
+            if (normalizedJobType.includes('bulk-dump') || normalizedJobType.includes('bulk_dump')) {
+                if (normalizedJobType.includes('mongo')) {
+                    window.location.href = `/bulk-dump-mongo.html?jobId=${activeJobId}&autoRun=true`;
+                } else if (normalizedJobType.includes('json')) {
+                    window.location.href = `/bulk-dump-json.html?jobId=${activeJobId}&autoRun=true`;
+                } else {
+                    window.location.href = `/bulk-dump-sql.html?jobId=${activeJobId}&autoRun=true`;
+                }
+                return;
+            }
             if (normalizedJobType === 'secure-import' || normalizedJobType === 'secureimport' || normalizedJobType === 'mongo-secure-import' || normalizedJobType === 'json-secure-import') {
                 openSecretKeyModal();
                 return;

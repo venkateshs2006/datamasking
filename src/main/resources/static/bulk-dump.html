@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNP Paribas - Anonify Bulk Data Dump</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4', darkGreen: '#007a4c' }
+                    },
+                    fontFamily: {
+                        sans: ['Open Sans', 'sans-serif'],
+                        display: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Open Sans', sans-serif; background-color: #f8fafc; color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
+
+        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 100; }
+        .bnp-logo { height: 48px; display: block; }
+        nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
+        nav ul li { margin-left: 25px; }
+        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
+        nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+        nav ul li a.active { color: var(--bnp-emerald); border-bottom: 2px solid var(--bnp-emerald); padding-bottom: 4px; font-weight: 700; }
+
+        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 35px 8%; font-size: 0.8rem; margin-top: auto; z-index: 20; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.85; }
+
+        .card { background: white; border-radius: 14px; box-shadow: 0 4px 12px -2px rgba(0,0,0,0.06), 0 2px 6px -1px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; }
+
+        .input-field { width: 100%; padding: 0.65rem 1rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.875rem; transition: all 0.2s; background-color: #ffffff; color: #334155; }
+        .input-field:focus { outline: none; border-color: var(--bnp-emerald); box-shadow: 0 0 0 3px rgba(0, 150, 94, 0.15); }
+        .input-field:disabled { background-color: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+
+        .btn { padding: 0.65rem 1.6rem; border-radius: 8px; font-weight: 700; font-size: 0.875rem; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+        .btn-primary { background-color: var(--bnp-emerald); color: white; border: 1px solid transparent; }
+        .btn-primary:hover:not(:disabled) { background-color: #007a4c; box-shadow: 0 4px 10px rgba(0, 150, 94, 0.25); transform: translateY(-1px); }
+        .btn-success { background-color: #10b981; color: white; border: 1px solid transparent; }
+        .btn-success:hover:not(:disabled) { background-color: #059669; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.25); transform: translateY(-1px); }
+        .btn-secondary { background-color: #fff; color: #475569; border: 1px solid #cbd5e1; }
+        .btn-secondary:hover:not(:disabled) { background-color: #f8fafc; color: #0f172a; border-color: #94a3b8; }
+        .btn-amber { background-color: #f59e0b; color: white; border: 1px solid transparent; }
+        .btn-amber:hover:not(:disabled) { background-color: #d97706; }
+
+        .stepper-item { flex: 1; text-align: center; position: relative; }
+        .stepper-item::after { content: ''; position: absolute; top: 16px; left: 50%; width: 100%; height: 2px; background-color: #e2e8f0; z-index: 1; }
+        .stepper-item:last-child::after { display: none; }
+        .stepper-item.completed::after { background-color: var(--bnp-emerald); }
+        .stepper-circle { width: 34px; height: 34px; border-radius: 50%; background-color: #fff; border: 2px solid #cbd5e1; color: #94a3b8; display: flex; align-items: center; justify-content: center; font-weight: 700; margin: 0 auto; position: relative; z-index: 2; transition: all 0.3s ease; }
+        .stepper-item.active .stepper-circle { border-color: var(--bnp-emerald); color: var(--bnp-emerald); box-shadow: 0 0 0 4px rgba(0, 150, 94, 0.15); }
+        .stepper-item.completed .stepper-circle { background-color: var(--bnp-emerald); border-color: var(--bnp-emerald); color: #fff; }
+        .stepper-label { font-size: 0.72rem; font-weight: 700; color: #64748b; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stepper-item.active .stepper-label { color: var(--bnp-emerald); }
+        .stepper-item.completed .stepper-label { color: #1e293b; }
+
+        /* Modal styles */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); z-index: 1050; backdrop-filter: blur(5px); overflow-y: auto; padding: 20px; }
+        .modal-content { background: white; margin: 2rem auto; border-radius: 16px; width: 100%; max-width: 720px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); border: 1px solid #e2e8f0; }
+
+        /* Animated Progress bar stripes */
+        .progress-striped {
+            background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+            background-size: 1rem 1rem;
+            animation: progress-stripes 1s linear infinite;
+        }
+        @keyframes progress-stripes { from { background-position: 1rem 0; } to { background-position: 0 0; } }
+    </style>
+</head>
+<body>
+
+    <!-- Top Navigation Header -->
+    <header>
+        <div class="flex items-center">
+            <a href="/index.html" class="logo-link mr-6">
+                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+            </a>
+            <div class="hidden md:block border-l border-gray-300 pl-6">
+                <h1 class="text-xl font-extrabold text-bnp-dark-grey tracking-tight leading-none font-display">Anonify</h1>
+                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">Bulk Database Dump & Generator</p>
+            </div>
+        </div>
+        <nav>
+            <ul>
+                <li><a href="/select-db.html"><i class="fas fa-layer-group mr-1.5"></i> Migration Hub</a></li>
+                <li><a href="/bulk-dump.html" class="active"><i class="fas fa-database mr-1.5"></i> Bulk Dump</a></li>
+                <li><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+                <li><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
+                <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
+                <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> Users</a></li>
+                <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 py-10 px-4 md:px-8 max-w-6xl mx-auto w-full">
+
+        <!-- Title Banner -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-bnp-emerald text-xs font-bold uppercase tracking-wider mb-2">
+                <i class="fas fa-database text-[11px]"></i> High-Volume Bulk Seeding
+            </div>
+            <h2 class="text-3xl font-extrabold text-gray-900 tracking-tight font-display">Dump with Bulk Data to Database</h2>
+            <p class="text-sm text-gray-500 mt-1 max-w-2xl mx-auto">Discover target tables, configure record counts, send for governance approval, and execute bulk synthetic data dumping with real-time tracking.</p>
+        </div>
+
+        <!-- 7-Step Stepper -->
+        <div class="flex items-start mb-10 px-2 max-w-4xl mx-auto">
+            <div class="stepper-item active" id="step1-ind"><div class="stepper-circle"><i class="fas fa-plug text-xs"></i></div><div class="stepper-label">1. Connection</div></div>
+            <div class="stepper-item" id="step2-ind"><div class="stepper-circle"><i class="fas fa-table text-xs"></i></div><div class="stepper-label">2. Tables</div></div>
+            <div class="stepper-item" id="step3-ind"><div class="stepper-circle"><i class="fas fa-sort-numeric-up text-xs"></i></div><div class="stepper-label">3. Counts</div></div>
+            <div class="stepper-item" id="step4-ind"><div class="stepper-circle"><i class="fas fa-paper-plane text-xs"></i></div><div class="stepper-label">4. Approval</div></div>
+            <div class="stepper-item" id="step5-ind"><div class="stepper-circle"><i class="fas fa-check-double text-xs"></i></div><div class="stepper-label">5. Run Setup</div></div>
+            <div class="stepper-item" id="step6-ind"><div class="stepper-circle"><i class="fas fa-spinner text-xs"></i></div><div class="stepper-label">6. Dumping</div></div>
+            <div class="stepper-item" id="step7-ind"><div class="stepper-circle"><i class="fas fa-chart-bar text-xs"></i></div><div class="stepper-label">7. Report</div></div>
+        </div>
+
+        <!-- Target Engine Tabs (SQL / Mongo / JSON) -->
+        <div class="flex justify-center mb-8">
+            <div class="inline-flex p-1 bg-gray-100 rounded-xl border border-gray-200 shadow-inner">
+                <button type="button" id="tabSql" onclick="switchEngine('sql')" class="px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all bg-white text-bnp-emerald shadow-sm">
+                    <i class="fas fa-database mr-2"></i> Relational SQL
+                </button>
+                <button type="button" id="tabMongo" onclick="switchEngine('mongo')" class="px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-gray-600 hover:text-gray-900">
+                    <i class="fas fa-leaf mr-2 text-emerald-600"></i> MongoDB
+                </button>
+                <button type="button" id="tabJson" onclick="switchEngine('json')" class="px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-gray-600 hover:text-gray-900">
+                    <i class="fas fa-file-code mr-2 text-amber-500"></i> JSON Storage
+                </button>
+            </div>
+        </div>
+
+        <!-- STEP 1: DB CONNECTION DETAILS -->
+        <div class="card p-6 md:p-8 mb-8" id="cardStep1">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-100 mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-bnp-emerald/10 text-bnp-emerald flex items-center justify-center text-lg font-bold">
+                        <i class="fas fa-server"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-gray-900">Step 1: Get Target DB Connection Details</h3>
+                        <p class="text-xs text-gray-500" id="step1Subtitle">Select the target SQL database and schema to dump bulk data into.</p>
+                    </div>
+                </div>
+                <span class="text-xs font-bold px-3 py-1 bg-emerald-50 text-bnp-emerald rounded-full border border-emerald-200 uppercase font-mono" id="engineBadge">Postgres SQL</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Connection Endpoint Select -->
+                <div>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Connection Endpoint</label>
+                    <select id="connSelect" class="input-field cursor-pointer" onchange="onConnectionChanged()">
+                        <option value="">Loading connections...</option>
+                    </select>
+                    <p class="text-[11px] text-gray-400 mt-1">Select from registered enterprise database connections.</p>
+                </div>
+
+                <!-- Scope / Schema / Database / Folder -->
+                <div>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 flex justify-between items-center block">
+                        <span id="scopeLabel">Target Schema</span>
+                        <button type="button" id="btnFetchScope" onclick="fetchTargetScopes()" class="text-xs text-bnp-emerald hover:underline font-bold flex items-center disabled:opacity-50">
+                            <i class="fas fa-sync-alt mr-1"></i> Fetch
+                        </button>
+                    </label>
+                    <select id="scopeSelect" class="input-field cursor-pointer" disabled>
+                        <option value="">Select connection and fetch...</option>
+                    </select>
+                    <p class="text-[11px] text-gray-400 mt-1" id="scopeHelpText">Select target schema (e.g. public).</p>
+                </div>
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-gray-100 flex justify-end">
+                <button type="button" id="btnDiscoverTables" onclick="discoverTables()" class="btn btn-primary">
+                    <i class="fas fa-search mr-2"></i> Connect & Discover Tables
+                </button>
+            </div>
+        </div>
+
+        <!-- STEP 2 & 3: TABLES LIST & COUNTS -->
+        <div class="card p-6 md:p-8 mb-8 hidden" id="cardStep2And3">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-gray-100 mb-6 gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg font-bold">
+                        <i class="fas fa-table"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-gray-900">Step 2 & 3: Table Discovery & Count Configuration</h3>
+                        <p class="text-xs text-gray-500">Configure how many bulk synthetic records to generate and dump into each table.</p>
+                    </div>
+                </div>
+
+                <!-- Quick Setter for Count -->
+                <div class="flex items-center gap-2 bg-gray-50 p-1.5 rounded-lg border border-gray-200">
+                    <span class="text-xs font-bold text-gray-500 uppercase px-2">Set Count for All:</span>
+                    <button type="button" onclick="setCountForAll(50)" class="px-2.5 py-1 text-xs font-bold bg-white text-gray-700 hover:text-bnp-emerald rounded border shadow-xs">50</button>
+                    <button type="button" onclick="setCountForAll(100)" class="px-2.5 py-1 text-xs font-bold bg-white text-gray-700 hover:text-bnp-emerald rounded border shadow-xs">100</button>
+                    <button type="button" onclick="setCountForAll(500)" class="px-2.5 py-1 text-xs font-bold bg-white text-gray-700 hover:text-bnp-emerald rounded border shadow-xs">500</button>
+                    <button type="button" onclick="setCountForAll(1000)" class="px-2.5 py-1 text-xs font-bold bg-white text-gray-700 hover:text-bnp-emerald rounded border shadow-xs">1,000</button>
+                </div>
+            </div>
+
+            <!-- Toolbar & Stats -->
+            <div class="flex flex-wrap items-center justify-between mb-4 gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <div class="flex items-center gap-3">
+                    <label class="flex items-center cursor-pointer text-xs font-bold text-gray-700 select-none">
+                        <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAllTables(this.checked)" checked class="rounded text-bnp-emerald focus:ring-bnp-emerald mr-2 h-4 w-4">
+                        Select All Tables
+                    </label>
+                    <span class="text-gray-300">|</span>
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-2.5 top-2.5 text-gray-400 text-xs"></i>
+                        <input type="text" id="tableSearchInput" onkeyup="filterTablesList()" placeholder="Filter tables..." class="text-xs pl-7 pr-3 py-1.5 rounded border border-gray-300 focus:outline-none focus:border-bnp-emerald w-48">
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4 text-xs font-semibold">
+                    <span class="text-gray-500">Selected: <strong class="text-bnp-dark-grey font-mono" id="statSelectedTables">0</strong></span>
+                    <span class="text-gray-500">Total Bulk Records: <strong class="text-bnp-emerald font-mono text-sm" id="statTotalTargetRows">0</strong></span>
+                </div>
+            </div>
+
+            <!-- Table List -->
+            <div class="overflow-x-auto border border-gray-200 rounded-lg max-h-96 overflow-y-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-gray-100/80 text-gray-600 text-[11px] font-bold uppercase tracking-wider sticky top-0 bg-gray-100 z-10 border-b border-gray-200">
+                        <tr>
+                            <th class="p-3 w-10 text-center">
+                                <span class="sr-only">Select</span>
+                            </th>
+                            <th class="p-3">Table / Entity Name</th>
+                            <th class="p-3">Columns</th>
+                            <th class="p-3 text-right">Current Count</th>
+                            <th class="p-3 w-48 text-right">Target Dump Count</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablesTableBody" class="divide-y divide-gray-100 bg-white">
+                        <!-- Rendered dynamically -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-gray-100 flex justify-between items-center">
+                <p class="text-xs text-gray-400"><i class="fas fa-info-circle mr-1"></i> Data will be synthetically generated using Faker matching detected column semantics.</p>
+                <button type="button" onclick="goToStep4()" class="btn btn-primary">
+                    Proceed to Governance & Approval <i class="fas fa-arrow-right ml-2"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- STEP 4 & 5: SEND FOR APPROVAL & RUN SETUP -->
+        <div class="card p-6 md:p-8 mb-8 hidden" id="cardStep4And5">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-100 mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center text-lg font-bold">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-gray-900" id="step4HeaderTitle">Step 4: Send for Approval</h3>
+                        <p class="text-xs text-gray-500">Provide job metadata and submit to your department's compliance and governance reviewers.</p>
+                    </div>
+                </div>
+                <div id="jobStatusBadge" class="hidden text-xs font-bold px-3 py-1 rounded-full uppercase font-mono">WAITING</div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Migration / Dump Job Name</label>
+                    <input type="text" id="jobNameInput" class="input-field font-semibold" placeholder="e.g. Bulk Seed Core Tables">
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Department</label>
+                    <select id="departmentSelect" class="input-field cursor-pointer">
+                        <option value="Operations">Operations</option>
+                        <option value="Finance">Finance</option>
+                        <option value="Engineering">Engineering</option>
+                        <option value="Risk">Risk</option>
+                        <option value="Compliance">Compliance</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Approval Status Banner -->
+            <div id="approvalBanner" class="p-4 rounded-xl border mb-6 hidden">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-start gap-3">
+                        <div id="approvalBannerIcon" class="text-xl mt-0.5"><i class="fas fa-clock text-amber-500"></i></div>
+                        <div>
+                            <h4 id="approvalBannerTitle" class="text-sm font-bold text-gray-800">Job Submitted for Approval</h4>
+                            <p id="approvalBannerText" class="text-xs text-gray-600 mt-0.5">Job ID: <strong id="submittedJobId" class="font-mono">#0</strong>. Waiting for an authorized approver.</p>
+                        </div>
+                    </div>
+                    <!-- Quick Approve button for Managers/Admins/Dev testing -->
+                    <button type="button" id="btnQuickApprove" onclick="quickApproveJob()" class="btn btn-secondary text-xs px-3 py-1.5 hidden">
+                        <i class="fas fa-check text-emerald-600 mr-1.5"></i> Quick Approve
+                    </button>
+                </div>
+            </div>
+
+            <!-- Action Buttons: Step 4 (Send for Approval) vs Step 5 (Run Setup) -->
+            <div class="pt-4 border-t border-gray-100 flex items-center justify-between">
+                <button type="button" onclick="backToStep3()" class="btn btn-secondary text-xs">
+                    <i class="fas fa-arrow-left mr-1.5"></i> Back to Tables
+                </button>
+
+                <div class="flex items-center gap-3">
+                    <!-- Send for Approval Button (Step 4) -->
+                    <button type="button" id="btnSendApproval" onclick="submitJobForApproval()" class="btn btn-primary text-sm py-2.5 px-6 shadow-md">
+                        <i class="fas fa-paper-plane mr-2"></i> SEND FOR APPROVAL
+                    </button>
+
+                    <!-- Run Setup Button (Step 5: Appears once approved) -->
+                    <button type="button" id="btnRunSetup" onclick="startBulkDumpRun()" class="btn btn-success text-sm py-2.5 px-7 shadow-lg hidden">
+                        <i class="fas fa-play mr-2"></i> RUN SETUP
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- STEP 6: POPUP PROGRESS BAR MODAL -->
+    <div id="progressModal" class="modal">
+        <div class="modal-content p-6 md:p-8">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-100 mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-bnp-emerald/10 text-bnp-emerald flex items-center justify-center text-lg">
+                        <i class="fas fa-database fa-spin"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900 leading-tight">Dumping Bulk Data to Database</h3>
+                        <p class="text-xs text-gray-500" id="modalSubstatus">Executing high-volume batch inserts...</p>
+                    </div>
+                </div>
+                <span class="text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-bnp-emerald border border-emerald-200" id="progressStatusPill">RUNNING</span>
+            </div>
+
+            <!-- Overall Progress Bar -->
+            <div class="mb-6">
+                <div class="flex justify-between items-center text-xs font-bold text-gray-600 mb-2">
+                    <span id="progressCurrentTableText">Starting dump engine...</span>
+                    <span id="progressOverallPercent" class="text-bnp-emerald text-sm font-mono font-bold">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3.5 overflow-hidden p-0.5 shadow-inner">
+                    <div id="overallProgressBar" class="bg-bnp-emerald progress-striped h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between text-[11px] text-gray-400 mt-1 font-mono">
+                    <span>Tables Processed: <strong id="progressTablesCount" class="text-gray-700">0 / 0</strong></span>
+                    <span>Total Rows Dumped: <strong id="progressRowsCount" class="text-emerald-700">0</strong></span>
+                </div>
+            </div>
+
+            <!-- Current Table Detailed Progress -->
+            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
+                <div class="flex justify-between items-center text-xs mb-2">
+                    <span class="font-bold text-gray-700 flex items-center"><i class="fas fa-layer-group text-bnp-emerald mr-1.5"></i> Active Table: <span id="activeTableName" class="font-mono ml-1 text-bnp-emerald">...</span></span>
+                    <span id="activeTableStats" class="font-mono text-gray-500 font-bold">0 / 0 rows</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden shadow-inner">
+                    <div id="currentTableBar" class="bg-emerald-500 h-2 rounded-full transition-all duration-200" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Table-by-Table Progress Checklist -->
+            <div class="mb-6">
+                <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Table Queue & Status</h4>
+                <div id="modalTableProgressList" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Console Log Output -->
+            <div class="bg-gray-900 text-gray-300 p-3 rounded-xl font-mono text-[11px] max-h-28 overflow-y-auto mb-6" id="modalLogBox">
+                <div>[System] Initializing connection and batch parameters...</div>
+            </div>
+
+            <div class="text-right">
+                <button type="button" id="btnCancelExecution" onclick="closeProgressModal()" class="btn btn-secondary text-xs" disabled>
+                    Cancel Execution
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- STEP 7: EXECUTION REPORT WITH SAMPLE DATA MODAL -->
+    <div id="reportModal" class="modal">
+        <div class="modal-content p-6 md:p-8 max-w-4xl">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-100 mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-bnp-emerald flex items-center justify-center text-2xl font-bold shadow-xs">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-xl font-extrabold text-gray-900 font-display">Step 7: Bulk Data Dump Finished</h3>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 uppercase font-mono">Success</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-0.5">Execution report and generated synthetic sample records.</p>
+                    </div>
+                </div>
+                <button onclick="closeReportModal()" class="text-gray-400 hover:text-gray-600 p-1">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Stat Counters Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                <div class="bg-emerald-50/60 p-4 rounded-xl border border-emerald-100">
+                    <span class="text-[10px] font-bold uppercase text-emerald-700 tracking-wider">Total Rows Dumped</span>
+                    <div class="text-2xl font-extrabold text-emerald-800 font-mono mt-1" id="reportTotalRows">0</div>
+                </div>
+                <div class="bg-blue-50/60 p-4 rounded-xl border border-blue-100">
+                    <span class="text-[10px] font-bold uppercase text-blue-700 tracking-wider">Tables Seeded</span>
+                    <div class="text-2xl font-extrabold text-blue-800 font-mono mt-1" id="reportTotalTables">0</div>
+                </div>
+                <div class="bg-purple-50/60 p-4 rounded-xl border border-purple-100">
+                    <span class="text-[10px] font-bold uppercase text-purple-700 tracking-wider">Execution Duration</span>
+                    <div class="text-2xl font-extrabold text-purple-800 font-mono mt-1" id="reportDuration">0s</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <span class="text-[10px] font-bold uppercase text-gray-600 tracking-wider">Engine</span>
+                    <div class="text-lg font-extrabold text-gray-800 font-mono mt-1 uppercase" id="reportEngine">SQL</div>
+                </div>
+            </div>
+
+            <!-- Table Summary Section -->
+            <div class="mb-6">
+                <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Table-Level Results</h4>
+                <div class="overflow-x-auto border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-gray-50 text-gray-600 font-bold uppercase border-b border-gray-200">
+                            <tr>
+                                <th class="p-2.5">Table Name</th>
+                                <th class="p-2.5 text-right">Target Count</th>
+                                <th class="p-2.5 text-right">Dumped Count</th>
+                                <th class="p-2.5 text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportTableSummaryBody" class="divide-y divide-gray-100">
+                            <!-- Injected dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Sample Data Preview -->
+            <div class="mb-6">
+                <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center">
+                        <i class="fas fa-eye text-bnp-emerald mr-1.5"></i> Sample Data Showcase
+                    </h4>
+                    <div class="flex items-center gap-2">
+                        <label class="text-[11px] text-gray-500 font-semibold">Select Table:</label>
+                        <select id="reportSampleTableSelect" onchange="renderSampleDataForTable(this.value)" class="text-xs p-1 rounded border border-gray-300 bg-white font-mono">
+                            <!-- Populated -->
+                        </select>
+                    </div>
+                </div>
+
+                <div class="border border-gray-200 rounded-xl overflow-hidden bg-gray-50 p-3">
+                    <div class="overflow-x-auto max-h-56 overflow-y-auto bg-white rounded-lg border border-gray-200 shadow-inner">
+                        <table class="w-full text-left text-xs font-mono" id="sampleDataTable">
+                            <thead class="bg-gray-100 text-gray-700 font-bold border-b border-gray-200" id="sampleDataHead"></thead>
+                            <tbody class="divide-y divide-gray-100" id="sampleDataBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="pt-4 border-t border-gray-100 flex items-center justify-between">
+                <button type="button" onclick="exportReportJson()" class="btn btn-secondary text-xs">
+                    <i class="fas fa-download mr-1.5"></i> Export Report (JSON)
+                </button>
+                <div class="flex items-center gap-3">
+                    <a href="/jobs.html" class="btn btn-secondary text-xs">
+                        <i class="fas fa-tasks mr-1.5"></i> View in Jobs
+                    </a>
+                    <button type="button" onclick="closeReportModal()" class="btn btn-primary text-xs">
+                        <i class="fas fa-check mr-1.5"></i> Done
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <p>© BNP Paribas - 2026</p>
+            <p class="tagline">The bank for a changing world</p>
+        </div>
+    </footer>
+
+    <script>
+        // State
+        const state = {
+            dbType: 'sql', // 'sql', 'mongo', 'json'
+            connections: [],
+            selectedConnectionId: null,
+            selectedScope: 'public',
+            discoveredTables: [], // { tableName, currentCount, targetCount, columnCount, columns, selected }
+            activeJobId: null,
+            activeJobStatus: null,
+            executionId: null,
+            statusPollTimer: null,
+            lastReportData: null,
+            userRole: null
+        };
+
+        // Authentication & Role Check
+        fetch('/api/auth/check').then(r => r.json()).then(data => {
+            if(!data.authenticated) {
+                window.location.href = '/login.html';
+                return;
+            }
+            state.userRole = (data.role || '').toUpperCase();
+            if (state.userRole === 'ADMIN' || state.userRole === 'MANAGER') {
+                const dbLink = document.getElementById('adminDbLink');
+                const cosLink = document.getElementById('adminCosLink');
+                if (dbLink) dbLink.style.display = 'block';
+                if (cosLink) cosLink.style.display = 'block';
+                const quickApprove = document.getElementById('btnQuickApprove');
+                if (quickApprove) quickApprove.classList.remove('hidden');
+            }
+            if (state.userRole === 'ADMIN') {
+                const userLink = document.getElementById('userManagementLink');
+                if (userLink) userLink.style.display = 'block';
+            }
+        });
+
+        async function logout() {
+            await fetch('/api/auth/logout', {method: 'POST'});
+            window.location.href = '/login.html';
+        }
+
+        // Initialize from URL params if present
+        window.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const typeParam = urlParams.get('type');
+            if (typeParam) {
+                switchEngine(typeParam.toLowerCase());
+            } else {
+                loadConnections();
+            }
+
+            const jobIdParam = urlParams.get('jobId');
+            if (jobIdParam) {
+                loadExistingJob(jobIdParam, urlParams.get('autoRun') === 'true');
+            }
+        });
+
+        // Switch Database Engine (SQL / MongoDB / JSON)
+        function switchEngine(type) {
+            state.dbType = type;
+            const tabSql = document.getElementById('tabSql');
+            const tabMongo = document.getElementById('tabMongo');
+            const tabJson = document.getElementById('tabJson');
+
+            const activeClass = "px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all bg-white text-bnp-emerald shadow-sm";
+            const inactiveClass = "px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-gray-600 hover:text-gray-900";
+
+            tabSql.className = type === 'sql' ? activeClass : inactiveClass;
+            tabMongo.className = type === 'mongo' ? activeClass : inactiveClass;
+            tabJson.className = type === 'json' ? activeClass : inactiveClass;
+
+            const badge = document.getElementById('engineBadge');
+            const subtitle = document.getElementById('step1Subtitle');
+            const scopeLabel = document.getElementById('scopeLabel');
+            const scopeHelp = document.getElementById('scopeHelpText');
+
+            if (type === 'sql') {
+                badge.textContent = "Relational SQL";
+                badge.className = "text-xs font-bold px-3 py-1 bg-emerald-50 text-bnp-emerald rounded-full border border-emerald-200 uppercase font-mono";
+                subtitle.textContent = "Select target SQL database connection and schema to dump bulk data into.";
+                scopeLabel.textContent = "Target Schema";
+                scopeHelp.textContent = "Select target schema (e.g. public).";
+            } else if (type === 'mongo') {
+                badge.textContent = "MongoDB NoSQL";
+                badge.className = "text-xs font-bold px-3 py-1 bg-green-50 text-emerald-700 rounded-full border border-green-200 uppercase font-mono";
+                subtitle.textContent = "Select target MongoDB cluster connection and database to dump bulk data into.";
+                scopeLabel.textContent = "Target Database";
+                scopeHelp.textContent = "Select MongoDB database (e.g. test, production).";
+            } else if (type === 'json') {
+                badge.textContent = "JSON Storage";
+                badge.className = "text-xs font-bold px-3 py-1 bg-amber-50 text-amber-700 rounded-full border border-amber-200 uppercase font-mono";
+                subtitle.textContent = "Select local storage or Cloud Object Storage directory to dump bulk JSON records.";
+                scopeLabel.textContent = "Target Directory / Path";
+                scopeHelp.textContent = "Directory where generated JSON files will be dumped.";
+            }
+
+            // Hide subsequent steps on engine switch
+            document.getElementById('cardStep2And3').classList.add('hidden');
+            document.getElementById('cardStep4And5').classList.add('hidden');
+
+            loadConnections();
+        }
+
+        // STEP 1: Load Connection Endpoints
+        async function loadConnections() {
+            const select = document.getElementById('connSelect');
+            select.innerHTML = '<option value="">Loading connections...</option>';
+
+            try {
+                let url = '/api/connections';
+                if (state.dbType === 'mongo') {
+                    url += '?dbType=mongo';
+                } else if (state.dbType === 'sql') {
+                    url += '?dbType=postgres';
+                }
+
+                const res = await fetch(url);
+                if (res.ok) {
+                    const connections = await res.json();
+                    state.connections = connections;
+                    select.innerHTML = '<option value="">-- Choose a Connection --</option>';
+
+                    connections.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.id;
+                        opt.textContent = `${c.name || 'Connection #' + c.id} (${c.dbType ? c.dbType.toUpperCase() : 'DB'}) - [${c.department || 'General'}]`;
+                        select.appendChild(opt);
+                    });
+
+                    if (connections.length > 0) {
+                        select.selectedIndex = 1;
+                        onConnectionChanged();
+                    }
+                } else {
+                    select.innerHTML = '<option value="">Failed to load connections</option>';
+                }
+            } catch (e) {
+                console.error("Failed to load connections:", e);
+                select.innerHTML = '<option value="">Error loading connections</option>';
+            }
+        }
+
+        function onConnectionChanged() {
+            const select = document.getElementById('connSelect');
+            state.selectedConnectionId = select.value ? parseInt(select.value, 10) : null;
+            if (state.selectedConnectionId) {
+                fetchTargetScopes();
+            }
+        }
+
+        // Fetch Schemas / Databases / Directories
+        async function fetchTargetScopes() {
+            if (!state.selectedConnectionId) return;
+
+            const scopeSelect = document.getElementById('scopeSelect');
+            const btn = document.getElementById('btnFetchScope');
+            scopeSelect.disabled = true;
+            scopeSelect.innerHTML = '<option value="">Fetching...</option>';
+            btn.disabled = true;
+
+            try {
+                if (state.dbType === 'sql') {
+                    const res = await fetch(`/api/connections/${state.selectedConnectionId}/schemas`);
+                    if (res.ok) {
+                        const schemas = await res.json();
+                        scopeSelect.innerHTML = '';
+                        schemas.forEach(s => {
+                            const opt = document.createElement('option');
+                            opt.value = s;
+                            opt.textContent = s;
+                            if (s.toLowerCase() === 'public') opt.selected = true;
+                            scopeSelect.appendChild(opt);
+                        });
+                        scopeSelect.disabled = false;
+                    }
+                } else if (state.dbType === 'mongo') {
+                    const res = await fetch(`/api/mongo/databases/${state.selectedConnectionId}`);
+                    if (res.ok) {
+                        const dbs = await res.json();
+                        scopeSelect.innerHTML = '';
+                        dbs.forEach(d => {
+                            const opt = document.createElement('option');
+                            opt.value = d;
+                            opt.textContent = d;
+                            scopeSelect.appendChild(opt);
+                        });
+                        scopeSelect.disabled = false;
+                    }
+                } else if (state.dbType === 'json') {
+                    scopeSelect.innerHTML = `
+                        <option value="./data/bulk_dump" selected>./data/bulk_dump (Local Folder)</option>
+                        <option value="./data/json_dataset">./data/json_dataset (Sample Local)</option>
+                    `;
+                    scopeSelect.disabled = false;
+                }
+            } catch (e) {
+                console.error("Failed to fetch scopes:", e);
+                scopeSelect.innerHTML = '<option value="public">public (Default)</option>';
+                scopeSelect.disabled = false;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // STEP 2 & 3: Discover Tables and Existing Counts
+        async function discoverTables() {
+            if (!state.selectedConnectionId) {
+                alert("Please select a connection endpoint first.");
+                return;
+            }
+
+            const scopeSelect = document.getElementById('scopeSelect');
+            state.selectedScope = scopeSelect.value || (state.dbType === 'sql' ? 'public' : 'test');
+
+            const btn = document.getElementById('btnDiscoverTables');
+            const origHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Querying Tables & Row Counts...';
+            btn.disabled = true;
+
+            try {
+                const payload = {
+                    dbType: state.dbType,
+                    connectionId: state.selectedConnectionId,
+                    schema: state.selectedScope,
+                    database: state.selectedScope,
+                    dirPath: state.selectedScope
+                };
+
+                const res = await fetch('/api/bulk-dump/tables', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                if (res.ok && data.status === 'SUCCESS') {
+                    state.discoveredTables = (data.tables || []).map(t => ({
+                        ...t,
+                        targetCount: t.targetCount || 100,
+                        selected: true
+                    }));
+
+                    renderTablesList();
+                    document.getElementById('cardStep2And3').classList.remove('hidden');
+
+                    // Update Stepper
+                    setStepActive(2);
+                } else {
+                    alert("Failed to discover tables: " + (data.message || 'Unknown error'));
+                }
+            } catch (e) {
+                alert("Error discovering tables: " + e.message);
+            } finally {
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+            }
+        }
+
+        function renderTablesList() {
+            const tbody = document.getElementById('tablesTableBody');
+            tbody.innerHTML = '';
+
+            if (state.discoveredTables.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-gray-400">No tables or collections found in selected scope.</td></tr>`;
+                updateTableStats();
+                return;
+            }
+
+            state.discoveredTables.forEach((t, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50/80 transition-colors";
+                tr.id = `table-row-${idx}`;
+
+                const colsPreview = (t.columns || []).slice(0, 4).join(', ') + ((t.columns || []).length > 4 ? '...' : '');
+
+                tr.innerHTML = `
+                    <td class="p-3 text-center">
+                        <input type="checkbox" onchange="toggleTableSelection(${idx}, this.checked)" ${t.selected ? 'checked' : ''} class="table-chk rounded text-bnp-emerald focus:ring-bnp-emerald h-4 w-4">
+                    </td>
+                    <td class="p-3">
+                        <div class="font-bold text-gray-900 font-mono text-sm">${t.tableName}</div>
+                        <div class="text-[11px] text-gray-400 truncate max-w-xs font-mono" title="${(t.columns || []).join(', ')}">${colsPreview || 'No columns'}</div>
+                    </td>
+                    <td class="p-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-gray-100 text-gray-700 border">
+                            ${t.columnCount || 0} fields
+                        </span>
+                    </td>
+                    <td class="p-3 text-right font-mono text-xs text-gray-600">
+                        <span class="text-gray-400 text-[10px] mr-1">Existing:</span>${(t.currentCount || 0).toLocaleString()} rows
+                    </td>
+                    <td class="p-3 text-right">
+                        <div class="inline-flex items-center gap-1.5 justify-end">
+                            <input type="number" min="1" max="1000000" value="${t.targetCount}" onchange="updateTargetCount(${idx}, this.value)" class="text-right font-mono font-bold w-24 px-2 py-1 text-xs rounded border border-gray-300 focus:outline-none focus:border-bnp-emerald bg-white">
+                            <span class="text-[10px] text-gray-400 font-bold uppercase">rows</span>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            updateTableStats();
+        }
+
+        function toggleTableSelection(idx, isSelected) {
+            state.discoveredTables[idx].selected = isSelected;
+            updateTableStats();
+        }
+
+        function updateTargetCount(idx, val) {
+            const count = parseInt(val, 10);
+            if (!isNaN(count) && count > 0) {
+                state.discoveredTables[idx].targetCount = count;
+                updateTableStats();
+            }
+        }
+
+        function toggleSelectAllTables(checked) {
+            state.discoveredTables.forEach(t => t.selected = checked);
+            document.querySelectorAll('.table-chk').forEach(c => c.checked = checked);
+            updateTableStats();
+        }
+
+        function setCountForAll(count) {
+            state.discoveredTables.forEach(t => {
+                if (t.selected) t.targetCount = count;
+            });
+            renderTablesList();
+        }
+
+        function filterTablesList() {
+            const q = document.getElementById('tableSearchInput').value.toLowerCase().trim();
+            state.discoveredTables.forEach((t, idx) => {
+                const row = document.getElementById(`table-row-${idx}`);
+                if (row) {
+                    const match = t.tableName.toLowerCase().includes(q);
+                    row.style.display = match ? '' : 'none';
+                }
+            });
+        }
+
+        function updateTableStats() {
+            const selected = state.discoveredTables.filter(t => t.selected);
+            const totalTargetRows = selected.reduce((sum, t) => sum + (t.targetCount || 0), 0);
+
+            document.getElementById('statSelectedTables').textContent = `${selected.length} / ${state.discoveredTables.length}`;
+            document.getElementById('statTotalTargetRows').textContent = totalTargetRows.toLocaleString();
+        }
+
+        // STEP 4: Proceed to Governance & Approval
+        function goToStep4() {
+            const selected = state.discoveredTables.filter(t => t.selected);
+            if (selected.length === 0) {
+                alert("Please select at least one table to dump.");
+                return;
+            }
+
+            const defaultJobName = `Bulk Dump - ${state.dbType.toUpperCase()} - ${state.selectedScope} (${selected.length} tables)`;
+            document.getElementById('jobNameInput').value = defaultJobName;
+
+            document.getElementById('cardStep4And5').classList.remove('hidden');
+            document.getElementById('cardStep4And5').scrollIntoView({ behavior: 'smooth' });
+
+            setStepActive(4);
+        }
+
+        function backToStep3() {
+            document.getElementById('cardStep4And5').classList.add('hidden');
+            setStepActive(3);
+        }
+
+        // STEP 4: Send for Approval
+        async function submitJobForApproval() {
+            const selected = state.discoveredTables.filter(t => t.selected);
+            if (selected.length === 0) {
+                alert("No tables selected.");
+                return;
+            }
+
+            const jobName = document.getElementById('jobNameInput').value.trim() || "Bulk Dump Job";
+            const department = document.getElementById('departmentSelect').value;
+
+            const btn = document.getElementById('btnSendApproval');
+            const origHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Submitting...';
+            btn.disabled = true;
+
+            const payload = {
+                dbType: state.dbType,
+                connectionId: state.selectedConnectionId,
+                schema: state.selectedScope,
+                database: state.selectedScope,
+                dirPath: state.selectedScope,
+                jobName: jobName,
+                department: department,
+                tables: selected.map(t => ({
+                    tableName: t.tableName,
+                    currentCount: t.currentCount,
+                    targetCount: t.targetCount,
+                    columnCount: t.columnCount,
+                    columns: t.columns
+                }))
+            };
+
+            try {
+                const res = await fetch('/api/bulk-dump/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ config: payload })
+                });
+
+                const data = await res.json();
+                if (res.ok && data.status === 'SUCCESS') {
+                    state.activeJobId = data.jobId;
+                    state.activeJobStatus = data.jobStatus || 'WAITING';
+
+                    renderApprovalState(state.activeJobStatus, data.jobId);
+                } else {
+                    alert("Failed to submit job: " + (data.message || 'Unknown error'));
+                    btn.innerHTML = origHtml;
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                alert("Error submitting job: " + e.message);
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+            }
+        }
+
+        // STEP 5: Render Approval State & Button Transformation
+        function renderApprovalState(status, jobId) {
+            const approvalBanner = document.getElementById('approvalBanner');
+            const submittedJobId = document.getElementById('submittedJobId');
+            const btnSendApproval = document.getElementById('btnSendApproval');
+            const btnRunSetup = document.getElementById('btnRunSetup');
+            const badge = document.getElementById('jobStatusBadge');
+            const bannerTitle = document.getElementById('approvalBannerTitle');
+            const bannerText = document.getElementById('approvalBannerText');
+            const bannerIcon = document.getElementById('approvalBannerIcon');
+            const quickApproveBtn = document.getElementById('btnQuickApprove');
+
+            approvalBanner.classList.remove('hidden');
+            submittedJobId.textContent = `#${jobId}`;
+            badge.classList.remove('hidden');
+            badge.textContent = status;
+
+            if (status === 'WAITING') {
+                badge.className = "text-xs font-bold px-3 py-1 rounded-full uppercase font-mono bg-amber-50 text-amber-700 border border-amber-200";
+                bannerTitle.textContent = "Job Submitted for Approval (Waiting)";
+                bannerText.innerHTML = `Job ID: <strong class="font-mono">#${jobId}</strong>. A compliance reviewer or department manager must approve this job before execution.`;
+                bannerIcon.innerHTML = `<i class="fas fa-clock text-amber-500"></i>`;
+
+                btnSendApproval.classList.add('hidden');
+                btnRunSetup.classList.add('hidden');
+
+                if (state.userRole === 'ADMIN' || state.userRole === 'MANAGER' || state.userRole === 'APPROVER') {
+                    quickApproveBtn.classList.remove('hidden');
+                }
+
+                // Poll job status until approved
+                pollJobApproval(jobId);
+
+            } else if (status === 'APPROVED') {
+                badge.className = "text-xs font-bold px-3 py-1 rounded-full uppercase font-mono bg-emerald-50 text-emerald-800 border border-emerald-200";
+                bannerTitle.textContent = "Job Approved! Ready for Execution";
+                bannerText.innerHTML = `Job ID: <strong class="font-mono">#${jobId}</strong> has been approved. You can now run setup to begin dumping data.`;
+                bannerIcon.innerHTML = `<i class="fas fa-check-circle text-emerald-600"></i>`;
+
+                quickApproveBtn.classList.add('hidden');
+
+                // *** STEP 5: Change button to RUN SETUP ***
+                btnSendApproval.classList.add('hidden');
+                btnRunSetup.classList.remove('hidden');
+
+                setStepActive(5);
+            }
+        }
+
+        // Quick Approve (for Approver / Manager / Admin)
+        async function quickApproveJob() {
+            if (!state.activeJobId) return;
+
+            try {
+                const res = await fetch(`/api/bulk-dump/approve/${state.activeJobId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ comments: "Approved via Bulk Dump workflow" })
+                });
+
+                const data = await res.json();
+                if (res.ok && data.status === 'SUCCESS') {
+                    state.activeJobStatus = 'APPROVED';
+                    renderApprovalState('APPROVED', state.activeJobId);
+                } else {
+                    alert("Approval failed: " + (data.message || 'Error'));
+                }
+            } catch (e) {
+                alert("Failed to approve job: " + e.message);
+            }
+        }
+
+        // Poll Job Approval Status
+        function pollJobApproval(jobId) {
+            const checkTimer = setInterval(async () => {
+                if (state.activeJobStatus === 'APPROVED') {
+                    clearInterval(checkTimer);
+                    return;
+                }
+
+                try {
+                    const res = await fetch(`/api/bulk-dump/job/${jobId}`);
+                    if (res.ok) {
+                        const job = await res.json();
+                        if (job.status === 'APPROVED') {
+                            state.activeJobStatus = 'APPROVED';
+                            clearInterval(checkTimer);
+                            renderApprovalState('APPROVED', jobId);
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Poll check error:", e);
+                }
+            }, 2500);
+        }
+
+        // STEP 6: Run Setup -> Start Dumping & Show Popup Progress Bar
+        async function startBulkDumpRun() {
+            if (!state.activeJobId) {
+                alert("No approved job found to execute.");
+                return;
+            }
+
+            const btn = document.getElementById('btnRunSetup');
+            const origHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Starting Setup...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`/api/bulk-dump/start/${state.activeJobId}`, {
+                    method: 'POST'
+                });
+
+                const data = await res.json();
+                if (res.ok && data.status === 'SUCCESS') {
+                    state.executionId = data.executionId;
+                    setStepActive(6);
+                    openProgressModal();
+                    startStatusPolling();
+                } else {
+                    alert("Failed to start dump: " + (data.message || 'Unknown error'));
+                    btn.innerHTML = origHtml;
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                alert("Error starting setup: " + e.message);
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+            }
+        }
+
+        // Progress Modal Functions
+        function openProgressModal() {
+            document.getElementById('progressModal').style.display = 'block';
+        }
+
+        function closeProgressModal() {
+            document.getElementById('progressModal').style.display = 'none';
+            if (state.statusPollTimer) clearInterval(state.statusPollTimer);
+        }
+
+        function startStatusPolling() {
+            if (state.statusPollTimer) clearInterval(state.statusPollTimer);
+
+            state.statusPollTimer = setInterval(async () => {
+                if (!state.executionId) return;
+
+                try {
+                    const res = await fetch(`/api/bulk-dump/status/${state.executionId}`);
+                    if (res.ok) {
+                        const prog = await res.json();
+                        renderProgressStatus(prog);
+
+                        if (prog.status === 'COMPLETED') {
+                            clearInterval(state.statusPollTimer);
+                            setTimeout(() => {
+                                closeProgressModal();
+                                loadAndShowReport(state.executionId);
+                            }, 800);
+                        } else if (prog.status === 'FAILED') {
+                            clearInterval(state.statusPollTimer);
+                            document.getElementById('modalSubstatus').textContent = "Execution failed: " + (prog.message || 'Error occurred');
+                            document.getElementById('progressStatusPill').textContent = "FAILED";
+                            document.getElementById('progressStatusPill').className = "text-xs font-bold px-3 py-1 rounded-full bg-red-50 text-red-600 border border-red-200";
+                            document.getElementById('btnCancelExecution').disabled = false;
+                            document.getElementById('btnCancelExecution').textContent = "Close";
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Status poll error:", e);
+                }
+            }, 450);
+        }
+
+        function renderProgressStatus(prog) {
+            const overallPct = prog.overallPercent || 0;
+            document.getElementById('overallProgressBar').style.width = `${overallPct}%`;
+            document.getElementById('progressOverallPercent').textContent = `${overallPct}%`;
+
+            document.getElementById('progressTablesCount').textContent = `${prog.processedTables || 0} / ${prog.totalTables || 0}`;
+            document.getElementById('progressRowsCount').textContent = (prog.totalInsertedRecords || 0).toLocaleString();
+
+            document.getElementById('activeTableName').textContent = prog.currentTable || 'Preparing...';
+            document.getElementById('activeTableStats').textContent = `${(prog.currentTableInserted || 0).toLocaleString()} / ${(prog.currentTableTarget || 0).toLocaleString()} rows`;
+            document.getElementById('currentTableBar').style.width = `${prog.currentTablePercent || 0}%`;
+
+            document.getElementById('progressCurrentTableText').textContent = prog.message || 'Processing batches...';
+
+            // Render Queue Checklist
+            const queueList = document.getElementById('modalTableProgressList');
+            queueList.innerHTML = '';
+            (prog.tableProgress || []).forEach(item => {
+                const isCurrent = item.tableName === prog.currentTable;
+                const div = document.createElement('div');
+                div.className = `p-2 rounded-lg flex items-center justify-between text-xs border ${isCurrent ? 'bg-emerald-50/70 border-emerald-300 font-semibold' : 'bg-white border-gray-100'}`;
+
+                let icon = '<i class="fas fa-circle text-gray-300 text-[9px] mr-2"></i>';
+                let pill = '<span class="text-[10px] text-gray-400 font-mono">Pending</span>';
+
+                if (item.status === 'RUNNING') {
+                    icon = '<i class="fas fa-spinner fa-spin text-emerald-600 text-[10px] mr-2"></i>';
+                    pill = `<span class="text-[10px] font-bold text-emerald-700 font-mono">${(item.insertedCount || 0).toLocaleString()} / ${(item.targetCount || 0).toLocaleString()}</span>`;
+                } else if (item.status === 'COMPLETED') {
+                    icon = '<i class="fas fa-check-circle text-emerald-500 text-[11px] mr-2"></i>';
+                    pill = `<span class="text-[10px] font-bold text-gray-600 font-mono">${(item.insertedCount || 0).toLocaleString()} rows</span>`;
+                } else if (item.status === 'FAILED') {
+                    icon = '<i class="fas fa-times-circle text-red-500 text-[11px] mr-2"></i>';
+                    pill = '<span class="text-[10px] font-bold text-red-600 font-mono">Failed</span>';
+                }
+
+                div.innerHTML = `
+                    <div class="flex items-center font-mono">
+                        ${icon} <span>${item.tableName}</span>
+                    </div>
+                    <div>${pill}</div>
+                `;
+                queueList.appendChild(div);
+            });
+
+            // Logs
+            if (prog.logs && prog.logs.length > 0) {
+                const logBox = document.getElementById('modalLogBox');
+                logBox.innerHTML = prog.logs.map(l => `<div>${l}</div>`).join('');
+                logBox.scrollTop = logBox.scrollHeight;
+            }
+        }
+
+        // STEP 7: Finished -> Show Report with Sample Data
+        async function loadAndShowReport(executionId) {
+            setStepActive(7);
+
+            try {
+                const res = await fetch(`/api/bulk-dump/report/${executionId}`);
+                if (res.ok) {
+                    const report = await res.json();
+                    state.lastReportData = report;
+
+                    document.getElementById('reportTotalRows').textContent = (report.totalInsertedRecords || 0).toLocaleString();
+                    document.getElementById('reportTotalTables').textContent = (report.processedTables || 0);
+                    document.getElementById('reportDuration').textContent = `${report.durationSeconds || 0}s`;
+                    document.getElementById('reportEngine').textContent = report.dbType || 'SQL';
+
+                    // Render table breakdown
+                    const tbody = document.getElementById('reportTableSummaryBody');
+                    tbody.innerHTML = '';
+                    const sampleSelect = document.getElementById('reportSampleTableSelect');
+                    sampleSelect.innerHTML = '';
+
+                    (report.tableSummary || []).forEach(t => {
+                        const tr = document.createElement('tr');
+                        tr.className = "hover:bg-gray-50";
+                        tr.innerHTML = `
+                            <td class="p-2.5 font-bold font-mono text-gray-900">${t.tableName}</td>
+                            <td class="p-2.5 text-right font-mono text-gray-500">${(t.targetCount || 0).toLocaleString()}</td>
+                            <td class="p-2.5 text-right font-mono font-bold text-emerald-700">${(t.insertedCount || 0).toLocaleString()}</td>
+                            <td class="p-2.5 text-center">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${t.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}">
+                                    ${t.status}
+                                </span>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+
+                        const opt = document.createElement('option');
+                        opt.value = t.tableName;
+                        opt.textContent = t.tableName;
+                        sampleSelect.appendChild(opt);
+                    });
+
+                    // Render sample data for first table
+                    if (report.tableSummary && report.tableSummary.length > 0) {
+                        renderSampleDataForTable(report.tableSummary[0].tableName);
+                    }
+
+                    document.getElementById('reportModal').style.display = 'block';
+                }
+            } catch (e) {
+                alert("Failed to load report: " + e.message);
+            }
+        }
+
+        function renderSampleDataForTable(tableName) {
+            if (!state.lastReportData || !state.lastReportData.sampleDataReport) return;
+
+            const samples = state.lastReportData.sampleDataReport[tableName] || [];
+            const thead = document.getElementById('sampleDataHead');
+            const tbody = document.getElementById('sampleDataBody');
+            thead.innerHTML = '';
+            tbody.innerHTML = '';
+
+            if (samples.length === 0) {
+                tbody.innerHTML = `<tr><td class="p-4 text-center text-gray-400">No sample rows captured for ${tableName}</td></tr>`;
+                return;
+            }
+
+            const columns = Object.keys(samples[0]);
+            const headerRow = document.createElement('tr');
+            columns.forEach(col => {
+                const th = document.createElement('th');
+                th.className = "p-2.5 font-bold text-gray-700 uppercase";
+                th.textContent = col;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+
+            samples.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50";
+                columns.forEach(col => {
+                    const td = document.createElement('td');
+                    td.className = "p-2.5 text-gray-600 truncate max-w-xs";
+                    td.textContent = row[col] !== null && row[col] !== undefined ? row[col] : 'null';
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+        }
+
+        function closeReportModal() {
+            document.getElementById('reportModal').style.display = 'none';
+        }
+
+        function exportReportJson() {
+            if (!state.lastReportData) return;
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.lastReportData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `bulk_dump_report_${state.lastReportData.executionId || 'data'}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        // Stepper Visual Helper
+        function setStepActive(stepNum) {
+            for (let i = 1; i <= 7; i++) {
+                const el = document.getElementById(`step${i}-ind`);
+                if (!el) continue;
+                if (i < stepNum) {
+                    el.className = "stepper-item completed";
+                } else if (i === stepNum) {
+                    el.className = "stepper-item active";
+                } else {
+                    el.className = "stepper-item";
+                }
+            }
+        }
+
+        // Load existing job if launched from jobs.html
+        async function loadExistingJob(jobId, autoRun) {
+            try {
+                const res = await fetch(`/api/bulk-dump/job/${jobId}`);
+                if (res.ok) {
+                    const job = await res.json();
+                    state.activeJobId = job.id;
+                    state.activeJobStatus = job.status;
+
+                    const cfg = job.configDetails || {};
+                    if (cfg.dbType) {
+                        switchEngine(cfg.dbType.toLowerCase());
+                    }
+                    if (cfg.tables) {
+                        state.discoveredTables = cfg.tables.map(t => ({ ...t, selected: true }));
+                        renderTablesList();
+                        document.getElementById('cardStep2And3').classList.remove('hidden');
+                    }
+
+                    document.getElementById('cardStep4And5').classList.remove('hidden');
+                    document.getElementById('jobNameInput').value = job.migrationName || '';
+                    if (job.department) {
+                        document.getElementById('departmentSelect').value = job.department;
+                    }
+
+                    renderApprovalState(job.status, job.id);
+
+                    if (autoRun && job.status === 'APPROVED') {
+                        startBulkDumpRun();
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load existing job:", e);
+            }
+        }
+    </script>
+</body>
+</html>
