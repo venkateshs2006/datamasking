@@ -34,6 +34,8 @@ public class MongoMigrationService {
     private final Map<String, MongoMigrationProgress> progressMap = new ConcurrentHashMap<>();
     private final MigrationJobRepository migrationJobRepository;
     private final MongoMigrationDetailsRepository mongoDetailsRepository;
+    private final DataMaskingService dataMaskingService;
+    private final MaskingConfigService maskingConfigService;
     
     @SuppressWarnings("unchecked")
     public void migrate(JobRequest jobRequest, String executionId) throws JsonProcessingException {
@@ -58,6 +60,22 @@ public class MongoMigrationService {
         Map<String, Object> sourceConfig = (Map<String, Object>) configDetails.get("source");
         Map<String, Object> destConfig = (Map<String, Object>) configDetails.get("dest");
         Map<String, Object> rulesConfig = (Map<String, Object>) configDetails.get("rules");
+
+        List<String> maskingColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("maskingColumns", rulesConfig.get("masking_columns")) : null;
+        List<String> constraintColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("constraintColumns", rulesConfig.get("constraint_columns")) : null;
+        List<String> partialMaskingColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("partialMaskingColumns", rulesConfig.get("partial_masking_columns")) : null;
+        String maskingKey = rulesConfig != null ? (String) rulesConfig.getOrDefault("maskingKey", rulesConfig.get("masking_key")) : null;
+
+        if (maskingConfigService != null) {
+            com.enterprise.seedm.model.MaskingConfig maskingConfig = new com.enterprise.seedm.model.MaskingConfig();
+            maskingConfig.setMaskingColumns(maskingColumns != null ? maskingColumns : java.util.Collections.emptyList());
+            maskingConfig.setConstraintColumns(constraintColumns != null ? constraintColumns : java.util.Collections.emptyList());
+            maskingConfig.setPartialMaskingColumns(partialMaskingColumns != null ? partialMaskingColumns : java.util.Collections.emptyList());
+            if (maskingKey != null && !maskingKey.trim().isEmpty()) {
+                maskingConfig.setMaskingKey(maskingKey.trim());
+            }
+            maskingConfigService.updateConfig(maskingConfig);
+        }
 
         Long sourceConnectionId = Long.parseLong(sourceConfig.get("id").toString());
         String sourceDatabaseName = sourceConfig.get("schema").toString();
@@ -101,7 +119,14 @@ public class MongoMigrationService {
                     long count = 0;
                     List<Document> batch = new ArrayList<>();
                     for (Document doc : sourceCollection.find()) {
-                        batch.add(doc);
+                        Map<String, Object> masked = dataMaskingService.maskDataWithRules(
+                                collectionName,
+                                doc,
+                                maskingColumns,
+                                constraintColumns,
+                                partialMaskingColumns
+                        );
+                        batch.add(new Document(masked));
                         count++;
                         if (batch.size() >= 1000) {
                             destCollection.insertMany(batch);

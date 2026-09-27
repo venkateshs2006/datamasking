@@ -98,6 +98,16 @@ public class TableDiscoveryService {
      * Get detailed column metadata for a specific table
      */
     public List<ColumnMetadata> getTableColumnMetadata(String tableName) {
+        String schema = schemaConfig.getSourceSchema();
+        String table = tableName;
+        if (tableName != null && tableName.contains(".")) {
+            schema = tableName.substring(0, tableName.lastIndexOf('.'));
+            table = tableName.substring(tableName.lastIndexOf('.') + 1);
+        }
+        return getTableColumnMetadata(schema, table);
+    }
+
+    public List<ColumnMetadata> getTableColumnMetadata(String schemaName, String tableName) {
         String sql = """
             SELECT column_name, data_type, is_nullable, character_maximum_length, 
                    numeric_precision, numeric_scale
@@ -107,14 +117,111 @@ public class TableDiscoveryService {
             ORDER BY ordinal_position
             """;
 
-        return sourceJdbcTemplate.query(sql, (rs, rowNum) -> new ColumnMetadata(
+        List<ColumnMetadata> list = sourceJdbcTemplate.query(sql, (rs, rowNum) -> new ColumnMetadata(
                 rs.getString("column_name"),
                 rs.getString("data_type"),
                 rs.getString("is_nullable"),
                 rs.getObject("character_maximum_length") != null ? rs.getInt("character_maximum_length") : null,
                 rs.getObject("numeric_precision") != null ? rs.getInt("numeric_precision") : null,
                 rs.getObject("numeric_scale") != null ? rs.getInt("numeric_scale") : null
-        ), schemaConfig.getSourceSchema(), tableName);
+        ), schemaName, tableName);
+
+        if (list.isEmpty() && tableName != null) {
+            String fallbackSql = """
+                SELECT column_name, data_type, is_nullable, character_maximum_length, 
+                       numeric_precision, numeric_scale
+                FROM information_schema.columns 
+                WHERE table_name = ? 
+                ORDER BY ordinal_position
+                """;
+            return sourceJdbcTemplate.query(fallbackSql, (rs, rowNum) -> new ColumnMetadata(
+                    rs.getString("column_name"),
+                    rs.getString("data_type"),
+                    rs.getString("is_nullable"),
+                    rs.getObject("character_maximum_length") != null ? rs.getInt("character_maximum_length") : null,
+                    rs.getObject("numeric_precision") != null ? rs.getInt("numeric_precision") : null,
+                    rs.getObject("numeric_scale") != null ? rs.getInt("numeric_scale") : null
+            ), tableName);
+        }
+
+        return list;
+    }
+
+    /**
+     * Get all foreign keys across the schema
+     */
+    public List<ConstraintMetadata> getAllForeignKeys() {
+        String sql = """
+            SELECT 
+                tc.constraint_name, 
+                tc.constraint_type, 
+                tc.table_name, 
+                kcu.column_name, 
+                ccu.table_name AS foreign_table_name, 
+                ccu.column_name AS foreign_column_name 
+            FROM 
+                information_schema.table_constraints AS tc 
+                JOIN information_schema.key_column_usage AS kcu 
+                  ON tc.constraint_name = kcu.constraint_name 
+                  AND tc.table_schema = kcu.table_schema 
+                LEFT JOIN information_schema.constraint_column_usage AS ccu 
+                  ON ccu.constraint_name = tc.constraint_name 
+                  AND ccu.table_schema = tc.table_schema 
+            WHERE tc.constraint_type = 'FOREIGN KEY' 
+            AND tc.table_schema = ?
+            ORDER BY tc.table_name, tc.constraint_name, kcu.ordinal_position
+            """;
+        try {
+            List<Map<String, Object>> rows = sourceJdbcTemplate.queryForList(sql, schemaConfig.getSourceSchema());
+            List<ConstraintMetadata> list = new ArrayList<>();
+            for (Map<String, Object> row : rows) {
+                list.add(new ConstraintMetadata(
+                        (String) row.get("constraint_name"),
+                        "FOREIGN KEY",
+                        (String) row.get("table_name"),
+                        (String) row.get("column_name"),
+                        (String) row.get("foreign_table_name"),
+                        (String) row.get("foreign_column_name")
+                ));
+            }
+            if (list.isEmpty()) {
+                String fallbackSql = """
+                    SELECT 
+                        tc.constraint_name, 
+                        tc.constraint_type, 
+                        tc.table_name, 
+                        kcu.column_name, 
+                        ccu.table_name AS foreign_table_name, 
+                        ccu.column_name AS foreign_column_name 
+                    FROM 
+                        information_schema.table_constraints AS tc 
+                        JOIN information_schema.key_column_usage AS kcu 
+                          ON tc.constraint_name = kcu.constraint_name 
+                          AND tc.table_schema = kcu.table_schema 
+                        LEFT JOIN information_schema.constraint_column_usage AS ccu 
+                          ON ccu.constraint_name = tc.constraint_name 
+                          AND ccu.table_schema = tc.table_schema 
+                    WHERE tc.constraint_type = 'FOREIGN KEY' 
+                    AND tc.table_schema NOT IN ('information_schema', 'pg_catalog')
+                    ORDER BY tc.table_name, tc.constraint_name, kcu.ordinal_position
+                    """;
+                List<Map<String, Object>> fbRows = sourceJdbcTemplate.queryForList(fallbackSql);
+                for (Map<String, Object> row : fbRows) {
+                    list.add(new ConstraintMetadata(
+                            (String) row.get("constraint_name"),
+                            "FOREIGN KEY",
+                            (String) row.get("table_name"),
+                            (String) row.get("column_name"),
+                            (String) row.get("foreign_table_name"),
+                            (String) row.get("foreign_column_name")
+                    ));
+                }
+            }
+            return list;
+        } catch (Exception e) {
+            log.warn("Failed to query foreign keys: {}", e.getMessage());
+            return Collections.emptyList();
+        }
     }
 
     /**
@@ -122,6 +229,16 @@ public class TableDiscoveryService {
      * Handles composite keys by aggregating columns for the same constraint name.
      */
     public List<ConstraintMetadata> getTableConstraints(String tableName) {
+        String schema = schemaConfig.getSourceSchema();
+        String table = tableName;
+        if (tableName != null && tableName.contains(".")) {
+            schema = tableName.substring(0, tableName.lastIndexOf('.'));
+            table = tableName.substring(tableName.lastIndexOf('.') + 1);
+        }
+        return getTableConstraints(schema, table);
+    }
+
+    public List<ConstraintMetadata> getTableConstraints(String schemaName, String tableName) {
         String sql = """
             SELECT 
                 tc.constraint_name, 
@@ -144,7 +261,30 @@ public class TableDiscoveryService {
             ORDER BY tc.constraint_name, kcu.ordinal_position
             """;
 
-        List<Map<String, Object>> rows = sourceJdbcTemplate.queryForList(sql, schemaConfig.getSourceSchema(), tableName);
+        List<Map<String, Object>> rows = sourceJdbcTemplate.queryForList(sql, schemaName, tableName);
+        if (rows.isEmpty() && tableName != null) {
+            String fallbackSql = """
+                SELECT 
+                    tc.constraint_name, 
+                    tc.constraint_type, 
+                    tc.table_name, 
+                    kcu.column_name, 
+                    ccu.table_name AS foreign_table_name, 
+                    ccu.column_name AS foreign_column_name 
+                FROM 
+                    information_schema.table_constraints AS tc 
+                    JOIN information_schema.key_column_usage AS kcu 
+                      ON tc.constraint_name = kcu.constraint_name 
+                      AND tc.table_schema = kcu.table_schema 
+                    LEFT JOIN information_schema.constraint_column_usage AS ccu 
+                      ON ccu.constraint_name = tc.constraint_name 
+                      AND ccu.table_schema = tc.table_schema 
+                WHERE tc.constraint_type IN ('PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE') 
+                AND tc.table_name = ?
+                ORDER BY tc.constraint_name, kcu.ordinal_position
+                """;
+            rows = sourceJdbcTemplate.queryForList(fallbackSql, tableName);
+        }
         
         // Use a map to aggregate columns for composite keys
         Map<String, ConstraintMetadata> constraintMap = new LinkedHashMap<>();

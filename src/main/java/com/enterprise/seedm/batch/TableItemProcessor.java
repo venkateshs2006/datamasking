@@ -15,14 +15,30 @@ public class TableItemProcessor implements ItemProcessor<Map<String, Object>, Ma
 
     private final String tableName;
     private final DataMaskingService dataMaskingService;
+    private final java.util.List<String> maskingColumns;
+    private final java.util.List<String> constraintColumns;
+    private final java.util.List<String> partialMaskingColumns;
 
     public TableItemProcessor(String tableName, DataMaskingService dataMaskingService) {
+        this(tableName, dataMaskingService, null, null, null);
+    }
+
+    public TableItemProcessor(String tableName, DataMaskingService dataMaskingService,
+                              java.util.List<String> maskingColumns,
+                              java.util.List<String> constraintColumns,
+                              java.util.List<String> partialMaskingColumns) {
         this.tableName = tableName;
         this.dataMaskingService = dataMaskingService;
+        this.maskingColumns = maskingColumns;
+        this.constraintColumns = constraintColumns;
+        this.partialMaskingColumns = partialMaskingColumns;
     }
 
     @Override
     public Map<String, Object> process(Map<String, Object> item) throws Exception {
+        if (maskingColumns != null || constraintColumns != null || partialMaskingColumns != null) {
+            return dataMaskingService.maskDataWithRules(tableName, item, maskingColumns, constraintColumns, partialMaskingColumns);
+        }
         return dataMaskingService.maskData(tableName, item);
     }
 }

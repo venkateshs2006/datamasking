@@ -600,8 +600,8 @@ public class SecureImportService {
                     || lower.endsWith(".bson.enc") || lower.endsWith(".bson")
                     || lower.endsWith(".json.enc") || lower.endsWith(".json");
         } else {
-            // Default "sql" - strictly encrypted sql files
-            return lower.endsWith(".sql.enc");
+            // Default "sql" - supports both encrypted and plain sql files
+            return lower.endsWith(".sql.enc") || lower.endsWith(".sql");
         }
     }
 

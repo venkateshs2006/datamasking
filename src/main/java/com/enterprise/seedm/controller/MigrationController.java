@@ -105,6 +105,9 @@ public class MigrationController {
     @Autowired
     private DynamicDataSourceService dynamicDataSourceService;
 
+    @Autowired
+    private SystemMetricsService systemMetricsService;
+
     private final AtomicInteger mongoSecureExportSequence = new AtomicInteger(1);
     private final AtomicInteger mongoSecureImportSequence = new AtomicInteger(1);
     private final AtomicInteger jsonSecureExportSequence = new AtomicInteger(1);
@@ -722,41 +725,59 @@ public class MigrationController {
     }
 
     /**
+     * Get real-time system metrics (JVM Heap, CPU load, available cores)
+     */
+    @GetMapping("/system-metrics")
+    public Map<String, Object> getSystemMetrics() {
+        return systemMetricsService.getSystemMetrics();
+    }
+
+    /**
      * Get real-time status of a specific migration job
      */
     @GetMapping("/status/{executionId}")
     public Map<String, Object> getJobStatus(@PathVariable String executionId) {
+        Map<String, Object> result;
         if (executionId.startsWith("json-export-") || executionId.startsWith("json-secure-export-")) {
-            return jsonSecureExportService.getProgress(executionId);
+            result = jsonSecureExportService.getProgress(executionId);
         } else if (executionId.startsWith("json-import-") || executionId.startsWith("json-secure-import-")) {
-            return jsonSecureImportService.getProgress(executionId);
+            result = jsonSecureImportService.getProgress(executionId);
         } else if (executionId.startsWith("json-")) {
-            return jsonMigrationService.getProgress(executionId);
+            result = jsonMigrationService.getProgress(executionId);
         } else if (executionId.startsWith("secure-export-")) {
-            return secureExportService.getProgress(executionId);
+            result = secureExportService.getProgress(executionId);
         } else if (executionId.startsWith("secure-import-")) {
-            return secureImportService.getProgress(executionId);
+            result = secureImportService.getProgress(executionId);
         } else if (executionId.startsWith("mongo-export-") || executionId.startsWith("mongo-secure-export-")) {
-            return mongoSecureExportService.getProgress(executionId);
+            result = mongoSecureExportService.getProgress(executionId);
         } else if (executionId.startsWith("mongo-import-") || executionId.startsWith("mongo-secure-import-")) {
-            return mongoSecureImportService.getProgress(executionId);
-        }
-
-
-        try {
-            Long id = Long.parseLong(executionId);
-            JobExecution execution = jobExplorer.getJobExecution(id);
-            if (execution == null) {
+            result = mongoSecureImportService.getProgress(executionId);
+        } else {
+            try {
+                Long id = Long.parseLong(executionId);
+                JobExecution execution = jobExplorer.getJobExecution(id);
+                if (execution == null) {
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("status", "NOT_FOUND");
+                    return response;
+                }
+                result = getJobStatusResponse(execution);
+            } catch (NumberFormatException e) {
                 Map<String, Object> response = new HashMap<>();
-                response.put("status", "NOT_FOUND");
+                response.put("status", "INVALID_ID");
                 return response;
             }
-            return getJobStatusResponse(execution);
-        } catch (NumberFormatException e) {
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "INVALID_ID");
-            return response;
         }
+
+        if (result != null) {
+            try {
+                result.put("systemMetrics", systemMetricsService.getSystemMetrics());
+            } catch (Exception e) {
+                result = new HashMap<>(result);
+                result.put("systemMetrics", systemMetricsService.getSystemMetrics());
+            }
+        }
+        return result;
     }
 
     private Map<String, Object> getJobStatusResponse(JobExecution execution) {
@@ -844,6 +865,7 @@ public class MigrationController {
         int progress = totalSteps == 0 ? 0 : (int) ((completedSteps / (double) totalSteps) * 100);
         response.put("progress", progress);
         response.put("tableProgress", tableProgress);
+        response.put("systemMetrics", systemMetricsService.getSystemMetrics());
 
         return response;
     }

@@ -576,22 +576,7 @@
         }
 
         if (data.systemMetrics) {
-            const heapUsed = data.systemMetrics.heapUsedMB;
-            const heapMax = data.systemMetrics.heapMaxMB;
-            const heapPercent = Math.round((heapUsed / heapMax) * 100);
-
-            document.getElementById('heapText').textContent = `${heapUsed} / ${heapMax} MB`;
-            document.getElementById('heapBar').style.width = `${heapPercent}%`;
-
-            let load = data.systemMetrics.systemLoadAverage;
-            if (load < 0) load = 0;
-            const cores = data.systemMetrics.availableProcessors || 1;
-            const cpuPercent = Math.min(Math.round((load / cores) * 100), 100);
-
-            document.getElementById('cpuText').textContent = load.toFixed(2);
-            document.getElementById('cpuBar').style.width = `${cpuPercent}%`;
-
-            document.getElementById('processors').textContent = cores;
+            renderSystemMetrics(data.systemMetrics);
         }
 
         const tbody = document.getElementById('tableBody');
@@ -843,8 +828,48 @@
         });
     }
 
+    function renderSystemMetrics(metrics) {
+        if (!metrics) return;
+        const heapUsed = metrics.heapUsedMB != null ? metrics.heapUsedMB : 0;
+        const heapMax = metrics.heapMaxMB != null && metrics.heapMaxMB > 0 ? metrics.heapMaxMB : 1;
+        const heapPercent = Math.min(Math.round((heapUsed / heapMax) * 100), 100);
+
+        const heapText = document.getElementById('heapText');
+        const heapBar = document.getElementById('heapBar');
+        if (heapText) heapText.textContent = `${heapUsed} / ${heapMax} MB`;
+        if (heapBar) heapBar.style.width = `${heapPercent}%`;
+
+        let load = metrics.systemLoadAverage != null ? metrics.systemLoadAverage : 0;
+        if (load < 0) load = 0;
+        const cores = metrics.availableProcessors || 1;
+        const cpuPercent = metrics.cpuUsagePercent != null
+            ? Math.min(Math.round(metrics.cpuUsagePercent), 100)
+            : Math.min(Math.round((load / cores) * 100), 100);
+
+        const cpuText = document.getElementById('cpuText');
+        const cpuBar = document.getElementById('cpuBar');
+        const processors = document.getElementById('processors');
+
+        if (cpuText) cpuText.textContent = load.toFixed(2);
+        if (cpuBar) cpuBar.style.width = `${cpuPercent}%`;
+        if (processors) processors.textContent = cores;
+    }
+
+    async function fetchSystemMetrics() {
+        try {
+            const response = await fetch('/api/migration/system-metrics');
+            if (!response.ok) return;
+            const metrics = await response.json();
+            renderSystemMetrics(metrics);
+        } catch (e) {
+            console.debug('Failed to fetch system metrics:', e);
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         fetchExecutions();
+        fetchSystemMetrics();
+        setInterval(fetchSystemMetrics, 2500);
     });
 </script>
 </body>

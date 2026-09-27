@@ -1,6 +1,7 @@
 package com.enterprise.seedm.service;
 
 import com.enterprise.seedm.model.ColumnMetadata;
+import com.enterprise.seedm.model.ConstraintMetadata;
 import com.enterprise.seedm.model.MaskingConfig;
 import lombok.extern.slf4j.Slf4j;
 import net.datafaker.Faker;
@@ -8,9 +9,13 @@ import net.datafaker.providers.base.Finance;
 import org.bson.Document;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Data Masking Service
@@ -39,13 +44,22 @@ public class DataMaskingService {
         if (rules != null) {
             for (String rule : rules) {
                 if (rule == null || rule.trim().isEmpty()) continue;
-                String[] parts = rule.trim().split("\\.");
-                if (parts.length >= 2) {
-                    String tableName = parts[0].toLowerCase();
-                    String fieldPath = String.join(".", Arrays.copyOfRange(parts, 1, parts.length)).toLowerCase();
-                    ruleMap.computeIfAbsent(tableName, k -> new HashSet<>()).add(fieldPath);
+                String clean = rule.trim().toLowerCase();
+                String[] parts = clean.split("\\.");
+                if (parts.length >= 3) {
+                    // e.g. public.users.email
+                    String table = parts[parts.length - 2];
+                    String col = parts[parts.length - 1];
+                    ruleMap.computeIfAbsent(table, k -> new HashSet<>()).add(col);
+                    ruleMap.computeIfAbsent(clean.substring(0, clean.lastIndexOf('.')), k -> new HashSet<>()).add(col);
+                    ruleMap.computeIfAbsent("*", k -> new HashSet<>()).add(col);
+                } else if (parts.length == 2) {
+                    // e.g. users.email
+                    ruleMap.computeIfAbsent(parts[0], k -> new HashSet<>()).add(parts[1]);
+                    ruleMap.computeIfAbsent("*", k -> new HashSet<>()).add(parts[1]);
                 } else if (parts.length == 1) {
-                    ruleMap.computeIfAbsent("*", k -> new HashSet<>()).add(parts[0].toLowerCase());
+                    // e.g. email
+                    ruleMap.computeIfAbsent("*", k -> new HashSet<>()).add(parts[0]);
                 }
             }
         }
@@ -127,6 +141,113 @@ public class DataMaskingService {
         }
     }
 
+    private final Map<String, String> fkUnifiedDataTypeCache = new ConcurrentHashMap<>();
+    private final Map<String, Set<String>> fkConnectedComponents = new ConcurrentHashMap<>();
+    private volatile boolean fkRelationshipsLoaded = false;
+
+    public void resetForeignKeyRelationships() {
+        fkUnifiedDataTypeCache.clear();
+        fkConnectedComponents.clear();
+        fkRelationshipsLoaded = false;
+    }
+
+    private synchronized void loadForeignKeyRelationships() {
+        if (fkRelationshipsLoaded) return;
+        try {
+            List<ConstraintMetadata> fks = tableDiscoveryService.getAllForeignKeys();
+            if (fks != null && !fks.isEmpty()) {
+                Map<String, Set<String>> graph = new HashMap<>();
+                for (ConstraintMetadata fk : fks) {
+                    if (fk.getTableName() != null && fk.getColumnName() != null 
+                            && fk.getForeignTableName() != null && fk.getForeignColumnName() != null) {
+                        String childTable = fk.getTableName().contains(".") ? fk.getTableName().substring(fk.getTableName().lastIndexOf('.') + 1) : fk.getTableName();
+                        String parentTable = fk.getForeignTableName().contains(".") ? fk.getForeignTableName().substring(fk.getForeignTableName().lastIndexOf('.') + 1) : fk.getForeignTableName();
+                        
+                        String child = (childTable + "." + fk.getColumnName()).toLowerCase();
+                        String parent = (parentTable + "." + fk.getForeignColumnName()).toLowerCase();
+                        graph.computeIfAbsent(child, k -> new HashSet<>()).add(parent);
+                        graph.computeIfAbsent(parent, k -> new HashSet<>()).add(child);
+                    }
+                }
+
+                Set<String> visited = new HashSet<>();
+                for (String node : graph.keySet()) {
+                    if (!visited.contains(node)) {
+                        Set<String> component = new HashSet<>();
+                        Queue<String> queue = new LinkedList<>();
+                        queue.add(node);
+                        visited.add(node);
+                        while (!queue.isEmpty()) {
+                            String curr = queue.poll();
+                            component.add(curr);
+                            for (String neighbor : graph.getOrDefault(curr, Collections.emptySet())) {
+                                if (!visited.contains(neighbor)) {
+                                    visited.add(neighbor);
+                                    queue.add(neighbor);
+                                }
+                            }
+                        }
+
+                        // Check if ANY member in this component is smallint / int2
+                        boolean hasSmallint = false;
+                        for (String member : component) {
+                            String[] parts = member.split("\\.");
+                            if (parts.length == 2) {
+                                List<ColumnMetadata> meta = getCachedMetadata(parts[0]);
+                                ColumnMetadata col = getColumnMetadata(meta, parts[1]);
+                                if (col != null && col.getDataType() != null) {
+                                    String dt = col.getDataType().toLowerCase();
+                                    if (dt.equals("smallint") || dt.equals("int2") || dt.equals("smallserial") || dt.equals("short")) {
+                                        hasSmallint = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        for (String member : component) {
+                            fkConnectedComponents.put(member, component);
+                            if (hasSmallint) {
+                                fkUnifiedDataTypeCache.put(member, "smallint");
+                            }
+                        }
+                    }
+                }
+            }
+            fkRelationshipsLoaded = true;
+        } catch (Exception e) {
+            log.warn("Could not load foreign key relationship graph: {}", e.getMessage());
+            fkRelationshipsLoaded = true;
+        }
+    }
+
+    private boolean isRuleActive(Map<String, Set<String>> ruleMap, String lowerRoot, String lowerField) {
+        if (ruleMap == null || ruleMap.isEmpty()) return false;
+        String simpleRoot = lowerRoot.contains(".") ? lowerRoot.substring(lowerRoot.lastIndexOf('.') + 1) : lowerRoot;
+        if (ruleMap.getOrDefault(lowerRoot, Collections.emptySet()).contains(lowerField)
+                || ruleMap.getOrDefault(simpleRoot, Collections.emptySet()).contains(lowerField)
+                || ruleMap.getOrDefault("*", Collections.emptySet()).contains(lowerField)) {
+            return true;
+        }
+
+        // Check if any connected foreign key column has this rule active
+        loadForeignKeyRelationships();
+        String fullKey = simpleRoot + "." + lowerField;
+        Set<String> component = fkConnectedComponents.get(fullKey);
+        if (component != null) {
+            for (String member : component) {
+                String[] parts = member.split("\\.");
+                if (parts.length == 2) {
+                    if (ruleMap.getOrDefault(parts[0], Collections.emptySet()).contains(parts[1])
+                            || ruleMap.getOrDefault("*", Collections.emptySet()).contains(parts[1])) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     private Object applyRulesToField(String rootName, String fieldPath, Object originalValue,
                                      Map<String, Set<String>> maskingRules,
                                      Map<String, Set<String>> constraintRules,
@@ -140,11 +261,13 @@ public class DataMaskingService {
         String lowerRoot = rootName != null ? rootName.toLowerCase() : "";
         String lowerField = fieldPath != null ? fieldPath.toLowerCase() : "";
 
-        if (constraintRules.getOrDefault(lowerRoot, Collections.emptySet()).contains(lowerField)
-                || constraintRules.getOrDefault("*", Collections.emptySet()).contains(lowerField)) {
+        if (isRuleActive(constraintRules, lowerRoot, lowerField)) {
             try {
-                String dataType = getColumnType(metadata, fieldPath);
-                Object encryptedValue = fpeService.encrypt(originalValue, dataType);
+                ColumnMetadata colMeta = getColumnMetadata(metadata, fieldPath);
+                String dataType = getColumnType(rootName, metadata, fieldPath, originalValue);
+                Integer precision = colMeta != null ? colMeta.getNumericPrecision() : null;
+                Integer scale = colMeta != null ? colMeta.getNumericScale() : null;
+                Object encryptedValue = fpeService.encrypt(originalValue, dataType, null, precision, scale);
                 if ("uuid".equalsIgnoreCase(dataType) && encryptedValue instanceof String) {
                     try {
                         return UUID.fromString((String) encryptedValue);
@@ -160,14 +283,12 @@ public class DataMaskingService {
             }
         }
 
-        if (maskingRules.getOrDefault(lowerRoot, Collections.emptySet()).contains(lowerField)
-                || maskingRules.getOrDefault("*", Collections.emptySet()).contains(lowerField)) {
-            Integer maxLength = getColumnMaxLength(metadata, fieldPath);
-            return generateMaskedValue(fieldPath, originalValue, maxLength);
+        if (isRuleActive(maskingRules, lowerRoot, lowerField)) {
+            ColumnMetadata colMeta = getColumnMetadata(metadata, fieldPath);
+            return generateMaskedValue(rootName, fieldPath, originalValue, colMeta);
         }
 
-        if (partialMaskingRules.getOrDefault(lowerRoot, Collections.emptySet()).contains(lowerField)
-                || partialMaskingRules.getOrDefault("*", Collections.emptySet()).contains(lowerField)) {
+        if (isRuleActive(partialMaskingRules, lowerRoot, lowerField)) {
             return applyPartialMasking(originalValue.toString());
         }
 
@@ -178,31 +299,49 @@ public class DataMaskingService {
 
     private List<ColumnMetadata> getCachedMetadata(String tableName) {
         try {
-            return metadataCache.computeIfAbsent(tableName, k -> tableDiscoveryService.getTableColumnMetadata(k));
+            return metadataCache.computeIfAbsent(tableName, k -> tableDiscoveryService.getTableColumnMetadata(tableName));
         } catch (Exception e) {
             log.warn("Failed to fetch column metadata for {}: {}", tableName, e.getMessage());
             return null;
         }
     }
 
-    private String getColumnType(List<ColumnMetadata> metadata, String columnName) {
-        if (metadata == null) return "string";
-        for (ColumnMetadata col : metadata) {
-            if (col.getColumnName().equalsIgnoreCase(columnName)) {
-                return col.getDataType();
-            }
-        }
-        return "string";
-    }
-
-    private Integer getColumnMaxLength(List<ColumnMetadata> metadata, String columnName) {
-        if (metadata == null) return null;
-        for (ColumnMetadata col : metadata) {
-            if (col.getColumnName().equalsIgnoreCase(columnName)) {
-                return col.getCharacterMaximumLength();
+    private ColumnMetadata getColumnMetadata(List<ColumnMetadata> metadata, String columnName) {
+        if (metadata != null && columnName != null) {
+            for (ColumnMetadata col : metadata) {
+                if (col.getColumnName().equalsIgnoreCase(columnName)) {
+                    return col;
+                }
             }
         }
         return null;
+    }
+
+    private String getColumnType(String rootName, List<ColumnMetadata> metadata, String columnName, Object originalValue) {
+        loadForeignKeyRelationships();
+        String simpleTable = rootName != null && rootName.contains(".")
+                ? rootName.substring(rootName.lastIndexOf('.') + 1)
+                : rootName;
+        String fullKey = (simpleTable != null ? simpleTable.toLowerCase() + "." : "") + (columnName != null ? columnName.toLowerCase() : "");
+        if (fkUnifiedDataTypeCache.containsKey(fullKey)) {
+            return fkUnifiedDataTypeCache.get(fullKey);
+        }
+
+        ColumnMetadata col = getColumnMetadata(metadata, columnName);
+        if (col != null && col.getDataType() != null) {
+            return col.getDataType();
+        }
+        if (originalValue instanceof Integer) return "integer";
+        if (originalValue instanceof Long) return "long";
+        if (originalValue instanceof Short) return "short";
+        if (originalValue instanceof Byte) return "byte";
+        if (originalValue instanceof BigDecimal) return "numeric";
+        if (originalValue instanceof BigInteger) return "bigint";
+        if (originalValue instanceof Double) return "double";
+        if (originalValue instanceof Float) return "float";
+        if (originalValue instanceof Boolean) return "boolean";
+        if (originalValue instanceof UUID) return "uuid";
+        return "string";
     }
 
     private String applyPartialMasking(String value) {
@@ -211,7 +350,55 @@ public class DataMaskingService {
         return "X".repeat(maskCount) + value.substring(maskCount);
     }
 
-    private Object generateMaskedValue(String columnName, Object originalValue, Integer maxLength) {
+    private boolean isSmallintType(String rootName, ColumnMetadata colMeta, Object originalValue) {
+        String simpleTable = rootName != null && rootName.contains(".")
+                ? rootName.substring(rootName.lastIndexOf('.') + 1)
+                : rootName;
+        String fullKey = (simpleTable != null ? simpleTable.toLowerCase() + "." : "")
+                + (colMeta != null ? colMeta.getColumnName().toLowerCase() : "");
+        if ("smallint".equalsIgnoreCase(fkUnifiedDataTypeCache.get(fullKey))) {
+            return true;
+        }
+        if (colMeta != null && colMeta.getDataType() != null) {
+            String dt = colMeta.getDataType().toLowerCase();
+            if (dt.equals("smallint") || dt.equals("int2") || dt.equals("smallserial") || dt.equals("short")) return true;
+        }
+        return originalValue instanceof Short;
+    }
+
+    private boolean isIntegerType(ColumnMetadata colMeta, Object originalValue) {
+        if (colMeta != null && colMeta.getDataType() != null) {
+            String dt = colMeta.getDataType().toLowerCase();
+            if (dt.equals("integer") || dt.equals("int") || dt.equals("int4") || dt.equals("serial")) return true;
+        }
+        return originalValue instanceof Integer;
+    }
+
+    private boolean isBigintType(ColumnMetadata colMeta, Object originalValue) {
+        if (colMeta != null && colMeta.getDataType() != null) {
+            String dt = colMeta.getDataType().toLowerCase();
+            if (dt.equals("bigint") || dt.equals("int8") || dt.equals("long") || dt.equals("bigserial")) return true;
+        }
+        return originalValue instanceof Long || originalValue instanceof BigInteger;
+    }
+
+    private boolean isByteType(ColumnMetadata colMeta, Object originalValue) {
+        if (colMeta != null && colMeta.getDataType() != null) {
+            String dt = colMeta.getDataType().toLowerCase();
+            if (dt.equals("byte") || dt.equals("tinyint")) return true;
+        }
+        return originalValue instanceof Byte;
+    }
+
+    private boolean isNumericType(ColumnMetadata colMeta, Object originalValue) {
+        if (colMeta != null && colMeta.getDataType() != null) {
+            String dt = colMeta.getDataType().toLowerCase();
+            if (dt.equals("numeric") || dt.equals("decimal") || dt.equals("money") || dt.equals("double precision") || dt.equals("float8")) return true;
+        }
+        return originalValue instanceof BigDecimal || originalValue instanceof Double || originalValue instanceof Float;
+    }
+
+    private Object generateMaskedValue(String rootName, String columnName, Object originalValue, ColumnMetadata colMeta) {
         String lowerCol = columnName.toLowerCase();
 
         if (originalValue instanceof UUID) return UUID.randomUUID();
@@ -229,16 +416,44 @@ public class DataMaskingService {
         else if (lowerCol.contains("zip") || lowerCol.contains("postal")) result = faker.address().zipCode();
         else if (lowerCol.contains("card") || lowerCol.contains("debit card") || lowerCol.contains("credit card")) result = faker.finance().creditCard(Finance.CreditCardType.MASTERCARD);
         else if (lowerCol.contains("ssn")) result = faker.idNumber().ssnValid();
-        else if (originalValue instanceof Number) result = faker.number().numberBetween(1, 10000);
+        else if (isSmallintType(rootName, colMeta, originalValue)) {
+            result = (short) faker.number().numberBetween(1, 32767);
+        }
+        else if (isByteType(colMeta, originalValue)) {
+            result = (byte) faker.number().numberBetween(1, 127);
+        }
+        else if (isBigintType(colMeta, originalValue)) {
+            result = faker.number().numberBetween(1L, 1000000000L);
+        }
+        else if (isIntegerType(colMeta, originalValue)) {
+            result = faker.number().numberBetween(1, 100000);
+        }
+        else if (isNumericType(colMeta, originalValue)) {
+            int precision = (colMeta != null && colMeta.getNumericPrecision() != null)
+                    ? colMeta.getNumericPrecision()
+                    : (originalValue instanceof BigDecimal ? ((BigDecimal) originalValue).precision() : 10);
+            int scale = (colMeta != null && colMeta.getNumericScale() != null)
+                    ? colMeta.getNumericScale()
+                    : (originalValue instanceof BigDecimal ? ((BigDecimal) originalValue).scale() : 2);
+            int intDigits = Math.max(1, Math.min(precision - scale, 9));
+            long maxInt = (long) Math.pow(10, intDigits) - 1;
+            long whole = faker.number().numberBetween(1L, Math.max(2L, maxInt));
+            long maxFrac = (scale > 0) ? (long) Math.pow(10, scale) - 1 : 0;
+            long frac = (scale > 0) ? faker.number().numberBetween(0L, maxFrac) : 0;
+            result = BigDecimal.valueOf(whole).add(BigDecimal.valueOf(frac, scale)).setScale(scale, RoundingMode.HALF_UP);
+        }
+        else if (originalValue instanceof Number) {
+            result = faker.number().numberBetween(1, 10000);
+        }
         else if (originalValue instanceof Date) {
-
-            Date dummyDate =Date.from(faker.timeAndDate().birthday(20,50).atStartOfDay(ZoneId.systemDefault()).toInstant());
+            Date dummyDate = Date.from(faker.timeAndDate().birthday(20,50).atStartOfDay(ZoneId.systemDefault()).toInstant());
             if (originalValue instanceof java.sql.Timestamp) result = new java.sql.Timestamp(dummyDate.getTime());
             else if (originalValue instanceof java.sql.Date) result = new java.sql.Date(dummyDate.getTime());
             else result = dummyDate;
         }
         else result = faker.lorem().characters(10);
 
+        Integer maxLength = colMeta != null ? colMeta.getCharacterMaximumLength() : null;
         if (result instanceof String) {
             String strResult = (String) result;
             if (maxLength != null && strResult.length() > maxLength) {

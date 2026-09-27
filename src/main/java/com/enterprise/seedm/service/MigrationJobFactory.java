@@ -60,6 +60,7 @@ public class MigrationJobFactory {
     private final SchemaConfig schemaConfig;
     private final DbConnectionService dbConnectionService;
     private final MongoConnectionHelper mongoConnectionHelper;
+    private final MaskingConfigService maskingConfigService;
 
     @Value("${seedm.migration.chunk-size:1000}")
     private int chunkSize;
@@ -74,7 +75,8 @@ public class MigrationJobFactory {
                                DataMaskingService dataMaskingService,
                                SchemaConfig schemaConfig,
                                DbConnectionService dbConnectionService,
-                               MongoConnectionHelper mongoConnectionHelper) {
+                               MongoConnectionHelper mongoConnectionHelper,
+                               MaskingConfigService maskingConfigService) {
         this.sourceDataSource = sourceDataSource;
         this.destinationDataSource = destinationDataSource;
         this.jobRepository = jobRepository;
@@ -86,6 +88,7 @@ public class MigrationJobFactory {
         this.schemaConfig = schemaConfig;
         this.dbConnectionService = dbConnectionService;
         this.mongoConnectionHelper = mongoConnectionHelper;
+        this.maskingConfigService = maskingConfigService;
     }
 
     /**
@@ -95,9 +98,31 @@ public class MigrationJobFactory {
     public Job createMigrationJob(JobRequest jobRequest) throws SQLException, JsonProcessingException {
         log.info("Creating dynamic migration job...");
         ObjectMapper mapper = new ObjectMapper();
-        Map<String, Object> configDetails =jobRequest.getConfigDetails();
-        Map<String, Object> rulesConfig = (Map<String, Object>) configDetails.get("rules");
-        List<String> tables = (List<String>) rulesConfig.get("targetTables");
+        Map<String, Object> configDetails = jobRequest.getConfigDetails();
+        Map<String, Object> rulesConfig = configDetails != null ? (Map<String, Object>) configDetails.get("rules") : null;
+        List<String> tables = rulesConfig != null ? (List<String>) rulesConfig.get("targetTables") : null;
+
+        List<String> maskingColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("maskingColumns", rulesConfig.get("masking_columns")) : null;
+        List<String> constraintColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("constraintColumns", rulesConfig.get("constraint_columns")) : null;
+        List<String> partialMaskingColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("partialMaskingColumns", rulesConfig.get("partial_masking_columns")) : null;
+        String maskingKey = rulesConfig != null ? (String) rulesConfig.getOrDefault("maskingKey", rulesConfig.get("masking_key")) : null;
+
+        // Apply rules to global config so FPE salt key and masking configuration are in sync
+        com.enterprise.seedm.model.MaskingConfig maskingConfig = new com.enterprise.seedm.model.MaskingConfig();
+        maskingConfig.setMaskingColumns(maskingColumns != null ? maskingColumns : java.util.Collections.emptyList());
+        maskingConfig.setConstraintColumns(constraintColumns != null ? constraintColumns : java.util.Collections.emptyList());
+        maskingConfig.setPartialMaskingColumns(partialMaskingColumns != null ? partialMaskingColumns : java.util.Collections.emptyList());
+        if (maskingKey != null && !maskingKey.trim().isEmpty()) {
+            maskingConfig.setMaskingKey(maskingKey.trim());
+        }
+        maskingConfig.setTargetTables(tables != null ? tables : java.util.Collections.emptyList());
+        maskingConfigService.updateConfig(maskingConfig);
+
+        log.info("Applied masking config to migration job: SFD={}, PMD={}, FPH={}, key={}",
+                maskingConfig.getMaskingColumns().size(),
+                maskingConfig.getPartialMaskingColumns().size(),
+                maskingConfig.getConstraintColumns().size(),
+                maskingConfig.getMaskingKey());
 
         if (tables == null || tables.isEmpty()) {
             log.info("No target tables specified, discovering all tables from source schema...");
@@ -120,7 +145,7 @@ public class MigrationJobFactory {
             Step prepareStep = createTablePreparationStep(tableName);
             
             // Step 1.2: Migrate data (Read -> Mask -> Write)
-            Step migrateStep = createTableMigrationStep(tableName);
+            Step migrateStep = createTableMigrationStep(tableName, maskingColumns, constraintColumns, partialMaskingColumns);
 
             if (simpleJobBuilder == null) {
                 simpleJobBuilder = jobBuilder.start(prepareStep);
@@ -156,17 +181,32 @@ public class MigrationJobFactory {
         log.info("Creating dynamic Mongo migration job...");
         ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> configDetails = jobRequest.getConfigDetails();
-        Map<String, Object> sourceConfig = (Map<String, Object>) configDetails.get("source");
-        Map<String, Object> destConfig = (Map<String, Object>) configDetails.get("dest");
-        Map<String, Object> rulesConfig = (Map<String, Object>) configDetails.get("rules");
+        Map<String, Object> sourceConfig = configDetails != null ? (Map<String, Object>) configDetails.get("source") : null;
+        Map<String, Object> destConfig = configDetails != null ? (Map<String, Object>) configDetails.get("dest") : null;
+        Map<String, Object> rulesConfig = configDetails != null ? (Map<String, Object>) configDetails.get("rules") : null;
 
         Long sourceConnectionId = Long.parseLong(sourceConfig.get("id").toString());
         String sourceDatabaseName = sourceConfig.get("schema").toString();
         Long destConnectionId = Long.parseLong(destConfig.get("id").toString());
         String destDatabaseName = destConfig.get("schema").toString();
 
-        List<String> collections = (List<String>) rulesConfig.get("targetTables");
+        List<String> collections = rulesConfig != null ? (List<String>) rulesConfig.get("targetTables") : null;
         if (collections == null) collections = new ArrayList<>();
+
+        List<String> maskingColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("maskingColumns", rulesConfig.get("masking_columns")) : null;
+        List<String> constraintColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("constraintColumns", rulesConfig.get("constraint_columns")) : null;
+        List<String> partialMaskingColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("partialMaskingColumns", rulesConfig.get("partial_masking_columns")) : null;
+        String maskingKey = rulesConfig != null ? (String) rulesConfig.getOrDefault("maskingKey", rulesConfig.get("masking_key")) : null;
+
+        com.enterprise.seedm.model.MaskingConfig maskingConfig = new com.enterprise.seedm.model.MaskingConfig();
+        maskingConfig.setMaskingColumns(maskingColumns != null ? maskingColumns : java.util.Collections.emptyList());
+        maskingConfig.setConstraintColumns(constraintColumns != null ? constraintColumns : java.util.Collections.emptyList());
+        maskingConfig.setPartialMaskingColumns(partialMaskingColumns != null ? partialMaskingColumns : java.util.Collections.emptyList());
+        if (maskingKey != null && !maskingKey.trim().isEmpty()) {
+            maskingConfig.setMaskingKey(maskingKey.trim());
+        }
+        maskingConfig.setTargetTables(collections);
+        maskingConfigService.updateConfig(maskingConfig);
 
         MongoClient sourceClient = mongoConnectionHelper.createClient(sourceConnectionId);
         MongoClient destClient = mongoConnectionHelper.createClient(destConnectionId);
@@ -184,13 +224,19 @@ public class MigrationJobFactory {
 
             // Step 2: Migrate
             MongoItemReader reader = new MongoItemReader(sourceClient, sourceDatabaseName, collectionName);
-            MongoItemProcessor processor = new MongoItemProcessor(collectionName, dataMaskingService); // ADDED
+            MongoItemProcessor processor = new MongoItemProcessor(
+                    collectionName,
+                    dataMaskingService,
+                    maskingColumns,
+                    constraintColumns,
+                    partialMaskingColumns
+            );
             MongoItemWriter writer = new MongoItemWriter(destClient, destDatabaseName, collectionName);
 
             Step migrateStep = new StepBuilder("migrate_" + collectionName, jobRepository)
                     .<Document, Document>chunk(chunkSize, transactionManager)
                     .reader(reader)
-                    .processor(processor) // ADDED
+                    .processor(processor)
                     .writer(writer)
                     .build();
 
@@ -224,7 +270,10 @@ public class MigrationJobFactory {
                 .build();
     }
 
-    private Step createTableMigrationStep(String tableName) {
+    private Step createTableMigrationStep(String tableName,
+                                          List<String> maskingColumns,
+                                          List<String> constraintColumns,
+                                          List<String> partialMaskingColumns) {
         log.info("Creating migration step for table: {}", tableName);
 
         // Get detailed column metadata for this table
@@ -245,8 +294,14 @@ public class MigrationJobFactory {
         );
         reader.setName(tableName + "Reader");
 
-        // Create processor
-        TableItemProcessor processor = new TableItemProcessor(tableName, dataMaskingService);
+        // Create processor with explicit masking rules
+        TableItemProcessor processor = new TableItemProcessor(
+                tableName,
+                dataMaskingService,
+                maskingColumns,
+                constraintColumns,
+                partialMaskingColumns
+        );
 
         // Create writer
         TableItemWriter writer = new TableItemWriter(
