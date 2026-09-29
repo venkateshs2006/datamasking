@@ -128,7 +128,7 @@ public class FormatPreservingEncryptionService {
         if (max < min) {
             max = Integer.MAX_VALUE;
         }
-        return permuteInt(value, min, max, salt);
+        return (int) permuteRange(value, min, max, salt);
     }
 
     private long encryptLong(long value, long min, long max, String salt) {
@@ -138,126 +138,75 @@ public class FormatPreservingEncryptionService {
         if (max < min) {
             max = Long.MAX_VALUE;
         }
-        return permuteLong(value, min, max, salt);
+        return permuteRange(value, min, max, salt);
     }
 
-    private int permuteInt(int value, int min, int max, String salt) {
-        int[] keys = deriveRoundKeys32(salt);
+    private long permuteRange(long value, long min, long max, String salt) {
+        if (min >= max) {
+            return min;
+        }
+        long range = max - min + 1;
+        if (range <= 1) {
+            return min;
+        }
+
         // Map non-positive or out-of-range value into positive range deterministically
         if (value < min || value > max) {
             long hash = getHash(value, salt);
-            long range = (long) max - min + 1;
             long offset = (hash & 0x7FFFFFFFFFFFFFFFL) % range;
-            value = (int) (min + offset);
+            value = min + offset;
         }
 
-        int current = value;
-        // Cycle walking: Feistel cipher is an exact permutation (bijective, zero collisions).
-        // Walking the cycle until in [min, max] guarantees 1-to-1 uniqueness and positive values.
-        for (int i = 0; i < 100; i++) {
-            if (max <= 127) {
-                current = feistelEncrypt8(current, keys);
-            } else if (max <= 32767) {
-                current = feistelEncrypt16(current, keys);
-            } else {
-                current = feistelEncrypt32(current, keys);
-            }
-            if (current >= min && current <= max) {
-                return current;
-            }
-        }
-
-        // Guaranteed positive fallback
-        long hash = getHash(value, salt);
-        long range = (long) max - min + 1;
-        long offset = (hash & 0x7FFFFFFFFFFFFFFFL) % range;
-        return (int) (min + offset);
-    }
-
-    private long permuteLong(long value, long min, long max, String salt) {
+        long valNorm = value - min; // 0 <= valNorm < range
         long[] keys = deriveRoundKeys64(salt);
-        if (value < min || value > max) {
-            long hash = getHash(value, salt);
-            java.math.BigInteger range = java.math.BigInteger.valueOf(max).subtract(java.math.BigInteger.valueOf(min)).add(java.math.BigInteger.ONE);
-            java.math.BigInteger hashVal = new java.math.BigInteger(1, getHashBytes(String.valueOf(value), salt));
-            java.math.BigInteger offset = hashVal.mod(range);
-            value = java.math.BigInteger.valueOf(min).add(offset).longValue();
+
+        if (range == 2) {
+            return min + (valNorm ^ 1L);
         }
 
-        long current = value;
-        for (int i = 0; i < 100; i++) {
-            current = feistelEncrypt64(current, keys);
-            if (current >= min && current <= max) {
-                return current;
+        int bits = 64 - Long.numberOfLeadingZeros(range - 1);
+        int m1 = bits / 2;
+        int m2 = bits - m1;
+        long mask1 = (1L << m1) - 1;
+        long mask2 = (1L << m2) - 1;
+
+        long current = valNorm;
+        // Unbalanced Feistel with cycle-walking:
+        // Since 2^bits is the smallest power of 2 >= range, range / 2^bits > 50%.
+        // The probability of hitting current < range is > 50% per attempt.
+        // Guarantees exact 1-to-1 bijective mapping with 0 collisions.
+        for (int i = 0; i < 200; i++) {
+            current = feistelPermuteUnbalanced(current, m1, m2, mask1, mask2, keys);
+            if (current < range) {
+                return min + current;
             }
         }
 
-        java.math.BigInteger range = java.math.BigInteger.valueOf(max).subtract(java.math.BigInteger.valueOf(min)).add(java.math.BigInteger.ONE);
-        java.math.BigInteger hashVal = new java.math.BigInteger(1, getHashBytes(String.valueOf(value), salt));
-        java.math.BigInteger offset = hashVal.mod(range);
-        return java.math.BigInteger.valueOf(min).add(offset).longValue();
+        return min + (Math.abs(current) % range);
     }
 
-    // --- Feistel Permutations (Bijective, 0-collision mappings) ---
+    private long feistelPermuteUnbalanced(long val, int m1, int m2, long mask1, long mask2, long[] keys) {
+        long l = (val >>> m2) & mask1;
+        long r = val & mask2;
 
-    private int feistelEncrypt32(int val, int[] roundKeys) {
-        int l = (val >>> 16) & 0xFFFF;
-        int r = val & 0xFFFF;
-        for (int k : roundKeys) {
-            int f = (r ^ k) * 0x45d9f3b;
-            f = ((f >>> 16) ^ f) * 0x45d9f3b;
-            f = (f >>> 16) & 0xFFFF;
+        for (int i = 0; i < keys.length; i++) {
+            long k = keys[i];
+            long f1 = feistelMix(r, k, mask1);
+            l = (l ^ f1) & mask1;
 
-            int nextR = l ^ f;
-            l = r;
-            r = nextR;
+            long f2 = feistelMix(l, k ^ 0x5555555555555555L, mask2);
+            r = (r ^ f2) & mask2;
         }
-        return (l << 16) | (r & 0xFFFF);
+
+        return (l << m2) | (r & mask2);
     }
 
-    private int feistelEncrypt16(int val, int[] roundKeys) {
-        int l = (val >>> 8) & 0xFF;
-        int r = val & 0xFF;
-        for (int k : roundKeys) {
-            int f = (r ^ (k & 0xFF)) * 0x85;
-            f = ((f >>> 8) ^ f) * 0x45;
-            f = (f >>> 4) & 0xFF;
-
-            int nextR = l ^ f;
-            l = r;
-            r = nextR;
-        }
-        return ((l & 0xFF) << 8) | (r & 0xFF);
-    }
-
-    private int feistelEncrypt8(int val, int[] roundKeys) {
-        int l = (val >>> 4) & 0x0F;
-        int r = val & 0x0F;
-        for (int k : roundKeys) {
-            int f = (r ^ (k & 0x0F)) * 0x7;
-            f = ((f >>> 4) ^ f) * 0x5;
-            f = (f >>> 2) & 0x0F;
-
-            int nextR = l ^ f;
-            l = r;
-            r = nextR;
-        }
-        return ((l & 0x0F) << 4) | (r & 0x0F);
-    }
-
-    private long feistelEncrypt64(long val, long[] roundKeys) {
-        long l = (val >>> 32) & 0xFFFFFFFFL;
-        long r = val & 0xFFFFFFFFL;
-        for (long k : roundKeys) {
-            long f = (r ^ k) * 0xbf58476d1ce4e5b9L;
-            f = ((f >>> 30) ^ f) * 0x94d049bb133111ebL;
-            f = (f >>> 32) & 0xFFFFFFFFL;
-
-            long nextR = l ^ f;
-            l = r;
-            r = nextR;
-        }
-        return (l << 32) | (r & 0xFFFFFFFFL);
+    private long feistelMix(long val, long key, long mask) {
+        long x = (val ^ key) * 0xbf58476d1ce4e5b9L;
+        x ^= (x >>> 30);
+        x *= 0x94d049bb133111ebL;
+        x ^= (x >>> 27);
+        return x & mask;
     }
 
     private int[] deriveRoundKeys32(String salt) {
@@ -375,50 +324,138 @@ public class FormatPreservingEncryptionService {
             return encryptNumericString(value, salt);
         }
 
-        int targetLength = value.length();
-        StringBuilder hexString = new StringBuilder(targetLength + 64);
-        String currentInput = value;
-
-        while (hexString.length() < targetLength) {
-            byte[] hash = getHashBytes(currentInput, salt);
-            for (byte b : hash) {
-                hexString.append(HEX_CHARS[(b >> 4) & 0x0F]);
-                hexString.append(HEX_CHARS[b & 0x0F]);
+        String alphabet;
+        if (value.matches("^[0-9a-f]{24}$")) {
+            alphabet = "0123456789abcdef";
+        } else if (value.matches("^[0-9A-F]{24}$")) {
+            alphabet = "0123456789ABCDEF";
+        } else if (value.matches("^[0-9A-Z]+$")) {
+            alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        } else if (value.matches("^[0-9a-z]+$")) {
+            alphabet = "0123456789abcdefghijklmnopqrstuvwxyz";
+        } else if (value.matches("^[a-zA-Z]+$")) {
+            alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        } else if (value.matches("^[0-9a-zA-Z]+$")) {
+            alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        } else {
+            StringBuilder sb = new StringBuilder(95);
+            for (int c = 32; c <= 126; c++) {
+                sb.append((char) c);
             }
-            currentInput = hexString.toString();
+            alphabet = sb.toString();
         }
 
-        return hexString.substring(0, targetLength);
+        return encryptStringFpe(value, alphabet, salt);
     }
 
     private String encryptNumericString(String value, String salt) {
         int len = value.length();
-        if (len <= 9) {
-            int num = Integer.parseInt(value);
-            int min = (len == 1) ? 1 : (int) Math.pow(10, len - 1);
-            int max = (int) Math.pow(10, len) - 1;
-            int permuted = encryptInt(num, min, max, salt);
-            return String.format("%0" + len + "d", permuted);
-        } else if (len <= 18) {
-            long num = Long.parseLong(value);
-            long min = (long) Math.pow(10, len - 1);
-            long max = (long) Math.pow(10, len) - 1;
-            long permuted = encryptLong(num, min, max, salt);
-            return String.format("%0" + len + "d", permuted);
-        } else {
-            StringBuilder sb = new StringBuilder(len);
-            byte[] hash = getHashBytes(value, salt);
+        if (len <= 18) {
+            long maxVal = 1L;
             for (int i = 0; i < len; i++) {
-                int origDigit = value.charAt(i) - '0';
-                int shift = (hash[i % hash.length] & 0x0F) + (i == 0 ? 1 : 0);
-                int newDigit = (origDigit + shift) % 10;
-                if (i == 0 && newDigit == 0) {
-                    newDigit = 1 + ((origDigit + shift) % 9);
-                }
-                sb.append(newDigit);
+                maxVal *= 10L;
             }
-            return sb.toString();
+            maxVal -= 1L; // e.g. for len=5, maxVal=99999L
+
+            long num;
+            try {
+                num = Long.parseLong(value);
+            } catch (NumberFormatException e) {
+                return encryptStringFpe(value, "0123456789", salt);
+            }
+
+            if (num >= 1L && num <= maxVal) {
+                long permuted = permuteRange(num, 1L, maxVal, salt);
+                return String.format("%0" + len + "d", permuted);
+            } else if (num == 0L) {
+                long permuted = permuteRange(0L, 0L, maxVal, salt);
+                return String.format("%0" + len + "d", permuted);
+            } else {
+                long permuted = permuteRange(num, 1L, maxVal, salt);
+                return String.format("%0" + len + "d", permuted);
+            }
+        } else {
+            return encryptStringFpe(value, "0123456789", salt);
         }
+    }
+
+    private String encryptStringFpe(String value, String alphabet, String salt) {
+        int len = value.length();
+        if (len <= 1) {
+            int radix = alphabet.length();
+            int idx = alphabet.indexOf(value.charAt(0));
+            if (idx == -1) {
+                return value;
+            }
+            long hash = getHash(value.charAt(0), salt);
+            int shift = (int) ((hash & 0x7FFFFFFF) % (radix - 1)) + 1;
+            int newIdx = (idx + shift) % radix;
+            return String.valueOf(alphabet.charAt(newIdx));
+        }
+
+        int radix = alphabet.length();
+        int n1 = len / 2;
+        int n2 = len - n1;
+
+        String leftStr = value.substring(0, n1);
+        String rightStr = value.substring(n1);
+
+        java.math.BigInteger bRadix = java.math.BigInteger.valueOf(radix);
+        java.math.BigInteger modL = bRadix.pow(n1);
+        java.math.BigInteger modR = bRadix.pow(n2);
+
+        java.math.BigInteger leftVal = stringToBigInteger(leftStr, alphabet, bRadix);
+        java.math.BigInteger rightVal = stringToBigInteger(rightStr, alphabet, bRadix);
+
+        for (int round = 0; round < 6; round++) {
+            java.math.BigInteger f1 = hashRoundToBigInteger(rightVal, round * 2, salt, modL);
+            leftVal = leftVal.add(f1).mod(modL);
+
+            java.math.BigInteger f2 = hashRoundToBigInteger(leftVal, round * 2 + 1, salt, modR);
+            rightVal = rightVal.add(f2).mod(modR);
+        }
+
+        String newLeft = bigIntegerToString(leftVal, alphabet, bRadix, n1);
+        String newRight = bigIntegerToString(rightVal, alphabet, bRadix, n2);
+        return newLeft + newRight;
+    }
+
+    private java.math.BigInteger stringToBigInteger(String str, String alphabet, java.math.BigInteger bRadix) {
+        java.math.BigInteger val = java.math.BigInteger.ZERO;
+        int radix = alphabet.length();
+        for (int i = 0; i < str.length(); i++) {
+            char c = str.charAt(i);
+            int idx = alphabet.indexOf(c);
+            if (idx == -1) {
+                idx = Math.abs((int) c) % radix;
+            }
+            val = val.multiply(bRadix).add(java.math.BigInteger.valueOf(idx));
+        }
+        return val;
+    }
+
+    private String bigIntegerToString(java.math.BigInteger val, String alphabet, java.math.BigInteger bRadix, int length) {
+        char[] chars = new char[length];
+        java.math.BigInteger current = val;
+        for (int i = length - 1; i >= 0; i--) {
+            java.math.BigInteger[] divRem = current.divideAndRemainder(bRadix);
+            int rem = divRem[1].intValue();
+            chars[i] = alphabet.charAt(rem);
+            current = divRem[0];
+        }
+        return new String(chars);
+    }
+
+    private java.math.BigInteger hashRoundToBigInteger(java.math.BigInteger val, int round, String salt, java.math.BigInteger mod) {
+        MessageDigest digest = SHA256_HOLDER.get();
+        digest.reset();
+        digest.update(val.toByteArray());
+        digest.update((byte) round);
+        if (salt != null && !salt.isEmpty()) {
+            digest.update(salt.getBytes(StandardCharsets.UTF_8));
+        }
+        byte[] hash = digest.digest();
+        return new java.math.BigInteger(1, hash).mod(mod);
     }
 
     private boolean encryptBoolean(boolean value, String salt) {

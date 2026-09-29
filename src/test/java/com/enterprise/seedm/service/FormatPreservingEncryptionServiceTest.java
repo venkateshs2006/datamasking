@@ -97,7 +97,7 @@ public class FormatPreservingEncryptionServiceTest {
     @Test
     void testUniqueValuesWithoutCollision() {
         java.util.Set<Integer> uniqueInts = new java.util.HashSet<>();
-        int count = 1000;
+        int count = 10000;
         for (int i = 1; i <= count; i++) {
             Object enc = fpeService.encrypt(i, "integer");
             assertNotNull(enc);
@@ -130,5 +130,61 @@ public class FormatPreservingEncryptionServiceTest {
         assertTrue(encStr.matches("^\\d+$"), "Must contain only positive numeric digits: " + encStr);
         assertNotEquals(numStr, encStr, "Must differ from original");
         assertTrue(Long.parseLong(encStr) > 0, "Must represent a positive number");
+    }
+
+    @Test
+    void test8000AlphaNumericStringUniqueness() {
+        java.util.Set<String> unique = new java.util.HashSet<>();
+        int count = 8000;
+        for (int i = 0; i < count; i++) {
+            String str = String.format("A%04d", i);
+            Object enc = fpeService.encrypt(str, "string");
+            assertNotNull(enc);
+            assertTrue(unique.add(enc.toString()), "Collision for " + str + ": " + enc);
+        }
+        assertEquals(count, unique.size());
+    }
+
+    @Test
+    void test8000FiveDigitNumericStringUniqueness() {
+        java.util.Set<String> uniqueNumericStrings = new java.util.HashSet<>();
+        int count = 8000;
+        // Test zero-padded sequence 00001 to 08000
+        for (int i = 1; i <= count; i++) {
+            String str = String.format("%05d", i);
+            Object enc = fpeService.encrypt(str, "varchar");
+            assertNotNull(enc);
+            assertEquals(5, enc.toString().length());
+            assertTrue(enc.toString().matches("^\\d+$"));
+            assertTrue(uniqueNumericStrings.add(enc.toString()), "Collision detected for input " + str + ": " + enc);
+        }
+        assertEquals(count, uniqueNumericStrings.size());
+
+        // Also test 10000 to 18000
+        uniqueNumericStrings.clear();
+        for (int i = 10000; i < 10000 + count; i++) {
+            String str = String.valueOf(i);
+            Object enc = fpeService.encrypt(str, "varchar");
+            assertNotNull(enc);
+            assertEquals(5, enc.toString().length());
+            assertTrue(enc.toString().matches("^\\d+$"));
+            assertTrue(uniqueNumericStrings.add(enc.toString()), "Collision detected for input " + str + ": " + enc);
+        }
+        assertEquals(count, uniqueNumericStrings.size());
+    }
+
+    @Test
+    void test8000FiveDigitIntegerUniqueness() {
+        java.util.Set<Integer> uniqueInts = new java.util.HashSet<>();
+        int count = 8000;
+        for (int i = 10000; i < 10000 + count; i++) {
+            Object enc = fpeService.encrypt(i, "integer");
+            assertNotNull(enc);
+            assertTrue(enc instanceof Integer);
+            int val = (Integer) enc;
+            assertTrue(val > 0, "Must be positive");
+            assertTrue(uniqueInts.add(val), "Collision detected for input " + i + ": " + val);
+        }
+        assertEquals(count, uniqueInts.size());
     }
 }
