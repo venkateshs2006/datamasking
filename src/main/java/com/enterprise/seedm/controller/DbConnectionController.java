@@ -175,7 +175,7 @@ public class DbConnectionController {
     public List<String> getSchemasLegacy(@RequestBody DbConnectionRequest request) {
         if (request.getId() != null) {
             DbConnection saved = connectionService.getConnection(request.getId());
-            if (saved != null && "mongo".equalsIgnoreCase(saved.getDbType())) {
+            if (saved != null && saved.getDbType() != null && saved.getDbType().toLowerCase().contains("mongo")) {
                 return mongoDiscoveryService.getDatabases(request.getId());
             }
         }
@@ -187,7 +187,7 @@ public class DbConnectionController {
     @GetMapping("/{id}/schemas")
     public List<String> getSchemas(@PathVariable Long id) {
         DbConnection saved = connectionService.getConnection(id);
-        if (saved != null && "mongo".equalsIgnoreCase(saved.getDbType())) {
+        if (saved != null && saved.getDbType() != null && saved.getDbType().toLowerCase().contains("mongo")) {
             return mongoDiscoveryService.getDatabases(id);
         }
         DbConnectionRequest request = new DbConnectionRequest();

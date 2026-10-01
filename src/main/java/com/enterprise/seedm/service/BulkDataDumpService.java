@@ -205,12 +205,21 @@ public class BulkDataDumpService {
                 if (collName.startsWith("system.")) continue;
 
                 MongoCollection<Document> coll = db.getCollection(collName);
-                long count = coll.countDocuments();
+                long count = 0;
+                try {
+                    count = coll.estimatedDocumentCount();
+                } catch (Exception countEx) {
+                    try {
+                        count = coll.countDocuments();
+                    } catch (Exception ignored) {}
+                }
 
                 Set<String> fields = new HashSet<>();
-                for (Document doc : coll.find().limit(5)) {
-                    fields.addAll(doc.keySet());
-                }
+                try {
+                    for (Document doc : coll.find().limit(5)) {
+                        fields.addAll(doc.keySet());
+                    }
+                } catch (Exception ignored) {}
 
                 result.add(BulkDumpTableConfig.builder()
                         .tableName(collName)
@@ -224,8 +233,7 @@ public class BulkDataDumpService {
                         .build());
             }
         } catch (Exception e) {
-            log.error("Failed to discover MongoDB collections for connection {}", connectionId, e);
-            throw new RuntimeException("Failed to discover MongoDB collections: " + e.getMessage(), e);
+            log.warn("Could not inspect collections for MongoDB connection {} on db {}: {}", connectionId, databaseName, e.getMessage());
         }
 
         return result;
@@ -650,13 +658,47 @@ public class BulkDataDumpService {
 
                 Document sampleDoc = collection.find().first();
                 Set<String> fieldNames = new LinkedHashSet<>();
+                Map<String, Integer> fieldMaxLengths = new HashMap<>();
+
                 if (sampleDoc != null) {
-                    fieldNames.addAll(sampleDoc.keySet());
-                    fieldNames.remove("_id");
+                    for (String key : sampleDoc.keySet()) {
+                        if (!"_id".equals(key)) {
+                            fieldNames.add(key);
+                            Object val = sampleDoc.get(key);
+                            if (val instanceof String) {
+                                int slen = ((String) val).length();
+                                if (slen > 0 && slen <= 5) {
+                                    fieldMaxLengths.put(key, slen);
+                                }
+                            }
+                        }
+                    }
                 }
-                if (fieldNames.isEmpty() && collConfig.getColumns() != null) {
-                    fieldNames.addAll(collConfig.getColumns());
-                    fieldNames.remove("_id");
+                if (collConfig.getColumns() != null) {
+                    for (String colStr : collConfig.getColumns()) {
+                        if (colStr == null || colStr.trim().isEmpty() || "_id".equalsIgnoreCase(colStr.trim())) continue;
+                        String raw = colStr.trim();
+                        String cleanName = raw;
+                        Integer parsedLen = null;
+                        if (raw.contains("(") && raw.contains(")")) {
+                            int p1 = raw.indexOf('(');
+                            int p2 = raw.indexOf(')', p1);
+                            try {
+                                parsedLen = Integer.parseInt(raw.substring(p1 + 1, p2).trim());
+                            } catch (Exception ignored) {}
+                        }
+                        if (raw.contains(":") || raw.contains(" ")) {
+                            String[] parts = raw.split("[: ]+");
+                            cleanName = parts[0];
+                        }
+                        if (cleanName.contains("(")) {
+                            cleanName = cleanName.substring(0, cleanName.indexOf('(')).trim();
+                        }
+                        fieldNames.add(cleanName);
+                        if (parsedLen != null && parsedLen > 0) {
+                            fieldMaxLengths.put(cleanName, parsedLen);
+                        }
+                    }
                 }
                 if (fieldNames.isEmpty()) {
                     fieldNames.addAll(List.of("name", "email", "phone", "status", "role", "amount", "createdAt"));
@@ -681,7 +723,7 @@ public class BulkDataDumpService {
                         }
 
                         for (String f : fieldNames) {
-                            Object val = generateMongoValueForField(f, rowSeq);
+                            Object val = generateMongoValueForField(f, rowSeq, fieldMaxLengths.get(f));
                             doc.put(f, val);
                             if (sample != null) {
                                 sample.put(f, val != null ? val.toString() : null);
@@ -948,6 +990,27 @@ public class BulkDataDumpService {
                     cd.isAutoIncrement = "YES".equalsIgnoreCase(rs.getString("IS_AUTOINCREMENT"));
                 } catch (Exception ignored) {}
 
+                // Parse size from typeName if not provided (e.g. "varchar(2)", "varry(2)", "varying(2)")
+                if (cd.typeName != null) {
+                    String lowerType = cd.typeName.toLowerCase();
+                    if (lowerType.contains("(") && lowerType.contains(")")) {
+                        try {
+                            int start = lowerType.indexOf('(') + 1;
+                            int end = lowerType.indexOf(')', start);
+                            int parsedSize = Integer.parseInt(lowerType.substring(start, end).trim());
+                            if (parsedSize > 0) {
+                                cd.size = parsedSize;
+                                cd.precision = parsedSize;
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                    if (lowerType.contains("varchar") || lowerType.contains("varying") || lowerType.contains("varry")) {
+                        if (cd.dataType == Types.OTHER || cd.dataType == 0) {
+                            cd.dataType = Types.VARCHAR;
+                        }
+                    }
+                }
+
                 String lowerCol = cd.name.toLowerCase();
                 cd.isPrimaryKey = pkCols.contains(lowerCol);
                 cd.isUnique = uqCols.contains(lowerCol);
@@ -963,6 +1026,38 @@ public class BulkDataDumpService {
         return list;
     }
 
+    private static final String[] COUNTRY_CODES = {"US", "GB", "DE", "FR", "IN", "CA", "AU", "JP", "SG", "NL", "CH", "ES", "IT", "SE", "AE", "BR", "MX", "ZA", "NZ", "IE"};
+    private static final String[] STATE_CODES = {"NY", "CA", "TX", "FL", "IL", "PA", "OH", "GA", "NC", "MI", "NJ", "VA", "WA", "AZ", "MA", "TN", "IN", "MO", "MD", "WI"};
+
+    private String generateCountryCode(long seq) {
+        return COUNTRY_CODES[(int) (Math.max(0, seq - 1) % COUNTRY_CODES.length)];
+    }
+
+    private String generateStateCode(long seq) {
+        return STATE_CODES[(int) (Math.max(0, seq - 1) % STATE_CODES.length)];
+    }
+
+    private String generateTwoCharCode(long seq) {
+        long s = Math.max(0, seq - 1);
+        char c1 = (char) ('A' + (s % 26));
+        long rem = s / 26;
+        char c2 = (rem % 36 < 10) ? (char) ('0' + (rem % 10)) : (char) ('A' + ((rem - 10) % 26));
+        return "" + c1 + c2;
+    }
+
+    private String generateShortAlphaNum(long seq, int len) {
+        if (len <= 0) len = 5;
+        long s = Math.max(0, seq - 1);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < len; i++) {
+            long digit = s % 36;
+            s /= 36;
+            char ch = digit < 10 ? (char) ('0' + digit) : (char) ('A' + (digit - 10));
+            sb.append(ch);
+        }
+        return sb.reverse().toString();
+    }
+
     private Object generateValueForColumn(ColumnDetail col, long seq, String tableName, Map<String, List<Object>> generatedPrimaryKeys) {
         // 1. Maintain Foreign Key Referential Integrity
         if (col.foreignTable != null && col.foreignColumn != null) {
@@ -975,8 +1070,11 @@ public class BulkDataDumpService {
                 return null;
             }
             // Fallback for foreign key if parent table empty
+            if (col.size > 0 && col.size <= 2) {
+                return "R" + (seq % 10);
+            }
             return (col.dataType == Types.BIGINT || col.dataType == Types.INTEGER || col.dataType == Types.SMALLINT)
-                    ? 1L : "REF-1";
+                    ? 1L : (col.size > 0 && col.size < 5 ? "R" + (seq % 9 + 1) : "REF-1");
         }
 
         // 2. Primary Key / Unique constraints: guarantee uniqueness
@@ -988,10 +1086,19 @@ public class BulkDataDumpService {
             if (col.typeName != null && col.typeName.toLowerCase().contains("uuid")) {
                 return UUID.randomUUID();
             }
+            int maxLen = col.size > 0 ? col.size : 50;
+            if (maxLen <= 1) {
+                return String.valueOf((char) ('A' + ((seq - 1) % 26)));
+            }
+            if (maxLen <= 2) {
+                return generateTwoCharCode(seq);
+            }
+            if (maxLen <= 5) {
+                return generateShortAlphaNum(seq, maxLen);
+            }
             String base = (col.name.toLowerCase().contains("email"))
                     ? "user" + seq + "@bnp.com"
                     : col.name.toUpperCase() + "_" + seq;
-            int maxLen = col.size > 0 ? col.size : 50;
             return base.length() > maxLen ? base.substring(0, maxLen) : base;
         }
 
@@ -1054,12 +1161,12 @@ public class BulkDataDumpService {
             return clipString(faker.address().zipCode(), maxLen);
         }
         if (colName.contains("country")) {
-            if (maxLen <= 2) return "US";
+            if (maxLen <= 2) return generateCountryCode(seq);
             if (maxLen <= 3) return "USA";
             return clipString(faker.address().country(), maxLen);
         }
         if (colName.contains("state") || colName.contains("province")) {
-            if (maxLen <= 2) return "NY";
+            if (maxLen <= 2) return generateStateCode(seq);
             return clipString(faker.address().state(), maxLen);
         }
         if (colName.contains("company") || colName.contains("dept") || colName.contains("department")) {
@@ -1108,15 +1215,16 @@ public class BulkDataDumpService {
             case Types.TIMESTAMP_WITH_TIMEZONE:
                 return java.sql.Timestamp.valueOf(LocalDateTime.now().minusHours(random.nextInt(8760)));
             case Types.CHAR:
-                if (maxLen <= 1) return (random.nextBoolean() ? "Y" : "N");
-                if (maxLen <= 2) return "A1";
+                if (maxLen <= 1) return String.valueOf((char) ('A' + ((seq - 1) % 26)));
+                if (maxLen <= 2) return generateTwoCharCode(seq);
+                if (maxLen <= 5) return generateShortAlphaNum(seq, maxLen);
                 return clipString(faker.lorem().word(), maxLen);
             case Types.VARCHAR:
             case Types.LONGVARCHAR:
             default:
-                if (maxLen <= 1) return "Y";
-                if (maxLen <= 2) return "FR";
-                if (maxLen <= 5) return "DATA";
+                if (maxLen <= 1) return String.valueOf((char) ('A' + ((seq - 1) % 26)));
+                if (maxLen <= 2) return generateTwoCharCode(seq);
+                if (maxLen <= 5) return generateShortAlphaNum(seq, maxLen);
                 String word = faker.lorem().word();
                 return clipString(word, maxLen);
         }
@@ -1206,34 +1314,61 @@ public class BulkDataDumpService {
                 }
                 return;
             }
+            if (col.size > 0 && strVal.length() > col.size) {
+                strVal = strVal.substring(0, col.size);
+            }
             pstmt.setString(index, strVal);
         }
     }
 
     private Object generateMongoValueForField(String field, long seq) {
-        String f = field.toLowerCase();
-        if (f.contains("email")) return faker.internet().emailAddress();
-        if (f.contains("name")) return faker.name().fullName();
-        if (f.contains("phone")) return faker.phoneNumber().cellPhone();
-        if (f.contains("address")) return faker.address().streetAddress();
-        if (f.contains("city")) return faker.address().city();
-        if (f.contains("country")) return faker.address().country();
-        if (f.contains("company")) return faker.company().name();
-        if (f.contains("status")) {
-            String[] s = {"ACTIVE", "COMPLETED", "INACTIVE", "PENDING"};
-            return s[random.nextInt(s.length)];
-        }
-        if (f.contains("amount") || f.contains("price") || f.contains("salary") || f.contains("balance")) {
-            return Math.round((100.0 + random.nextDouble() * 5000.0) * 100.0) / 100.0;
-        }
-        if (f.contains("date") || f.contains("created") || f.contains("updated")) {
-            return new Date(System.currentTimeMillis() - (random.nextInt(365) * 86400000L));
-        }
-        if (f.contains("age")) return 20 + random.nextInt(50);
-        if (f.contains("count") || f.contains("num")) return random.nextInt(100);
-        if (f.contains("active") || f.contains("enabled")) return random.nextBoolean();
+        return generateMongoValueForField(field, seq, null);
+    }
 
-        return faker.lorem().word();
+    private Object generateMongoValueForField(String field, long seq, Integer maxLen) {
+        String f = field.toLowerCase();
+        int limit = (maxLen != null && maxLen > 0) ? maxLen : 0;
+
+        if (limit == 1) {
+            return String.valueOf((char) ('A' + ((seq - 1) % 26)));
+        }
+        if (limit == 2 || f.contains("country_code") || f.contains("state_code") || f.equals("st") || f.equals("cc")) {
+            return generateTwoCharCode(seq);
+        }
+        if (limit > 0 && limit <= 5) {
+            return generateShortAlphaNum(seq, limit);
+        }
+
+        Object result;
+        if (f.contains("email")) result = faker.internet().emailAddress();
+        else if (f.contains("name")) result = faker.name().fullName();
+        else if (f.contains("phone")) result = faker.phoneNumber().cellPhone();
+        else if (f.contains("address")) result = faker.address().streetAddress();
+        else if (f.contains("city")) result = faker.address().city();
+        else if (f.contains("country")) {
+            result = (limit > 0 && limit <= 2) ? generateCountryCode(seq) : faker.address().country();
+        } else if (f.contains("state") || f.contains("province")) {
+            result = (limit > 0 && limit <= 2) ? generateStateCode(seq) : faker.address().state();
+        } else if (f.contains("company")) result = faker.company().name();
+        else if (f.contains("status")) {
+            String[] s = {"ACTIVE", "COMPLETED", "INACTIVE", "PENDING"};
+            result = s[(int) (Math.max(0, seq - 1) % s.length)];
+        } else if (f.contains("amount") || f.contains("price") || f.contains("salary") || f.contains("balance")) {
+            result = Math.round((100.0 + random.nextDouble() * 5000.0) * 100.0) / 100.0;
+        } else if (f.contains("date") || f.contains("created") || f.contains("updated")) {
+            result = new Date(System.currentTimeMillis() - (random.nextInt(365) * 86400000L));
+        } else if (f.contains("age")) result = 20 + random.nextInt(50);
+        else if (f.contains("count") || f.contains("num")) result = (int) (seq % 100);
+        else if (f.contains("active") || f.contains("enabled")) return random.nextBoolean();
+        else result = faker.lorem().word();
+
+        if (limit > 0 && result instanceof String) {
+            String str = (String) result;
+            if (str.length() > limit) {
+                return str.substring(0, limit);
+            }
+        }
+        return result;
     }
 
     private Object generateJsonValueForField(String field, long seq) {

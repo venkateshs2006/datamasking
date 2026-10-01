@@ -34,17 +34,34 @@ public class MongoDiscoveryService {
                 client.listDatabaseNames().into(databases);
             } catch (Exception e) {
                 log.warn("Could not list all databases for connection {}: {}", connectionId, e.getMessage());
-                com.mongodb.ConnectionString connStr = new com.mongodb.ConnectionString(connection.getUrl());
-                if (connStr.getDatabase() != null && !connStr.getDatabase().isEmpty()) {
-                    databases.add(connStr.getDatabase());
-                } else {
-                    throw e;
+                if (connection.getUrl() != null && !connection.getUrl().trim().isEmpty()) {
+                    try {
+                        com.mongodb.ConnectionString connStr = new com.mongodb.ConnectionString(connection.getUrl());
+                        if (connStr.getDatabase() != null && !connStr.getDatabase().isEmpty()) {
+                            databases.add(connStr.getDatabase());
+                        }
+                    } catch (Exception ignored) {}
                 }
+            }
+            if (databases.isEmpty()) {
+                databases.add("test");
             }
             return databases;
         } catch (Exception e) {
             log.error("Error getting databases for connection ID {}: {}", connectionId, e.getMessage(), e);
-            throw new RuntimeException("Error getting databases: " + e.getMessage(), e);
+            List<String> fallback = new ArrayList<>();
+            if (connection.getUrl() != null && !connection.getUrl().trim().isEmpty()) {
+                try {
+                    com.mongodb.ConnectionString connStr = new com.mongodb.ConnectionString(connection.getUrl());
+                    if (connStr.getDatabase() != null && !connStr.getDatabase().isEmpty()) {
+                        fallback.add(connStr.getDatabase());
+                    }
+                } catch (Exception ignored) {}
+            }
+            if (fallback.isEmpty()) {
+                fallback.add("test");
+            }
+            return fallback;
         }
     }
 

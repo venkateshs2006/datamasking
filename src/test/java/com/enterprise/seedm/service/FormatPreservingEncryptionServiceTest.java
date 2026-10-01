@@ -135,12 +135,12 @@ public class FormatPreservingEncryptionServiceTest {
     @Test
     void test8000AlphaNumericStringUniqueness() {
         java.util.Set<String> unique = new java.util.HashSet<>();
-        int count = 8000;
+        int count = 10000;
         for (int i = 0; i < count; i++) {
             String str = String.format("A%04d", i);
             Object enc = fpeService.encrypt(str, "string");
             assertNotNull(enc);
-            assertTrue(unique.add(enc.toString()), "Collision for " + str + ": " + enc);
+            assertTrue(unique.add(enc.toString()), "Collision for " + str + ": " + enc + " at count=" + i);
         }
         assertEquals(count, unique.size());
     }
@@ -148,43 +148,106 @@ public class FormatPreservingEncryptionServiceTest {
     @Test
     void test8000FiveDigitNumericStringUniqueness() {
         java.util.Set<String> uniqueNumericStrings = new java.util.HashSet<>();
-        int count = 8000;
-        // Test zero-padded sequence 00001 to 08000
+        int count = 99999;
+        // Test zero-padded sequence 00001 to 99999
         for (int i = 1; i <= count; i++) {
             String str = String.format("%05d", i);
             Object enc = fpeService.encrypt(str, "varchar");
             assertNotNull(enc);
             assertEquals(5, enc.toString().length());
             assertTrue(enc.toString().matches("^\\d+$"));
-            assertTrue(uniqueNumericStrings.add(enc.toString()), "Collision detected for input " + str + ": " + enc);
-        }
-        assertEquals(count, uniqueNumericStrings.size());
-
-        // Also test 10000 to 18000
-        uniqueNumericStrings.clear();
-        for (int i = 10000; i < 10000 + count; i++) {
-            String str = String.valueOf(i);
-            Object enc = fpeService.encrypt(str, "varchar");
-            assertNotNull(enc);
-            assertEquals(5, enc.toString().length());
-            assertTrue(enc.toString().matches("^\\d+$"));
-            assertTrue(uniqueNumericStrings.add(enc.toString()), "Collision detected for input " + str + ": " + enc);
+            assertTrue(uniqueNumericStrings.add(enc.toString()), "Numeric collision detected for input " + str + ": " + enc + " at record " + i);
         }
         assertEquals(count, uniqueNumericStrings.size());
     }
 
     @Test
+    void test20000AlphabeticStringUniqueness() {
+        java.util.Set<String> unique = new java.util.HashSet<>();
+        int count = 20000;
+        for (int i = 0; i < count; i++) {
+            int n = i;
+            char[] chars = new char[5];
+            for (int k = 4; k >= 0; k--) {
+                chars[k] = (char) ('a' + (n % 26));
+                n /= 26;
+            }
+            String str = new String(chars);
+            Object enc = fpeService.encrypt(str, "varchar");
+            assertNotNull(enc);
+            assertEquals(5, enc.toString().length());
+            assertTrue(unique.add(enc.toString()), "Alphabetic collision for " + str + ": " + enc + " at record " + i);
+        }
+        assertEquals(count, unique.size());
+    }
+
+    @Test
     void test8000FiveDigitIntegerUniqueness() {
         java.util.Set<Integer> uniqueInts = new java.util.HashSet<>();
-        int count = 8000;
+        int count = 20000;
         for (int i = 10000; i < 10000 + count; i++) {
             Object enc = fpeService.encrypt(i, "integer");
             assertNotNull(enc);
             assertTrue(enc instanceof Integer);
             int val = (Integer) enc;
             assertTrue(val > 0, "Must be positive");
-            assertTrue(uniqueInts.add(val), "Collision detected for input " + i + ": " + val);
+            assertTrue(uniqueInts.add(val), "Collision detected for input " + i + ": " + val + " at record " + i);
         }
         assertEquals(count, uniqueInts.size());
+    }
+
+    @Test
+    void testVarchar2AndVarry2DataTypes() {
+        // Test varchar(2) and varry(2) data type inputs
+        Object enc1 = fpeService.encrypt("NY", "varchar(2)");
+        assertNotNull(enc1);
+        assertEquals(2, enc1.toString().length());
+
+        Object enc2 = fpeService.encrypt("CA", "varry(2)");
+        assertNotNull(enc2);
+        assertEquals(2, enc2.toString().length());
+
+        Object enc3 = fpeService.encrypt("US", "varying(2)");
+        assertNotNull(enc3);
+        assertEquals(2, enc3.toString().length());
+    }
+
+    @Test
+    void testTwoCharStringUniqueness() {
+        java.util.Set<String> unique = new java.util.HashSet<>();
+        // All 676 2-letter combinations: aa, ab, ..., zz
+        for (int i = 0; i < 26 * 26; i++) {
+            char c1 = (char) ('a' + (i / 26));
+            char c2 = (char) ('a' + (i % 26));
+            String str = "" + c1 + c2;
+            Object enc = fpeService.encrypt(str, "varchar(2)");
+            assertNotNull(enc);
+            assertEquals(2, enc.toString().length());
+            assertTrue(unique.add(enc.toString()), "Collision for " + str + ": " + enc);
+        }
+        assertEquals(676, unique.size(), "All 676 2-char letter pairs must be 100% unique without collisions");
+    }
+
+    @Test
+    void test20000AlphanumericFiveCharUniqueness() {
+        java.util.Set<String> unique = new java.util.HashSet<>();
+        int count = 20000;
+        for (int i = 0; i < count; i++) {
+            // Diverse 5-char alphanumeric strings
+            long s = i;
+            StringBuilder sb = new StringBuilder();
+            for (int k = 0; k < 5; k++) {
+                long d = s % 36;
+                s /= 36;
+                char c = d < 10 ? (char) ('0' + d) : (char) ('A' + (d - 10));
+                sb.append(c);
+            }
+            String str = sb.reverse().toString();
+            Object enc = fpeService.encrypt(str, "varchar(5)");
+            assertNotNull(enc);
+            assertEquals(5, enc.toString().length());
+            assertTrue(unique.add(enc.toString()), "Alphanumeric collision for " + str + ": " + enc + " at count=" + i);
+        }
+        assertEquals(count, unique.size(), "20,000 5-char alphanumeric strings must have 0 collisions");
     }
 }

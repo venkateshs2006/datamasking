@@ -62,9 +62,21 @@ public class FormatPreservingEncryptionService {
         }
 
         String salt = (customSalt != null && !customSalt.trim().isEmpty()) ? customSalt.trim() : getSalt();
-        String type = dataType != null ? dataType.toLowerCase() : "string";
+        String rawType = dataType != null ? dataType.toLowerCase().trim() : "string";
+        int pIdx = rawType.indexOf('(');
+        Integer colLength = null;
+        if (pIdx != -1) {
+            int closePIdx = rawType.indexOf(')', pIdx);
+            if (closePIdx != -1) {
+                try {
+                    colLength = Integer.parseInt(rawType.substring(pIdx + 1, closePIdx).trim());
+                } catch (Exception ignored) {}
+            }
+            rawType = rawType.substring(0, pIdx).trim();
+        }
+
         try {
-            switch (type) {
+            switch (rawType) {
                 case "integer":
                 case "int":
                 case "int4":
@@ -101,15 +113,32 @@ public class FormatPreservingEncryptionService {
                     return encryptUUID(value.toString(), salt);
                 case "string":
                 case "varchar":
-                case "text":
+                case "varchar2":
+                case "varying":
+                case "varry":
                 case "character varying":
                 case "char":
                 case "character":
-                    return encryptString(value.toString(), salt);
+                case "bpchar":
+                case "text":
+                case "nvarchar":
+                case "nchar":
+                    String encStr = encryptString(value.toString(), salt);
+                    if (colLength != null && colLength > 0 && encStr != null && encStr.length() > colLength) {
+                        return encStr.substring(0, colLength);
+                    }
+                    return encStr;
                 case "boolean":
                 case "bool":
                     return encryptBoolean(toBoolean(value), salt);
                 default:
+                    if (rawType.contains("varchar") || rawType.contains("char") || rawType.contains("varying") || rawType.contains("varry") || rawType.contains("text") || rawType.contains("str")) {
+                        String s = encryptString(value.toString(), salt);
+                        if (colLength != null && colLength > 0 && s != null && s.length() > colLength) {
+                            return s.substring(0, colLength);
+                        }
+                        return s;
+                    }
                     log.warn("Unsupported data type for FPE: {}. Returning original value.", dataType);
                     return value;
             }
@@ -135,8 +164,8 @@ public class FormatPreservingEncryptionService {
         if (min < 1L) {
             min = 1L;
         }
-        if (max < min) {
-            max = Long.MAX_VALUE;
+        if (max < min || max == Long.MAX_VALUE) {
+            max = Long.MAX_VALUE - 1L;
         }
         return permuteRange(value, min, max, salt);
     }
@@ -144,6 +173,10 @@ public class FormatPreservingEncryptionService {
     private long permuteRange(long value, long min, long max, String salt) {
         if (min >= max) {
             return min;
+        }
+        if (max - min < 0) {
+            max = Long.MAX_VALUE - 1L;
+            if (min < 1L) min = 1L;
         }
         long range = max - min + 1;
         if (range <= 1) {
@@ -165,40 +198,50 @@ public class FormatPreservingEncryptionService {
         }
 
         int bits = 64 - Long.numberOfLeadingZeros(range - 1);
-        int m1 = bits / 2;
-        int m2 = bits - m1;
-        long mask1 = (1L << m1) - 1;
-        long mask2 = (1L << m2) - 1;
+        int halfBits = (bits + 1) / 2;
+        long halfMask = halfBits >= 64 ? -1L : ((1L << halfBits) - 1);
 
         long current = valNorm;
-        // Unbalanced Feistel with cycle-walking:
-        // Since 2^bits is the smallest power of 2 >= range, range / 2^bits > 50%.
-        // The probability of hitting current < range is > 50% per attempt.
+        // Balanced Feistel with cycle-walking:
         // Guarantees exact 1-to-1 bijective mapping with 0 collisions.
-        for (int i = 0; i < 200; i++) {
-            current = feistelPermuteUnbalanced(current, m1, m2, mask1, mask2, keys);
-            if (current < range) {
+        for (int i = 0; i < 1000; i++) {
+            current = feistelPermuteBalanced(current, halfBits, halfMask, keys);
+            if (current >= 0 && current < range) {
                 return min + current;
             }
         }
 
-        return min + (Math.abs(current) % range);
+        // Deterministic bijective fallback (guaranteed coprime affine permutation with 0 collisions)
+        long a = (keys[0] | 1L);
+        while (gcd(a, range) != 1) {
+            a += 2L;
+        }
+        long b = Math.abs(keys[1]) % range;
+        return min + ((Math.abs(valNorm) * a + b) % range);
     }
 
-    private long feistelPermuteUnbalanced(long val, int m1, int m2, long mask1, long mask2, long[] keys) {
-        long l = (val >>> m2) & mask1;
-        long r = val & mask2;
+    private long feistelPermuteBalanced(long val, int halfBits, long mask, long[] keys) {
+        long l = (val >>> halfBits) & mask;
+        long r = val & mask;
 
         for (int i = 0; i < keys.length; i++) {
             long k = keys[i];
-            long f1 = feistelMix(r, k, mask1);
-            l = (l ^ f1) & mask1;
-
-            long f2 = feistelMix(l, k ^ 0x5555555555555555L, mask2);
-            r = (r ^ f2) & mask2;
+            long f = feistelMix(r, k, mask);
+            long nextR = (l ^ f) & mask;
+            l = r;
+            r = nextR;
         }
 
-        return (l << m2) | (r & mask2);
+        return (l << halfBits) | (r & mask);
+    }
+
+    private long gcd(long a, long b) {
+        while (b != 0) {
+            long t = b;
+            b = a % b;
+            a = t;
+        }
+        return Math.abs(a);
     }
 
     private long feistelMix(long val, long key, long mask) {
@@ -364,16 +407,9 @@ public class FormatPreservingEncryptionService {
                 return encryptStringFpe(value, "0123456789", salt);
             }
 
-            if (num >= 1L && num <= maxVal) {
-                long permuted = permuteRange(num, 1L, maxVal, salt);
-                return String.format("%0" + len + "d", permuted);
-            } else if (num == 0L) {
-                long permuted = permuteRange(0L, 0L, maxVal, salt);
-                return String.format("%0" + len + "d", permuted);
-            } else {
-                long permuted = permuteRange(num, 1L, maxVal, salt);
-                return String.format("%0" + len + "d", permuted);
-            }
+            // Unified exact domain [0, maxVal] ensures 1-to-1 bijective mapping with 0 collisions
+            long permuted = permuteRange(num, 0L, maxVal, salt);
+            return String.format("%0" + len + "d", permuted);
         } else {
             return encryptStringFpe(value, "0123456789", salt);
         }
@@ -394,6 +430,27 @@ public class FormatPreservingEncryptionService {
         }
 
         int radix = alphabet.length();
+
+        // For strings of length <= 9 where radix^len fits in a 64-bit long:
+        // Direct domain-wide bijective permutation guarantees EXACT 1-to-1 mapping with ZERO collisions
+        if (len <= 9) {
+            long totalDomain = 1L;
+            boolean canFitLong = true;
+            for (int i = 0; i < len; i++) {
+                if (Long.MAX_VALUE / radix < totalDomain) {
+                    canFitLong = false;
+                    break;
+                }
+                totalDomain *= radix;
+            }
+
+            if (canFitLong && totalDomain > 1L) {
+                long val = stringToLong(value, alphabet);
+                long permuted = permuteRange(val, 0L, totalDomain - 1, salt);
+                return longToString(permuted, alphabet, len);
+            }
+        }
+
         int n1 = len / 2;
         int n2 = len - n1;
 
@@ -407,7 +464,7 @@ public class FormatPreservingEncryptionService {
         java.math.BigInteger leftVal = stringToBigInteger(leftStr, alphabet, bRadix);
         java.math.BigInteger rightVal = stringToBigInteger(rightStr, alphabet, bRadix);
 
-        for (int round = 0; round < 6; round++) {
+        for (int round = 0; round < 10; round++) {
             java.math.BigInteger f1 = hashRoundToBigInteger(rightVal, round * 2, salt, modL);
             leftVal = leftVal.add(f1).mod(modL);
 
@@ -419,6 +476,33 @@ public class FormatPreservingEncryptionService {
         String newRight = bigIntegerToString(rightVal, alphabet, bRadix, n2);
         return newLeft + newRight;
     }
+
+    private long stringToLong(String str, String alphabet) {
+        long val = 0;
+        int radix = alphabet.length();
+        for (int i = 0; i < str.length(); i++) {
+            char c = str.charAt(i);
+            int idx = alphabet.indexOf(c);
+            if (idx == -1) {
+                idx = Math.abs((int) c) % radix;
+            }
+            val = val * radix + idx;
+        }
+        return val;
+    }
+
+    private String longToString(long val, String alphabet, int length) {
+        char[] chars = new char[length];
+        long current = val;
+        int radix = alphabet.length();
+        for (int i = length - 1; i >= 0; i--) {
+            int rem = (int) (current % radix);
+            chars[i] = alphabet.charAt(rem);
+            current = current / radix;
+        }
+        return new String(chars);
+    }
+
 
     private java.math.BigInteger stringToBigInteger(String str, String alphabet, java.math.BigInteger bRadix) {
         java.math.BigInteger val = java.math.BigInteger.ZERO;

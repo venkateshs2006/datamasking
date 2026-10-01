@@ -23,9 +23,13 @@ public class DbConnectionService {
 
     public List<DbConnection> getConnectionsByFilters(List<String> departments, String dbType, String envType) {
         return connectionRepository.findAll().stream()
-                .filter(c -> departments != null && (departments.contains("ALL") || departments.contains(c.getDepartment())))
-                .filter(c -> dbType == null || dbType.isEmpty() || c.getDbType().equalsIgnoreCase(dbType))
-                .filter(c -> envType == null || envType.isEmpty() || c.getEnvType().equalsIgnoreCase(envType))
+                .filter(c -> departments != null && (departments.contains("ALL") || 
+                        (c.getDepartment() != null && departments.stream().anyMatch(d -> d.equalsIgnoreCase(c.getDepartment())))))
+                .filter(c -> dbType == null || dbType.isEmpty() || 
+                        (c.getDbType() != null && (c.getDbType().equalsIgnoreCase(dbType) || 
+                         (dbType.toLowerCase().contains("mongo") && c.getDbType().toLowerCase().contains("mongo")))))
+                .filter(c -> envType == null || envType.isEmpty() || 
+                        (c.getEnvType() != null && c.getEnvType().equalsIgnoreCase(envType)))
                 .collect(Collectors.toList());
     }
 

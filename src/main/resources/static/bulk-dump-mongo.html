@@ -166,9 +166,15 @@
                                     <i class="fas fa-sync-alt text-[10px]" id="dbRefreshIcon"></i> Refresh Databases
                                 </button>
                             </div>
-                            <select id="targetDatabase" class="input-field cursor-pointer bg-white font-mono" onchange="state.targetDatabase = this.value">
+                            <select id="targetDatabase" class="input-field cursor-pointer bg-white font-mono" onchange="onDatabaseChanged(this.value)">
                                 <option value="">-- Choose MongoDB Connection First --</option>
                             </select>
+                            <div id="customDbContainer" class="hidden mt-2">
+                                <div class="flex gap-2">
+                                    <input type="text" id="customDbInput" class="input-field font-mono text-xs" placeholder="Enter custom database name (e.g. app_db)" oninput="state.targetDatabase = this.value.trim()">
+                                    <button type="button" onclick="cancelCustomDb()" class="btn btn-secondary text-xs px-2.5">Cancel</button>
+                                </div>
+                            </div>
                             <p class="text-[11px] text-gray-400 mt-1.5"><i class="fas fa-database mr-1"></i> Databases automatically discovered from MongoDB cluster.</p>
                         </div>
                     </div>
@@ -192,8 +198,11 @@
                             </div>
                         </div>
 
-                        <!-- Global Multipliers -->
+                        <!-- Global Multipliers & Add Collection -->
                         <div class="flex items-center gap-2">
+                            <button type="button" onclick="showAddCollectionModal()" class="px-2.5 py-1 text-xs font-bold rounded bg-emerald-50 hover:bg-emerald-100 text-bnp-emerald border border-emerald-200 transition-colors flex items-center gap-1 cursor-pointer mr-2">
+                                <i class="fas fa-plus text-[10px]"></i> Add Collection
+                            </button>
                             <span class="text-xs font-bold text-gray-400 uppercase mr-1">Set All:</span>
                             <button type="button" onclick="setAllCounts(100)" class="px-2.5 py-1 text-xs font-bold rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-mono transition-colors">100</button>
                             <button type="button" onclick="setAllCounts(500)" class="px-2.5 py-1 text-xs font-bold rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-mono transition-colors">500</button>
@@ -412,6 +421,39 @@
         </div>
     </div>
 
+    <!-- ADD COLLECTION MODAL -->
+    <div class="modal" id="addCollModal">
+        <div class="modal-content p-6 max-w-md">
+            <div class="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
+                <h3 class="text-sm font-bold text-gray-900 flex items-center gap-2">
+                    <i class="fas fa-folder-plus text-bnp-emerald"></i> Add MongoDB Collection to Dump
+                </h3>
+                <button type="button" onclick="closeAddCollectionModal()" class="text-gray-400 hover:text-gray-600 text-sm">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide block mb-1">Collection Name</label>
+                    <input type="text" id="newCollNameInput" class="input-field font-mono text-xs" placeholder="e.g. customers, products, transactions">
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide block mb-1">Target Document Dump Count</label>
+                    <input type="number" id="newCollCountInput" min="1" max="1000000" value="100" class="input-field font-mono text-xs">
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide block mb-1">Fields (comma separated, optional)</label>
+                    <input type="text" id="newCollFieldsInput" class="input-field font-mono text-xs" placeholder="name, email, phone, status, amount, createdAt">
+                    <p class="text-[10px] text-gray-400 mt-1">Realistic synthetic data will be automatically generated for these fields.</p>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeAddCollectionModal()" class="btn btn-secondary text-xs px-3 py-1.5">Cancel</button>
+                    <button type="button" onclick="confirmAddCollection()" class="btn btn-primary text-xs px-4 py-1.5">Add Collection</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Footer matching workflow.html -->
     <footer>
         <div class="footer-content">
@@ -620,28 +662,72 @@
         }
 
         async function loadMongoConnections() {
-            try {
-                const res = await fetch('/api/connections');
-                if (res.ok) {
-                    const list = await res.json();
-                    state.connections = list.filter(c => (c.dbType || '').toLowerCase().includes('mongo'));
+            const select = document.getElementById('mongoConnSelect');
+            select.innerHTML = '<option value="">Loading MongoDB connections...</option>';
+            select.disabled = true;
 
-                    const select = document.getElementById('mongoConnSelect');
-                    select.innerHTML = '<option value="">-- Choose MongoDB Connection --</option>';
+            try {
+                let list = [];
+                // 1. Try standard /api/connections
+                try {
+                    const res = await fetch('/api/connections');
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (Array.isArray(data)) list = data;
+                    }
+                } catch (e1) {
+                    console.warn("Direct fetch /api/connections error", e1);
+                }
+
+                // 2. If list is empty, also try with dbType=mongo
+                if (list.length === 0) {
+                    try {
+                        const res2 = await fetch('/api/connections?dbType=mongo');
+                        if (res2.ok) {
+                            const data2 = await res2.json();
+                            if (Array.isArray(data2)) list = data2;
+                        }
+                    } catch (e2) {
+                        console.warn("Filtered fetch /api/connections?dbType=mongo error", e2);
+                    }
+                }
+
+                // Filter MongoDB connections flexibly
+                state.connections = list.filter(c => {
+                    const dbType = (c.dbType || c.databaseType || c.type || '').toLowerCase();
+                    const url = (c.url || '').toLowerCase();
+                    const name = (c.name || c.connectionName || '').toLowerCase();
+                    return dbType.includes('mongo') || url.includes('mongodb') || name.includes('mongo');
+                });
+
+                select.innerHTML = '<option value="">-- Choose MongoDB Connection --</option>';
+
+                if (state.connections.length === 0) {
+                    select.innerHTML = '<option value="">-- No MongoDB Connections Found (Add in DB Admin) --</option>';
+                    const dbSelect = document.getElementById('targetDatabase');
+                    if (dbSelect) {
+                        dbSelect.innerHTML = '<option value="">-- No MongoDB Connection Available --</option>';
+                    }
+                } else {
                     state.connections.forEach(c => {
                         const opt = document.createElement('option');
                         opt.value = c.id;
-                        opt.textContent = `${c.name || 'MongoDB #' + c.id} - ${c.url || ''}`;
+                        const name = c.name || c.connectionName || ('MongoDB #' + c.id);
+                        const dept = c.department ? ` (${c.department})` : '';
+                        const displayUrl = c.url || c.vaultPath || 'Cluster Connection';
+                        opt.textContent = `${name}${dept} - ${displayUrl}`;
                         select.appendChild(opt);
                     });
 
-                    if (state.connections.length > 0) {
-                        select.selectedIndex = 1;
-                        onConnectionSelected();
-                    }
+                    // Auto-select first connection
+                    select.selectedIndex = 1;
+                    await onConnectionSelected();
                 }
             } catch (e) {
                 console.error("Failed to load Mongo connections", e);
+                select.innerHTML = '<option value="">Error loading connections</option>';
+            } finally {
+                select.disabled = false;
             }
         }
 
@@ -660,6 +746,7 @@
                 if (dbSelect) {
                     dbSelect.innerHTML = '<option value="">-- Choose MongoDB Connection First --</option>';
                 }
+                cancelCustomDb();
             }
         }
 
@@ -679,12 +766,54 @@
             dbSelect.disabled = true;
 
             try {
-                const res = await fetch(`/api/connections/${connId}/schemas`);
-                if (!res.ok) throw new Error("Failed to fetch MongoDB databases");
-                const databases = await res.json();
+                let databases = [];
+
+                // 1. Dedicated Mongo Discovery Path endpoint
+                try {
+                    const res = await fetch(`/api/mongo/databases/${connId}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (Array.isArray(data) && data.length > 0) {
+                            databases = data;
+                        }
+                    }
+                } catch (e1) {
+                    console.warn("Primary /api/mongo/databases/{id} failed, trying fallback", e1);
+                }
+
+                // 2. Query param endpoint
+                if (databases.length === 0) {
+                    try {
+                        const res2 = await fetch(`/api/mongo/databases?connectionId=${connId}`);
+                        if (res2.ok) {
+                            const data2 = await res2.json();
+                            if (Array.isArray(data2) && data2.length > 0) {
+                                databases = data2;
+                            }
+                        }
+                    } catch (e2) {
+                        console.warn("/api/mongo/databases?connectionId failed", e2);
+                    }
+                }
+
+                // 3. Fallback schemas endpoint
+                if (databases.length === 0) {
+                    try {
+                        const res3 = await fetch(`/api/connections/${connId}/schemas`);
+                        if (res3.ok) {
+                            const data3 = await res3.json();
+                            if (Array.isArray(data3) && data3.length > 0) {
+                                databases = data3;
+                            }
+                        }
+                    } catch (e3) {
+                        console.warn("/api/connections/{id}/schemas failed", e3);
+                    }
+                }
 
                 dbSelect.innerHTML = '';
                 const list = Array.isArray(databases) ? databases : [];
+
                 if (list.length > 0) {
                     list.forEach(db => {
                         const opt = document.createElement('option');
@@ -692,6 +821,12 @@
                         opt.textContent = db;
                         dbSelect.appendChild(opt);
                     });
+
+                    // Add option to enter custom database
+                    const optCustom = document.createElement('option');
+                    optCustom.value = '__custom__';
+                    optCustom.textContent = '✏️ Enter custom database name...';
+                    dbSelect.appendChild(optCustom);
 
                     const targetToSelect = preferredDb || state.targetDatabase;
                     if (targetToSelect && list.includes(targetToSelect)) {
@@ -707,17 +842,102 @@
                     }
                     state.targetDatabase = dbSelect.value;
                 } else {
-                    dbSelect.innerHTML = '<option value="test">test (default)</option>';
+                    dbSelect.innerHTML = `
+                        <option value="test">test (default)</option>
+                        <option value="__custom__">✏️ Enter custom database name...</option>
+                    `;
                     state.targetDatabase = 'test';
                 }
             } catch (e) {
                 console.warn("Could not retrieve databases via endpoint, falling back to default", e);
-                dbSelect.innerHTML = '<option value="test">test (default fallback)</option>';
+                dbSelect.innerHTML = `
+                    <option value="test">test (default fallback)</option>
+                    <option value="__custom__">✏️ Enter custom database name...</option>
+                `;
                 state.targetDatabase = 'test';
             } finally {
                 dbSelect.disabled = false;
                 if (refreshIcon) refreshIcon.classList.remove('fa-spin');
             }
+        }
+
+        function onDatabaseChanged(val) {
+            const customContainer = document.getElementById('customDbContainer');
+            const customInput = document.getElementById('customDbInput');
+            if (val === '__custom__') {
+                if (customContainer) customContainer.classList.remove('hidden');
+                if (customInput) {
+                    customInput.focus();
+                    state.targetDatabase = customInput.value.trim() || 'my_db';
+                }
+            } else {
+                if (customContainer) customContainer.classList.add('hidden');
+                state.targetDatabase = val;
+            }
+        }
+
+        function cancelCustomDb() {
+            const customContainer = document.getElementById('customDbContainer');
+            const customInput = document.getElementById('customDbInput');
+            const dbSelect = document.getElementById('targetDatabase');
+            if (customContainer) customContainer.classList.add('hidden');
+            if (customInput) customInput.value = '';
+            if (dbSelect && dbSelect.options.length > 0) {
+                if (dbSelect.options[0].value !== '__custom__') {
+                    dbSelect.selectedIndex = 0;
+                    state.targetDatabase = dbSelect.value;
+                }
+            }
+        }
+
+        // Custom collection modal logic
+        function showAddCollectionModal() {
+            document.getElementById('newCollNameInput').value = '';
+            document.getElementById('newCollCountInput').value = 100;
+            document.getElementById('newCollFieldsInput').value = 'name, email, phone, status, amount, createdAt';
+            document.getElementById('addCollModal').style.display = 'block';
+            document.getElementById('newCollNameInput').focus();
+        }
+
+        function closeAddCollectionModal() {
+            document.getElementById('addCollModal').style.display = 'none';
+        }
+
+        function confirmAddCollection() {
+            const name = document.getElementById('newCollNameInput').value.trim();
+            const count = parseInt(document.getElementById('newCollCountInput').value) || 100;
+            const fieldsRaw = document.getElementById('newCollFieldsInput').value.trim();
+
+            if (!name) {
+                alert("Please enter a collection name.");
+                return;
+            }
+
+            // Check if already in list
+            if (state.collections.some(c => c.tableName.toLowerCase() === name.toLowerCase())) {
+                alert("Collection '" + name + "' is already in the list.");
+                return;
+            }
+
+            const fields = fieldsRaw ? fieldsRaw.split(',').map(f => f.trim()).filter(Boolean) : ['name', 'email', 'status', 'createdAt'];
+
+            state.collections.push({
+                tableName: name,
+                currentCount: 0,
+                targetCount: count,
+                columnCount: fields.length,
+                columns: fields,
+                selected: true,
+                isCustom: true
+            });
+
+            closeAddCollectionModal();
+            renderCollectionList();
+        }
+
+        function removeCollection(idx) {
+            state.collections.splice(idx, 1);
+            renderCollectionList();
         }
 
         async function discoverCollections() {
@@ -726,7 +946,21 @@
                 return;
             }
 
-            const dbName = document.getElementById('targetDatabase').value.trim() || 'test';
+            let dbName = state.targetDatabase;
+            const customContainer = document.getElementById('customDbContainer');
+            const customInput = document.getElementById('customDbInput');
+            if (customContainer && !customContainer.classList.contains('hidden') && customInput) {
+                dbName = customInput.value.trim() || 'test';
+            } else {
+                const targetDbSelect = document.getElementById('targetDatabase');
+                if (targetDbSelect && targetDbSelect.value && targetDbSelect.value !== '__custom__') {
+                    dbName = targetDbSelect.value.trim();
+                }
+            }
+
+            if (!dbName || dbName === '__custom__') {
+                dbName = 'test';
+            }
             state.targetDatabase = dbName;
 
             const btnNext = document.getElementById('btnNext');
@@ -747,20 +981,23 @@
                     })
                 });
 
-                if (!res.ok) throw new Error(await res.text() || "Failed to scan MongoDB collections");
-
-                const data = await res.json();
-                const list = Array.isArray(data) ? data : (data.tables || []);
-                state.collections = list.map(c => ({
-                    ...c,
-                    selected: true,
-                    targetCount: c.targetCount || 100
-                }));
+                if (res.ok) {
+                    const data = await res.json();
+                    const list = Array.isArray(data) ? data : (data.tables || []);
+                    state.collections = list.map(c => ({
+                        ...c,
+                        selected: true,
+                        targetCount: c.targetCount || 100
+                    }));
+                } else {
+                    console.warn("Scan collections returned non-ok, proceeding with empty collection list for user configuration");
+                    state.collections = [];
+                }
 
                 renderCollectionList();
 
                 const connObj = state.connections.find(c => c.id === state.selectedConnId);
-                const connName = connObj ? (connObj.name || 'MongoDB') : 'MongoDB';
+                const connName = connObj ? (connObj.name || connObj.connectionName || 'MongoDB') : 'MongoDB';
                 const jobNameInput = document.getElementById('migrationJobName');
                 if (jobNameInput) {
                     jobNameInput.value = `${connName} Bulk Document Seeding (${dbName})`;
@@ -770,7 +1007,11 @@
                 updateUI();
 
             } catch (e) {
-                alert("Error inspecting MongoDB collections: " + e.message);
+                console.warn("Inspection warning: " + e.message + ", allowing manual collection addition");
+                state.collections = [];
+                renderCollectionList();
+                currentStep = 2;
+                updateUI();
             } finally {
                 if (btnNext) {
                     btnNext.innerHTML = origHtml;
@@ -784,7 +1025,19 @@
             tbody.innerHTML = '';
 
             if (state.collections.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-gray-400 italic">No collections found in database '${state.targetDatabase}'.</td></tr>`;
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="p-8 text-center text-gray-500">
+                            <div class="flex flex-col items-center justify-center gap-2">
+                                <i class="fas fa-folder-open text-3xl text-gray-300"></i>
+                                <span class="font-medium text-xs">No collections discovered in database '${state.targetDatabase}'.</span>
+                                <p class="text-[11px] text-gray-400">Click the button below to add target collections for MongoDB bulk seeding.</p>
+                                <button type="button" onclick="showAddCollectionModal()" class="btn btn-primary text-xs py-1.5 px-3 mt-1">
+                                    <i class="fas fa-plus mr-1"></i> Add Collection
+                                </button>
+                            </div>
+                        </td>
+                    </tr>`;
                 updateSummaryStats();
                 return;
             }
@@ -797,14 +1050,22 @@
                     `<span class="bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded text-[10px] border border-gray-200 mr-1">${f}</span>`
                 ).join('');
 
+                const removeBtn = c.isCustom ? `
+                    <button type="button" onclick="removeCollection(${idx})" class="text-red-400 hover:text-red-600 ml-2 text-xs" title="Remove custom collection">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                ` : '';
+
                 tr.innerHTML = `
                     <td class="p-3 text-center">
-                        <input type="checkbox" ${c.selected ? 'checked' : ''} onchange="toggleSelect(${idx}, this.checked)" class="rounded text-bnp-emerald focus:ring-bnp-emerald">
+                        <input type="checkbox" ${c.selected ? 'checked' : ''} onchange="toggleSelect(${idx}, this.checked)" class="rounded text-bnp-emerald focus:ring-bnp-emerald cursor-pointer">
                     </td>
                     <td class="p-3 font-bold text-gray-800">
                         <div class="flex items-center gap-1.5">
                             <i class="fas fa-folder text-emerald-600 text-xs"></i>
                             <span>${c.tableName}</span>
+                            ${c.isCustom ? '<span class="text-[9px] bg-emerald-50 text-bnp-emerald border border-emerald-200 px-1 py-0.2 rounded font-normal">Custom</span>' : ''}
+                            ${removeBtn}
                         </div>
                     </td>
                     <td class="p-3">
