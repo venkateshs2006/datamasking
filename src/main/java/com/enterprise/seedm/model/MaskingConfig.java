@@ -11,6 +11,7 @@ public class MaskingConfig {
     private List<String> partialMaskingColumns = new ArrayList<>();
     private List<String> nullifyColumns = new ArrayList<>();
     private java.util.Map<String, String> defaultValues = new java.util.HashMap<>();
+    private java.util.Map<String, String> customFormats = new java.util.HashMap<>();
     private String maskingKey = "DefaultSecretKey123";
     private List<String> targetTables = new ArrayList<>(); // Added for specific table selection
 }

@@ -37,7 +37,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class MongoSecureExportService {
 
@@ -48,6 +47,23 @@ public class MongoSecureExportService {
     private final MongoSecureExportJobRepository jobRepository;
     private final ObjectMapper objectMapper;
     private final MongoConnectionHelper mongoConnectionHelper;
+    private final DataMaskingService dataMaskingService;
+
+    public MongoSecureExportService(DbConnectionService dbConnectionService, CosConnectionService cosConnectionService, IbmCosService ibmCosService, FormatPreservingEncryptionService fpeService, MongoSecureExportJobRepository jobRepository, ObjectMapper objectMapper, MongoConnectionHelper mongoConnectionHelper) {
+        this(dbConnectionService, cosConnectionService, ibmCosService, fpeService, jobRepository, objectMapper, mongoConnectionHelper, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public MongoSecureExportService(DbConnectionService dbConnectionService, CosConnectionService cosConnectionService, IbmCosService ibmCosService, FormatPreservingEncryptionService fpeService, MongoSecureExportJobRepository jobRepository, ObjectMapper objectMapper, MongoConnectionHelper mongoConnectionHelper, @org.springframework.context.annotation.Lazy DataMaskingService dataMaskingService) {
+        this.dbConnectionService = dbConnectionService;
+        this.cosConnectionService = cosConnectionService;
+        this.ibmCosService = ibmCosService;
+        this.fpeService = fpeService;
+        this.jobRepository = jobRepository;
+        this.objectMapper = objectMapper;
+        this.mongoConnectionHelper = mongoConnectionHelper;
+        this.dataMaskingService = dataMaskingService;
+    }
 
     private static final String DEFAULT_EXPORT_DIR = "secure-export";
     private static final byte[] MAGIC_HEADER = "MONGOBSON1\n".getBytes(StandardCharsets.UTF_8);
@@ -329,6 +345,15 @@ public class MongoSecureExportService {
                 }
             }
         }
+        if (rules.getCustomFormats() != null) {
+            for (Map.Entry<String, String> entry : rules.getCustomFormats().entrySet()) {
+                String col = entry.getKey();
+                if (col.startsWith(collectionName + ".")) {
+                    String fieldPath = col.substring(collectionName.length() + 1);
+                    maskFieldInDocument(copy, fieldPath, "CMF:" + entry.getValue(), saltKey);
+                }
+            }
+        }
 
         return copy;
     }
@@ -352,6 +377,11 @@ public class MongoSecureExportService {
             } else if (ruleType != null && ruleType.startsWith("DEFAULT:")) {
                 String defVal = ruleType.substring("DEFAULT:".length());
                 doc.put(currentKey, defVal);
+            } else if (ruleType != null && ruleType.startsWith("CMF:")) {
+                String fmtRule = ruleType.substring("CMF:".length());
+                if (dataMaskingService != null && fmtRule != null && !fmtRule.trim().isEmpty()) {
+                    doc.put(currentKey, dataMaskingService.applyCustomFormat(currentVal, fmtRule));
+                }
             } else if (currentVal != null) {
                 if ("PMD".equalsIgnoreCase(ruleType)) {
                     String strVal = currentVal.toString();

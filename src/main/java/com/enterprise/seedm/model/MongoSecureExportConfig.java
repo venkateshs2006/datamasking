@@ -43,6 +43,7 @@ public class MongoSecureExportConfig {
         private List<String> constraintColumns; // collection.field (FPH)
         private List<String> nullifyColumns; // collection.field (NULL)
         private java.util.Map<String, String> defaultValues; // collection.field -> val
+        private java.util.Map<String, String> customFormats; // collection.field -> format rule (CMF)
         private String maskingKey;
     }
 }

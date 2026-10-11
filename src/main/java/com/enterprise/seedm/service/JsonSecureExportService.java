@@ -29,7 +29,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class JsonSecureExportService {
 
@@ -38,7 +37,22 @@ public class JsonSecureExportService {
     private final FormatPreservingEncryptionService fpeService;
     private final JsonSecureExportJobRepository jobRepository;
     private final ObjectMapper objectMapper;
+    private final DataMaskingService dataMaskingService;
     private final net.datafaker.Faker faker = new net.datafaker.Faker();
+
+    public JsonSecureExportService(CosConnectionService cosConnectionService, IbmCosService ibmCosService, FormatPreservingEncryptionService fpeService, JsonSecureExportJobRepository jobRepository, ObjectMapper objectMapper) {
+        this(cosConnectionService, ibmCosService, fpeService, jobRepository, objectMapper, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public JsonSecureExportService(CosConnectionService cosConnectionService, IbmCosService ibmCosService, FormatPreservingEncryptionService fpeService, JsonSecureExportJobRepository jobRepository, ObjectMapper objectMapper, @org.springframework.context.annotation.Lazy DataMaskingService dataMaskingService) {
+        this.cosConnectionService = cosConnectionService;
+        this.ibmCosService = ibmCosService;
+        this.fpeService = fpeService;
+        this.jobRepository = jobRepository;
+        this.objectMapper = objectMapper;
+        this.dataMaskingService = dataMaskingService;
+    }
 
     private static final String DEFAULT_EXPORT_DIR = "secure-export";
     private static final byte[] MAGIC_HEADER = "JSONBUNDLE1\n".getBytes(StandardCharsets.UTF_8);
@@ -466,6 +480,17 @@ public class JsonSecureExportService {
                 return "DEFAULT";
             }
         }
+        if (rules.getCustomFormats() != null) {
+            if (rules.getCustomFormats().containsKey(fullQualifier)) {
+                return "CMF:" + rules.getCustomFormats().get(fullQualifier);
+            }
+            if (rules.getCustomFormats().containsKey(baseQualifier)) {
+                return "CMF:" + rules.getCustomFormats().get(baseQualifier);
+            }
+            if (rules.getCustomFormats().containsKey(fieldPath)) {
+                return "CMF:" + rules.getCustomFormats().get(fieldPath);
+            }
+        }
 
         // 1. Check dot-notated columns: maskingColumns (SFD)
         if (matchesField(rules.getMaskingColumns(), fullQualifier, baseQualifier, fieldPath)) {
@@ -511,6 +536,35 @@ public class JsonSecureExportService {
             objectNode.putNull(fieldName);
         } else if ("DEFAULT".equalsIgnoreCase(ruleType)) {
             objectNode.put(fieldName, "DEFAULT");
+        } else if (ruleType != null && ruleType.startsWith("CMF:")) {
+            String fmtRule = ruleType.substring("CMF:".length());
+            Object rawVal = null;
+            if (val.isTextual()) rawVal = val.asText();
+            else if (val.isInt()) rawVal = val.asInt();
+            else if (val.isLong()) rawVal = val.asLong();
+            else if (val.isDouble() || val.isFloat()) rawVal = val.asDouble();
+            else if (val.isBoolean()) rawVal = val.asBoolean();
+            else rawVal = val.asText();
+
+            Object masked = (dataMaskingService != null && fmtRule != null && !fmtRule.trim().isEmpty())
+                    ? dataMaskingService.applyCustomFormat(rawVal, fmtRule)
+                    : rawVal;
+
+            if (masked == null) {
+                objectNode.putNull(fieldName);
+            } else if (masked instanceof Integer) {
+                objectNode.put(fieldName, (Integer) masked);
+            } else if (masked instanceof Long) {
+                objectNode.put(fieldName, (Long) masked);
+            } else if (masked instanceof Double) {
+                objectNode.put(fieldName, (Double) masked);
+            } else if (masked instanceof Float) {
+                objectNode.put(fieldName, (Float) masked);
+            } else if (masked instanceof Boolean) {
+                objectNode.put(fieldName, (Boolean) masked);
+            } else {
+                objectNode.put(fieldName, masked.toString());
+            }
         } else if ("PMD".equalsIgnoreCase(ruleType)) {
             String masked = applyPartialMasking(val.asText());
             objectNode.put(fieldName, masked);
@@ -550,7 +604,28 @@ public class JsonSecureExportService {
     }
 
     private void applyMaskToArrayItem(ArrayNode arrayNode, int index, JsonNode val, String fieldPath, String ruleType, String saltKey) {
-        if ("PMD".equalsIgnoreCase(ruleType)) {
+        if (ruleType != null && ruleType.startsWith("CMF:")) {
+            String fmtRule = ruleType.substring("CMF:".length());
+            Object rawVal = val.isTextual() ? val.asText() : (val.isNumber() ? val.numberValue() : val.asText());
+            Object masked = (dataMaskingService != null && fmtRule != null && !fmtRule.trim().isEmpty())
+                    ? dataMaskingService.applyCustomFormat(rawVal, fmtRule)
+                    : rawVal;
+            if (masked == null) {
+                arrayNode.set(index, arrayNode.nullNode());
+            } else if (masked instanceof Integer) {
+                arrayNode.set(index, arrayNode.numberNode((Integer) masked));
+            } else if (masked instanceof Long) {
+                arrayNode.set(index, arrayNode.numberNode((Long) masked));
+            } else if (masked instanceof Double) {
+                arrayNode.set(index, arrayNode.numberNode((Double) masked));
+            } else if (masked instanceof Float) {
+                arrayNode.set(index, arrayNode.numberNode((Float) masked));
+            } else if (masked instanceof Boolean) {
+                arrayNode.set(index, arrayNode.booleanNode((Boolean) masked));
+            } else {
+                arrayNode.set(index, arrayNode.textNode(masked.toString()));
+            }
+        } else if ("PMD".equalsIgnoreCase(ruleType)) {
             String masked = applyPartialMasking(val.asText());
             arrayNode.set(index, arrayNode.textNode(masked));
         } else if ("SFD".equalsIgnoreCase(ruleType)) {

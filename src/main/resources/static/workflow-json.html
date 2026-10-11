@@ -106,6 +106,8 @@
         .rule-btn-enc:hover { background: #f3e8ff; }
         .rule-btn-null { color: #0284c7; background: #f0f9ff; border-color: #bae6fd; }
         .rule-btn-null:hover { background: #e0f2fe; }
+        .rule-btn-cmf { color: #4338ca; background: #eef2ff; border-color: #c7d2fe; }
+        .rule-btn-cmf:hover { background: #e0e7ff; }
     </style>
 </head>
 <body>
@@ -411,6 +413,13 @@
                                 <h5 class="text-[10px] font-bold text-sky-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-sky-100 flex items-center justify-center mr-1.5"><i class="fas fa-ban"></i></div> NULL / DEFAULT (NULLIFY OR CUSTOM DEFAULT)</h5>
                                 <div id="dropzone-nulldef" class="dropzone flex flex-wrap gap-2 min-h-[80px] p-4 bg-white rounded-lg border-2 border-dashed border-sky-200 shadow-inner transition-colors duration-200" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropField(event, 'nullDef')">
                                     <div class="w-full h-full flex items-center justify-center text-xs text-gray-400 italic pointer-events-none" id="placeholder-nulldef">Drop fields here</div>
+                                </div>
+                            </div>
+                            <!-- Custom Masking Format (CMF) Dropzone -->
+                            <div>
+                                <h5 class="text-[10px] font-bold text-indigo-700 uppercase tracking-wider mb-2 flex items-center"><div class="w-5 h-5 rounded bg-indigo-100 flex items-center justify-center mr-1.5"><i class="fas fa-magic"></i></div> CMF (CUSTOM MASKING FORMAT)</h5>
+                                <div id="dropzone-cmf" class="dropzone flex flex-wrap gap-2 min-h-[80px] p-4 bg-white rounded-lg border-2 border-dashed border-indigo-200 shadow-inner transition-colors duration-200" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropField(event, 'cmf')">
+                                    <div class="w-full h-full flex items-center justify-center text-xs text-gray-400 italic pointer-events-none" id="placeholder-cmf">Drop fields here</div>
                                 </div>
                             </div>
 
@@ -841,6 +850,7 @@
             constraintFields: [],
             nullifyColumns: [],
             defaultValues: {},
+            customFormats: {},
             sourceDir: '',
             destDir: '',
             sourceType: 'local',
@@ -1059,6 +1069,9 @@
         state.rules.maskingColumns = [];
         state.rules.partialMaskingColumns = [];
         state.rules.constraintFields = [];
+        state.rules.nullifyColumns = [];
+        state.rules.defaultValues = {};
+        state.rules.customFormats = {};
         state.aiSuggestions = {};
         previewCache = null;
 
@@ -1389,6 +1402,9 @@
             const defVal = state.rules.defaultValues ? state.rules.defaultValues[key] : undefined;
             const isDef = defVal !== undefined;
             const isNullDef = isNull || isDef;
+            const isCmf = state.rules.customFormats && state.rules.customFormats[key] !== undefined;
+            const cmfVal = isCmf ? state.rules.customFormats[key] : '';
+            const cmfTitle = isCmf ? `Active CMF: ${cmfVal}` : 'Configure Custom Masking Format';
 
             let nullDefBtnText = 'NULL/DEF';
             let nullDefTitle = 'Configure Nullify or Custom Default Value';
@@ -1415,6 +1431,7 @@
                     <button onclick="addJsonRule('${key}', 'partialMaskingColumns')" class="rule-btn ${ruleType === 'partialMaskingColumns' ? 'bg-orange-500 text-white' : 'rule-btn-prt'}">PMD</button>
                     <button onclick="addJsonRule('${key}', 'constraintFields')" class="rule-btn ${ruleType === 'constraintFields' ? 'bg-purple-600 text-white' : 'rule-btn-enc'}">FPH</button>
                     <button onclick="openNullDefModal('${key}')" class="rule-btn ${isNullDef ? 'bg-sky-600 text-white ring-2 ring-sky-400' : 'rule-btn-null'}" title="${nullDefTitle}">${nullDefBtnText}</button>
+                    <button onclick="openCmfModal('${key}')" class="rule-btn ${isCmf ? 'bg-indigo-600 text-white ring-2 ring-indigo-400' : 'rule-btn-cmf'}" title="${escapeHtml(cmfTitle)}">CMF</button>
                 </div>
             `;
             container.appendChild(el);
@@ -1431,6 +1448,7 @@
         if (state.rules.constraintFields.includes(key)) return 'constraintFields';
         if (state.rules.nullifyColumns && state.rules.nullifyColumns.includes(key)) return 'nullifyColumns';
         if (state.rules.defaultValues && state.rules.defaultValues[key] !== undefined) return 'defaultValues';
+        if (state.rules.customFormats && state.rules.customFormats[key] !== undefined) return 'customFormats';
         return null;
     }
 
@@ -1456,6 +1474,7 @@
         ['maskingColumns','partialMaskingColumns','constraintFields'].forEach(r => { if(r !== type) state.rules[r] = state.rules[r].filter(c => c !== path); });
         if (state.rules.nullifyColumns) state.rules.nullifyColumns = state.rules.nullifyColumns.filter(c => c !== path);
         if (state.rules.defaultValues) delete state.rules.defaultValues[path];
+        if (state.rules.customFormats) delete state.rules.customFormats[path];
 
         if(!state.rules[type].includes(path)) {
             state.rules[type].push(path);
@@ -1472,6 +1491,8 @@
             state.rules.nullifyColumns = (state.rules.nullifyColumns || []).filter(c => c !== path);
         } else if (type === 'defaultValues') {
             if (state.rules.defaultValues) delete state.rules.defaultValues[path];
+        } else if (type === 'customFormats') {
+            if (state.rules.customFormats) delete state.rules.customFormats[path];
         } else {
             state.rules[type] = state.rules[type].filter(c => c !== path);
         }
@@ -1536,6 +1557,7 @@
         ['maskingColumns','partialMaskingColumns','constraintFields'].forEach(r => {
             state.rules[r] = state.rules[r].filter(c => c !== key);
         });
+        if (state.rules.customFormats) delete state.rules.customFormats[key];
 
         if (!state.rules.nullifyColumns) state.rules.nullifyColumns = [];
         if (!state.rules.defaultValues) state.rules.defaultValues = {};
@@ -1574,6 +1596,321 @@
         closeNullDefModal();
     }
 
+    let currentCmfCol = null;
+    let currentCmfTab = 'date';
+
+    function openCmfModal(key) {
+        currentCmfCol = key;
+        document.getElementById('cmfTargetCol').innerText = key;
+
+        const existingRule = state.rules.customFormats ? state.rules.customFormats[key] : undefined;
+        const btnRemove = document.getElementById('btnRemoveCmf');
+
+        if (existingRule) {
+            btnRemove.classList.remove('hidden');
+            parseAndPopulateCmfRule(existingRule);
+        } else {
+            btnRemove.classList.add('hidden');
+            // Smart auto-detection based on key name
+            const colLower = key.toLowerCase();
+            if (colLower.includes('date') || colLower.includes('time') || colLower.includes('created') || colLower.includes('updated') || colLower.includes('dob') || colLower.endsWith('_at')) {
+                setCmfTab('date');
+                document.getElementById('cmfDatePreset').value = 'yyyy-MM-dd';
+                document.getElementById('cmfDatePattern').value = 'yyyy-MM-dd';
+                document.getElementById('cmfDateShiftCheck').checked = false;
+            } else if (colLower.includes('amount') || colLower.includes('salary') || colLower.includes('price') || colLower.includes('balance') || colLower.includes('score') || colLower.includes('num') || colLower.includes('count') || colLower.includes('rate') || colLower.includes('id')) {
+                setCmfTab('number');
+                document.getElementById('cmfNumSignUnchanged').checked = true;
+                document.getElementById('cmfNumTypeDecimal').checked = true;
+                document.getElementById('cmfNumScale').value = '2';
+                document.getElementById('cmfNumRangeCheck').checked = false;
+            } else {
+                setCmfTab('text');
+                document.getElementById('cmfTextTemplate').value = 'ORD-{rand_alpha:3}-{rand_num:4}-CONST';
+                document.getElementById('cmfTextRegexCheck').checked = false;
+            }
+        }
+
+        toggleCmfDateShift();
+        toggleCmfRegexMode();
+        toggleCmfNumRange();
+        toggleCmfNumType();
+        updateCmfLivePreview();
+
+        document.getElementById('cmfModal').classList.remove('hidden');
+    }
+
+    function closeCmfModal() {
+        document.getElementById('cmfModal').classList.add('hidden');
+        currentCmfCol = null;
+    }
+
+    function setCmfTab(tab) {
+        currentCmfTab = tab;
+        ['date', 'text', 'number'].forEach(t => {
+            const btn = document.getElementById(`tabBtnCmf_${t}`);
+            const panel = document.getElementById(`cmfPanel_${t}`);
+            if (btn) {
+                if (t === tab) {
+                    btn.className = 'px-4 py-2 text-xs font-bold border-b-2 border-indigo-600 text-indigo-700 bg-indigo-50/50 flex items-center space-x-1.5 transition';
+                } else {
+                    btn.className = 'px-4 py-2 text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50 border-b-2 border-transparent flex items-center space-x-1.5 transition';
+                }
+            }
+            if (panel) {
+                panel.classList.toggle('hidden', t !== tab);
+            }
+        });
+        updateCmfLivePreview();
+    }
+
+    function onCmfDatePresetChange() {
+        const preset = document.getElementById('cmfDatePreset').value;
+        if (preset !== 'CUSTOM') {
+            document.getElementById('cmfDatePattern').value = preset;
+        }
+        updateCmfLivePreview();
+    }
+
+    function toggleCmfDateShift() {
+        const checked = document.getElementById('cmfDateShiftCheck').checked;
+        const container = document.getElementById('cmfDateShiftContainer');
+        if (container) container.classList.toggle('hidden', !checked);
+    }
+
+    function toggleCmfRegexMode() {
+        const checked = document.getElementById('cmfTextRegexCheck').checked;
+        const tplContainer = document.getElementById('cmfTextTemplateContainer');
+        const regContainer = document.getElementById('cmfTextRegexContainer');
+        if (tplContainer) tplContainer.classList.toggle('hidden', checked);
+        if (regContainer) regContainer.classList.toggle('hidden', !checked);
+    }
+
+    function toggleCmfNumType() {
+        const isDecimal = document.getElementById('cmfNumTypeDecimal').checked;
+        const scaleContainer = document.getElementById('cmfNumScaleContainer');
+        if (scaleContainer) scaleContainer.classList.toggle('hidden', !isDecimal);
+    }
+
+    function toggleCmfNumRange() {
+        const checked = document.getElementById('cmfNumRangeCheck').checked;
+        const container = document.getElementById('cmfNumRangeContainer');
+        if (container) container.classList.toggle('hidden', !checked);
+    }
+
+    function insertCmfToken(token) {
+        const input = document.getElementById('cmfTextTemplate');
+        if (input) {
+            const start = input.selectionStart || input.value.length;
+            const end = input.selectionEnd || input.value.length;
+            const val = input.value;
+            input.value = val.substring(0, start) + token + val.substring(end);
+            input.focus();
+            input.selectionStart = input.selectionEnd = start + token.length;
+            updateCmfLivePreview();
+        }
+    }
+
+    function parseAndPopulateCmfRule(rule) {
+        if (!rule) return;
+        if (rule.startsWith('DATE:')) {
+            setCmfTab('date');
+            const parts = rule.substring(5).split(':');
+            const pattern = parts[0] || 'yyyy-MM-dd';
+            document.getElementById('cmfDatePattern').value = pattern;
+
+            const presetSelect = document.getElementById('cmfDatePreset');
+            const hasOption = Array.from(presetSelect.options).some(o => o.value === pattern);
+            presetSelect.value = hasOption ? pattern : 'CUSTOM';
+
+            if (parts.length > 1 && parts[1].startsWith('SHIFT(')) {
+                document.getElementById('cmfDateShiftCheck').checked = true;
+                const shiftMatch = parts[1].match(/SHIFT\((-?\d+),\s*(-?\d+)\)/);
+                if (shiftMatch) {
+                    document.getElementById('cmfDateShiftMin').value = shiftMatch[1];
+                    document.getElementById('cmfDateShiftMax').value = shiftMatch[2];
+                }
+            } else {
+                document.getElementById('cmfDateShiftCheck').checked = false;
+            }
+        } else if (rule.startsWith('REGEX:')) {
+            setCmfTab('text');
+            document.getElementById('cmfTextRegexCheck').checked = true;
+            document.getElementById('cmfTextRegex').value = rule.substring(6);
+        } else if (rule.startsWith('TEXT:')) {
+            setCmfTab('text');
+            document.getElementById('cmfTextRegexCheck').checked = false;
+            document.getElementById('cmfTextTemplate').value = rule.substring(5);
+        } else if (rule.startsWith('NUM:')) {
+            setCmfTab('number');
+            const parts = rule.substring(4).split(':');
+            const sign = parts[0] || 'UNCHANGED';
+            if (sign === 'POSITIVE') document.getElementById('cmfNumSignPositive').checked = true;
+            else if (sign === 'NEGATIVE') document.getElementById('cmfNumSignNegative').checked = true;
+            else document.getElementById('cmfNumSignUnchanged').checked = true;
+
+            const typePart = parts[1] || 'INTEGER';
+            if (typePart.startsWith('SCALE(')) {
+                document.getElementById('cmfNumTypeDecimal').checked = true;
+                const sm = typePart.match(/SCALE\((\d+)\)/);
+                document.getElementById('cmfNumScale').value = sm ? sm[1] : '2';
+            } else {
+                document.getElementById('cmfNumTypeInteger').checked = true;
+            }
+
+            if (parts.length > 2 && parts[2].startsWith('RANGE(')) {
+                document.getElementById('cmfNumRangeCheck').checked = true;
+                const rm = parts[2].match(/RANGE\((-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)\)/);
+                if (rm) {
+                    document.getElementById('cmfNumMin').value = rm[1];
+                    document.getElementById('cmfNumMax').value = rm[2];
+                }
+            } else {
+                document.getElementById('cmfNumRangeCheck').checked = false;
+            }
+        }
+    }
+
+    function buildCmfRuleString() {
+        if (currentCmfTab === 'date') {
+            const pattern = document.getElementById('cmfDatePattern')?.value.trim() || 'yyyy-MM-dd';
+            let rule = 'DATE:' + pattern;
+            const shiftCheck = document.getElementById('cmfDateShiftCheck')?.checked;
+            if (shiftCheck) {
+                const min = document.getElementById('cmfDateShiftMin')?.value.trim() || '-30';
+                const max = document.getElementById('cmfDateShiftMax')?.value.trim() || '30';
+                rule += `:SHIFT(${min},${max})`;
+            }
+            return rule;
+        } else if (currentCmfTab === 'text') {
+            const isRegex = document.getElementById('cmfTextRegexCheck')?.checked;
+            if (isRegex) {
+                const reg = document.getElementById('cmfTextRegex')?.value.trim() || '[A-Z]{3}-\\d{4}';
+                return 'REGEX:' + reg;
+            } else {
+                const tpl = document.getElementById('cmfTextTemplate')?.value.trim() || 'ORD-{rand_alpha:3}-{rand_num:4}-CONST';
+                return 'TEXT:' + tpl;
+            }
+        } else if (currentCmfTab === 'number') {
+            const sign = document.querySelector('input[name="cmfNumSign"]:checked')?.value || 'UNCHANGED';
+            const isInteger = document.getElementById('cmfNumTypeInteger')?.checked;
+            const scale = document.getElementById('cmfNumScale')?.value.trim() || '2';
+            const typeStr = isInteger ? 'INTEGER' : `SCALE(${scale})`;
+            let rule = `NUM:${sign}:${typeStr}`;
+
+            const rangeCheck = document.getElementById('cmfNumRangeCheck')?.checked;
+            if (rangeCheck) {
+                const min = document.getElementById('cmfNumMin')?.value.trim() || '0';
+                const max = document.getElementById('cmfNumMax')?.value.trim() || '1000';
+                rule += `:RANGE(${min},${max})`;
+            }
+            return rule;
+        }
+        return '';
+    }
+
+    function updateCmfLivePreview() {
+        const ruleStr = buildCmfRuleString();
+        const ruleBadge = document.getElementById('cmfGeneratedRuleStr');
+        if (ruleBadge) ruleBadge.innerText = ruleStr;
+
+        const simIn = document.getElementById('cmfSimInput');
+        const simOut = document.getElementById('cmfSimOutput');
+        if (!simIn || !simOut) return;
+
+        if (currentCmfTab === 'date') {
+            simIn.innerText = '2024-05-18 09:30:00';
+            const pattern = document.getElementById('cmfDatePattern')?.value.trim() || 'yyyy-MM-dd';
+            const isShift = document.getElementById('cmfDateShiftCheck')?.checked;
+            let simulated = '2024-05-18';
+            if (pattern === 'dd/MM/yyyy') simulated = isShift ? '24/05/2024' : '18/05/2024';
+            else if (pattern === 'MM/dd/yyyy') simulated = isShift ? '05/24/2024' : '05/18/2024';
+            else if (pattern === 'yyyyMMdd') simulated = isShift ? '20240524' : '20240518';
+            else if (pattern === 'dd-MMM-yyyy') simulated = isShift ? '24-May-2024' : '18-May-2024';
+            else if (pattern === 'yyyy-MM-dd HH:mm:ss') simulated = isShift ? '2024-05-24 09:30:00' : '2024-05-18 09:30:00';
+            else simulated = isShift ? '2024-05-24' : '2024-05-18';
+
+            simOut.innerText = simulated + (isShift ? ' (shifted)' : '');
+        } else if (currentCmfTab === 'text') {
+            const isRegex = document.getElementById('cmfTextRegexCheck')?.checked;
+            simIn.innerText = 'Acme Corp Order #9842';
+            if (isRegex) {
+                simOut.innerText = 'TRX-8241';
+            } else {
+                const tpl = document.getElementById('cmfTextTemplate')?.value || '';
+                let result = tpl
+                    .replace(/\{rand_alpha:(\d+)\}/g, (m, n) => {
+                        const len = parseInt(n) || 3;
+                        return 'ABCDEFGHJKLMNPQRSTUVWXYZ'.slice(0, len);
+                    })
+                    .replace(/\{rand_num:(\d+)\}/g, (m, n) => {
+                        const len = parseInt(n) || 4;
+                        return '8472910356'.slice(0, len);
+                    })
+                    .replace(/\{rand:(\d+)\}/g, (m, n) => {
+                        const len = parseInt(n) || 4;
+                        return 'K7X2'.padEnd(len, '9').slice(0, len);
+                    });
+                simOut.innerText = result || 'e.g. ORD-AB-1234';
+            }
+        } else if (currentCmfTab === 'number') {
+            simIn.innerText = '-1542.758';
+            const sign = document.querySelector('input[name="cmfNumSign"]:checked')?.value || 'UNCHANGED';
+            const isInteger = document.getElementById('cmfNumTypeInteger')?.checked;
+            const scale = parseInt(document.getElementById('cmfNumScale')?.value) || 0;
+            const rangeCheck = document.getElementById('cmfNumRangeCheck')?.checked;
+            const min = parseFloat(document.getElementById('cmfNumMin')?.value);
+            const max = parseFloat(document.getElementById('cmfNumMax')?.value);
+
+            let val = -1542.758;
+            if (sign === 'POSITIVE') val = Math.abs(val);
+            else if (sign === 'NEGATIVE') val = -Math.abs(val);
+
+            if (rangeCheck && !isNaN(min) && !isNaN(max)) {
+                val = Math.min(Math.max(val, min), max);
+            }
+
+            let resStr = isInteger ? Math.round(val).toString() : val.toFixed(scale);
+            simOut.innerText = resStr;
+        }
+    }
+
+    function applyCmfRule() {
+        if (!currentCmfCol) return;
+        const key = currentCmfCol;
+
+        const ruleStr = buildCmfRuleString();
+        if (!ruleStr) return;
+
+        ['maskingColumns','partialMaskingColumns','constraintFields'].forEach(r => {
+            state.rules[r] = state.rules[r].filter(c => c !== key);
+        });
+        if (state.rules.nullifyColumns) state.rules.nullifyColumns = state.rules.nullifyColumns.filter(c => c !== key);
+        if (state.rules.defaultValues) delete state.rules.defaultValues[key];
+
+        if (!state.rules.customFormats) state.rules.customFormats = {};
+        state.rules.customFormats[key] = ruleStr;
+
+        previewCache = null;
+        renderTags();
+        renderAvailableKeys();
+        validateStep2();
+        closeCmfModal();
+    }
+
+    function removeCmfRule() {
+        if (!currentCmfCol) return;
+        const key = currentCmfCol;
+        if (state.rules.customFormats) {
+            delete state.rules.customFormats[key];
+        }
+        previewCache = null;
+        renderTags();
+        renderAvailableKeys();
+        validateStep2();
+        closeCmfModal();
+    }
+
     function allowDrop(e) {
         e.preventDefault();
         e.currentTarget.classList.add('border-bnp-emerald');
@@ -1590,6 +1927,8 @@
         if (!key) return;
         if (type === 'nullDef') {
             openNullDefModal(key);
+        } else if (type === 'cmf') {
+            openCmfModal(key);
         } else {
             addJsonRule(key, type);
         }
@@ -1650,6 +1989,28 @@
                     const defVal = state.rules.defaultValues[full];
                     s.innerHTML = `${full} <span class="ml-1 px-1 py-0.2 bg-sky-200 text-sky-900 rounded text-[9px]" title="Default: ${escapeHtml(defVal)}">DEF:"${escapeHtml(defVal)}"</span> <button class="ml-2 hover:text-black focus:outline-none" onclick="removeRule('${full}','defaultValues')"><i class="fas fa-times"></i></button>`;
                     cNullDef.appendChild(s);
+                });
+            }
+        }
+
+        // Render dropzone-cmf
+        const cCmf = document.getElementById('dropzone-cmf');
+        const placeCmf = document.getElementById('placeholder-cmf');
+        if (cCmf) {
+            Array.from(cCmf.children).forEach(child => {
+                if (child.id !== 'placeholder-cmf') cCmf.removeChild(child);
+            });
+            const cmfCols = Object.keys(state.rules.customFormats || {});
+            if (cmfCols.length === 0) {
+                if (placeCmf) placeCmf.style.display = 'flex';
+            } else {
+                if (placeCmf) placeCmf.style.display = 'none';
+                cmfCols.forEach(full => {
+                    const s = document.createElement('span');
+                    s.className = 'inline-flex border items-center text-xs font-mono font-bold px-2.5 py-1.5 rounded-md bg-indigo-50 text-indigo-800 border-indigo-300 shadow-sm z-10';
+                    const cmfRule = state.rules.customFormats[full];
+                    s.innerHTML = `${full} <span class="ml-1 px-1 py-0.2 bg-indigo-200 text-indigo-900 rounded text-[9px]" title="Rule: ${escapeHtml(cmfRule)}">${escapeHtml(cmfRule)}</span> <button class="ml-2 hover:text-black focus:outline-none" onclick="removeRule('${full}','customFormats')"><i class="fas fa-times"></i></button>`;
+                    cCmf.appendChild(s);
                 });
             }
         }
@@ -1722,6 +2083,11 @@
                 constraintColumns: (state.rules.constraintFields || []).map(f => f.includes('.') ? f : 'records.' + f),
                 nullifyColumns: (state.rules.nullifyColumns || []).map(f => f.includes('.') ? f : 'records.' + f),
                 defaultValues: Object.entries(state.rules.defaultValues || {}).reduce((acc, [k, v]) => {
+                    const mappedKey = k.includes('.') ? k : 'records.' + k;
+                    acc[mappedKey] = v;
+                    return acc;
+                }, {}),
+                customFormats: Object.entries(state.rules.customFormats || {}).reduce((acc, [k, v]) => {
                     const mappedKey = k.includes('.') ? k : 'records.' + k;
                     acc[mappedKey] = v;
                     return acc;
@@ -1959,7 +2325,8 @@
 
         updateDepartmentDisplay();
 
-        const totalRules = state.rules.maskingColumns.length + state.rules.partialMaskingColumns.length + state.rules.constraintFields.length + (state.rules.nullifyColumns?.length || 0) + Object.keys(state.rules.defaultValues || {}).length;
+        const totalCmf = Object.keys(state.rules.customFormats || {}).length;
+        const totalRules = state.rules.maskingColumns.length + state.rules.partialMaskingColumns.length + state.rules.constraintFields.length + (state.rules.nullifyColumns?.length || 0) + Object.keys(state.rules.defaultValues || {}).length + totalCmf;
         document.getElementById('previewRuleCount').innerText = totalRules;
     }
 
@@ -2030,7 +2397,8 @@
                         constraintFields: state.rules.constraintFields,
                         maskingKey: state.rules.maskingKey,
                         nullifyColumns: state.rules.nullifyColumns || [],
-                        defaultValues: state.rules.defaultValues || {}
+                        defaultValues: state.rules.defaultValues || {},
+                        customFormats: state.rules.customFormats || {}
                     }
                 }
             };
@@ -2102,6 +2470,210 @@
             <div class="flex space-x-2 ml-auto">
                 <button type="button" onclick="closeNullDefModal()" class="px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-semibold text-gray-600 hover:bg-gray-100 transition">Cancel</button>
                 <button type="button" onclick="applyNullDefRule()" class="px-3 py-1.5 rounded-lg bg-sky-600 text-xs font-bold text-white hover:bg-sky-700 transition shadow-sm">Save & Apply</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Masking Format (CMF) Modal -->
+<div id="cmfModal" class="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-xl shadow-2xl max-w-xl w-full mx-4 overflow-hidden border border-gray-100 flex flex-col max-h-[92vh] transform transition-all">
+        <!-- Modal Header -->
+        <div class="px-5 py-3.5 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm shadow-xs">
+                    <i class="fas fa-magic"></i>
+                </div>
+                <div>
+                    <h4 class="text-sm font-bold text-gray-800">Custom Masking Format (CMF)</h4>
+                    <p id="cmfTargetCol" class="text-[11px] font-mono text-gray-500 truncate max-w-[340px]"></p>
+                </div>
+            </div>
+            <button type="button" onclick="closeCmfModal()" class="text-gray-400 hover:text-gray-600 text-sm p-1.5 rounded-lg hover:bg-gray-100 transition">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Tab Selection Bar -->
+        <div class="flex border-b border-gray-200 bg-gray-50/70 px-5 shrink-0 gap-1">
+            <button type="button" id="tabBtnCmf_date" onclick="setCmfTab('date')" class="px-4 py-2 text-xs font-bold border-b-2 border-indigo-600 text-indigo-700 bg-indigo-50/50 flex items-center space-x-1.5 transition">
+                <i class="fas fa-calendar-alt text-xs"></i>
+                <span>Date Formatting</span>
+            </button>
+            <button type="button" id="tabBtnCmf_text" onclick="setCmfTab('text')" class="px-4 py-2 text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50 border-b-2 border-transparent flex items-center space-x-1.5 transition">
+                <i class="fas fa-font text-xs"></i>
+                <span>Text / Template</span>
+            </button>
+            <button type="button" id="tabBtnCmf_number" onclick="setCmfTab('number')" class="px-4 py-2 text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50 border-b-2 border-transparent flex items-center space-x-1.5 transition">
+                <i class="fas fa-hashtag text-xs"></i>
+                <span>Number Masking</span>
+            </button>
+        </div>
+
+        <!-- Tab Body Content -->
+        <div class="p-5 space-y-4 overflow-y-auto flex-1">
+            <!-- 1. DATE PANEL -->
+            <div id="cmfPanel_date" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Date Format Presets</label>
+                    <select id="cmfDatePreset" onchange="onCmfDatePresetChange()" class="w-full text-xs p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:outline-none bg-white">
+                        <option value="yyyy-MM-dd">yyyy-MM-dd (ISO: 2026-10-11)</option>
+                        <option value="dd/MM/yyyy">dd/MM/yyyy (European: 11/10/2026)</option>
+                        <option value="MM/dd/yyyy">MM/dd/yyyy (US: 10/11/2026)</option>
+                        <option value="yyyyMMdd">yyyyMMdd (Compact: 20261011)</option>
+                        <option value="yyyy-MM-dd HH:mm:ss">yyyy-MM-dd HH:mm:ss (Timestamp: 2026-10-11 14:30:00)</option>
+                        <option value="dd-MMM-yyyy">dd-MMM-yyyy (e.g. 11-Oct-2026)</option>
+                        <option value="CUSTOM">Custom Pattern...</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Output Pattern (Java DateTimeFormatter)</label>
+                    <input type="text" id="cmfDatePattern" oninput="updateCmfLivePreview()" value="yyyy-MM-dd" class="w-full text-xs p-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:outline-none font-mono" placeholder="e.g. yyyy-MM-dd or dd.MM.yyyy">
+                    <p class="text-[10px] text-gray-400 mt-1">Supported symbols: yyyy (year), MM (month), dd (day), HH (hour), mm (minute), ss (second)</p>
+                </div>
+
+                <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5">
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" id="cmfDateShiftCheck" onchange="toggleCmfDateShift(); updateCmfLivePreview()" class="rounded text-indigo-600 focus:ring-indigo-400 mr-2">
+                        <span class="text-xs font-bold text-gray-800">Date Shifting / Jitter (Perturbation)</span>
+                    </label>
+                    <p class="text-[11px] text-gray-500">Perturbs dates within a bounded day window to preserve trend distribution while anonymizing specific event timestamps.</p>
+                    <div id="cmfDateShiftContainer" class="grid grid-cols-2 gap-3 pt-1 hidden">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-600 uppercase mb-0.5">Min Days (Negative)</label>
+                            <input type="number" id="cmfDateShiftMin" value="-30" oninput="updateCmfLivePreview()" class="w-full text-xs p-1.5 border border-gray-300 rounded font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-600 uppercase mb-0.5">Max Days (Positive)</label>
+                            <input type="number" id="cmfDateShiftMax" value="30" oninput="updateCmfLivePreview()" class="w-full text-xs p-1.5 border border-gray-300 rounded font-mono">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. TEXT PANEL -->
+            <div id="cmfPanel_text" class="space-y-4 hidden">
+                <div class="flex items-center justify-between mb-1">
+                    <label class="text-xs font-bold text-gray-700">Template / Token Pattern</label>
+                    <label class="flex items-center text-xs text-indigo-700 cursor-pointer">
+                        <input type="checkbox" id="cmfTextRegexCheck" onchange="toggleCmfRegexMode(); updateCmfLivePreview()" class="rounded text-indigo-600 focus:ring-indigo-400 mr-1.5">
+                        <span class="font-medium text-[11px]">Regex Mode</span>
+                    </label>
+                </div>
+
+                <div id="cmfTextTemplateContainer" class="space-y-2.5">
+                    <input type="text" id="cmfTextTemplate" oninput="updateCmfLivePreview()" value="ORD-{rand_alpha:3}-{rand_num:4}-CONST" class="w-full text-xs p-2.5 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:outline-none font-mono" placeholder="ORD-{rand_alpha:3}-{rand_num:4}-CONST">
+                    <div>
+                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Click to insert token:</span>
+                        <div class="flex flex-wrap gap-1.5">
+                            <button type="button" onclick="insertCmfToken('{rand_alpha:3}')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[11px] font-mono font-semibold border border-indigo-200 transition">+ {rand_alpha:3}</button>
+                            <button type="button" onclick="insertCmfToken('{rand_num:4}')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[11px] font-mono font-semibold border border-indigo-200 transition">+ {rand_num:4}</button>
+                            <button type="button" onclick="insertCmfToken('{rand:4}')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[11px] font-mono font-semibold border border-indigo-200 transition">+ {rand:4}</button>
+                            <button type="button" onclick="insertCmfToken('{rand_alpha:6}')" class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-[11px] font-mono font-semibold border border-gray-200 transition">+ {rand_alpha:6}</button>
+                            <button type="button" onclick="insertCmfToken('{rand_num:6}')" class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-[11px] font-mono font-semibold border border-gray-200 transition">+ {rand_num:6}</button>
+                        </div>
+                    </div>
+                    <div class="p-2.5 bg-amber-50/60 border border-amber-200 rounded-lg text-[11px] text-amber-900">
+                        <i class="fas fa-info-circle mr-1 text-amber-600"></i><strong>Syntax:</strong> Tokens inside <code>{...}</code> generate randomized characters. All other characters remain constant fixed text.
+                    </div>
+                </div>
+
+                <div id="cmfTextRegexContainer" class="space-y-2 hidden">
+                    <input type="text" id="cmfTextRegex" oninput="updateCmfLivePreview()" value="[A-Z]{3}-\d{4}" class="w-full text-xs p-2.5 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:outline-none font-mono" placeholder="e.g. [A-Z]{3}-\d{4}">
+                    <p class="text-[11px] text-gray-500">Generates synthetic strings conforming to regular expression grammar.</p>
+                </div>
+            </div>
+
+            <!-- 3. NUMBER PANEL -->
+            <div id="cmfPanel_number" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Sign Transformation</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <label class="flex items-center p-2 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer text-xs">
+                            <input type="radio" name="cmfNumSign" id="cmfNumSignUnchanged" value="UNCHANGED" onchange="updateCmfLivePreview()" class="mr-2 text-indigo-600 focus:ring-indigo-400" checked>
+                            <span class="font-medium text-gray-700">Preserve Sign</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer text-xs">
+                            <input type="radio" name="cmfNumSign" id="cmfNumSignPositive" value="POSITIVE" onchange="updateCmfLivePreview()" class="mr-2 text-indigo-600 focus:ring-indigo-400">
+                            <span class="font-medium text-gray-700">Always Positive (+)</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer text-xs">
+                            <input type="radio" name="cmfNumSign" id="cmfNumSignNegative" value="NEGATIVE" onchange="updateCmfLivePreview()" class="mr-2 text-indigo-600 focus:ring-indigo-400">
+                            <span class="font-medium text-gray-700">Always Negative (-)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Numeric Precision & Scale</label>
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <label class="flex items-center p-2 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer text-xs">
+                            <input type="radio" name="cmfNumType" id="cmfNumTypeInteger" value="INTEGER" onchange="toggleCmfNumType(); updateCmfLivePreview()" class="mr-2 text-indigo-600 focus:ring-indigo-400">
+                            <span class="font-medium text-gray-700">Integer (Whole Number)</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer text-xs">
+                            <input type="radio" name="cmfNumType" id="cmfNumTypeDecimal" value="DECIMAL" onchange="toggleCmfNumType(); updateCmfLivePreview()" class="mr-2 text-indigo-600 focus:ring-indigo-400" checked>
+                            <span class="font-medium text-gray-700">Decimal (Fixed Scale)</span>
+                        </label>
+                    </div>
+                    <div id="cmfNumScaleContainer" class="flex items-center space-x-2">
+                        <span class="text-xs text-gray-600 font-medium">Decimal Places (Scale):</span>
+                        <input type="number" id="cmfNumScale" value="2" min="0" max="8" oninput="updateCmfLivePreview()" class="w-20 text-xs p-1.5 border border-gray-300 rounded font-mono">
+                    </div>
+                </div>
+
+                <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5">
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" id="cmfNumRangeCheck" onchange="toggleCmfNumRange(); updateCmfLivePreview()" class="rounded text-indigo-600 focus:ring-indigo-400 mr-2">
+                        <span class="text-xs font-bold text-gray-800">Clamp Value Range Bounds</span>
+                    </label>
+                    <div id="cmfNumRangeContainer" class="grid grid-cols-2 gap-3 pt-1 hidden">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-600 uppercase mb-0.5">Minimum Value</label>
+                            <input type="number" id="cmfNumMin" value="100" oninput="updateCmfLivePreview()" class="w-full text-xs p-1.5 border border-gray-300 rounded font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-600 uppercase mb-0.5">Maximum Value</label>
+                            <input type="number" id="cmfNumMax" value="5000" oninput="updateCmfLivePreview()" class="w-full text-xs p-1.5 border border-gray-300 rounded font-mono">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LIVE PREVIEW SIMULATION CARD -->
+            <div class="mt-4 p-3.5 bg-indigo-50/60 border border-indigo-200/80 rounded-xl space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold text-indigo-900 uppercase tracking-wider flex items-center">
+                        <i class="fas fa-eye mr-1.5 text-indigo-600"></i> Live Transformation Simulation
+                    </span>
+                    <span id="cmfGeneratedRuleStr" class="text-[9px] font-mono px-2 py-0.5 bg-white text-indigo-700 border border-indigo-200 rounded font-bold shadow-2xs"></span>
+                </div>
+                <div class="flex items-center justify-between bg-white p-2.5 rounded-lg border border-indigo-100 text-xs font-mono">
+                    <div class="text-gray-500">
+                        <span class="text-[9px] font-sans font-bold text-gray-400 block uppercase">Sample Input</span>
+                        <span id="cmfSimInput" class="text-gray-700 font-semibold">2024-05-18 09:30:00</span>
+                    </div>
+                    <div class="text-indigo-400 px-2 font-bold text-sm"><i class="fas fa-arrow-right"></i></div>
+                    <div class="text-right">
+                        <span class="text-[9px] font-sans font-bold text-indigo-500 block uppercase">Transformed Output</span>
+                        <span id="cmfSimOutput" class="text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200/60 inline-block">2024-05-18</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="px-5 py-3.5 bg-gray-50 border-t border-gray-200 flex justify-between items-center shrink-0">
+            <button type="button" id="btnRemoveCmf" onclick="removeCmfRule()" class="text-xs text-red-600 hover:text-red-700 font-semibold px-2 py-1 rounded hover:bg-red-50 transition hidden">
+                <i class="fas fa-trash-alt mr-1"></i> Remove Rule
+            </button>
+            <div class="flex space-x-2 ml-auto">
+                <button type="button" onclick="closeCmfModal()" class="px-3.5 py-1.5 rounded-lg border border-gray-300 text-xs font-semibold text-gray-600 hover:bg-gray-100 transition">Cancel</button>
+                <button type="button" onclick="applyCmfRule()" class="px-4 py-1.5 rounded-lg bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700 transition shadow-sm flex items-center space-x-1.5">
+                    <i class="fas fa-check"></i>
+                    <span>Save & Apply</span>
+                </button>
             </div>
         </div>
     </div>

@@ -80,11 +80,19 @@ public class SecureExportService {
         }
     }
 
+    private final DataMaskingService dataMaskingService;
+
     public SecureExportService(ObjectMapper objectMapper, Faker faker, FormatPreservingEncryptionService fpeService, MaskingConfigService maskingConfigService) {
+        this(objectMapper, faker, fpeService, maskingConfigService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public SecureExportService(ObjectMapper objectMapper, Faker faker, FormatPreservingEncryptionService fpeService, MaskingConfigService maskingConfigService, @org.springframework.context.annotation.Lazy DataMaskingService dataMaskingService) {
         this.objectMapper = objectMapper;
         this.faker = faker;
         this.fpeService = fpeService;
         this.maskingConfigService = maskingConfigService;
+        this.dataMaskingService = dataMaskingService;
     }
 
     public String processSecureExport(String executionId, SecureExportConfig config) {
@@ -593,6 +601,7 @@ public class SecureExportService {
         List<String> fphCols = rules.getConstraintFields() != null ? rules.getConstraintFields() : (rules.getConstraintColumns() != null ? rules.getConstraintColumns() : Collections.emptyList());
         List<String> nullCols = rules.getNullifyColumns() != null ? rules.getNullifyColumns() : Collections.emptyList();
         Map<String, String> defVals = rules.getDefaultValues() != null ? rules.getDefaultValues() : Collections.emptyMap();
+        Map<String, String> customFormats = rules.getCustomFormats() != null ? rules.getCustomFormats() : Collections.emptyMap();
 
         if (nullCols.contains(fullCol) || nullCols.contains(columnName)) {
             return null;
@@ -602,6 +611,13 @@ public class SecureExportService {
             String val = defVals.containsKey(fullCol) ? defVals.get(fullCol) : defVals.get(columnName);
             if (val == null || "null".equalsIgnoreCase(val.trim())) return null;
             return val;
+        }
+
+        if (customFormats.containsKey(fullCol) || customFormats.containsKey(columnName)) {
+            String formatRule = customFormats.containsKey(fullCol) ? customFormats.get(fullCol) : customFormats.get(columnName);
+            if (dataMaskingService != null && formatRule != null && !formatRule.trim().isEmpty()) {
+                return dataMaskingService.applyCustomFormat(originalValue, formatRule);
+            }
         }
 
         if (stdCols.contains(fullCol) || stdCols.contains(columnName)) {

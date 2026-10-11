@@ -256,4 +256,93 @@ public class DataMaskingServiceTest {
         assertEquals(maskedCustIdInParent, maskedCustIdInChild);
         assertTrue(((Short) maskedCustIdInParent) > 0 && ((Short) maskedCustIdInParent) <= 32767);
     }
+
+    @Test
+    void testCustomMaskingFormatDate() {
+        Map<String, Object> row = new HashMap<>();
+        row.put("id", 1);
+        row.put("created_date", "2024-03-15");
+
+        Map<String, String> customFormats = Map.of("orders.created_date", "DATE:dd/MM/yyyy");
+
+        Map<String, Object> masked = dataMaskingService.maskDataWithRules(
+                "orders", row, List.of(), List.of(), List.of(), List.of(), Map.of(), customFormats
+        );
+
+        assertNotNull(masked.get("created_date"));
+        assertEquals("15/03/2024", masked.get("created_date"));
+    }
+
+    @Test
+    void testCustomMaskingFormatDateWithTimestampAndClockHour() {
+        Map<String, Object> row = new HashMap<>();
+        row.put("actor_id", 1);
+        row.put("last_update", new java.sql.Timestamp(1700000000000L)); // Timestamp
+        row.put("created_at", "2026-03-15 14:30:00");
+
+        Map<String, String> customFormats = Map.of(
+                "actor.last_update", "DATE:yyyy-MM-dd HH:mm:ss",
+                "actor.created_at", "DATE:yyyy-MM-dd hh:mm a"
+        );
+
+        Map<String, Object> masked = dataMaskingService.maskDataWithRules(
+                "actor", row, List.of(), List.of(), List.of(), List.of(), Map.of(), customFormats
+        );
+
+        assertNotNull(masked.get("last_update"));
+        assertTrue(masked.get("last_update") instanceof java.sql.Timestamp);
+
+        assertNotNull(masked.get("created_at"));
+        String formattedCreatedAt = masked.get("created_at").toString();
+        assertTrue(formattedCreatedAt.contains("2026-03-15"));
+        assertTrue(formattedCreatedAt.contains("02:30") || formattedCreatedAt.contains("2:30"));
+        assertTrue(formattedCreatedAt.toUpperCase().contains("PM"));
+    }
+
+    @Test
+    void testCustomMaskingFormatTextTemplate() {
+        Map<String, Object> row = new HashMap<>();
+        row.put("id", 101);
+        row.put("order_code", "ORIGINAL-ORDER-999");
+
+        Map<String, String> customFormats = Map.of("orders.order_code", "TEXT:ORD-{rand_alpha:3}-{rand_num:4}-CONST");
+
+        Map<String, Object> masked = dataMaskingService.maskDataWithRules(
+                "orders", row, List.of(), List.of(), List.of(), List.of(), Map.of(), customFormats
+        );
+
+        String maskedCode = (String) masked.get("order_code");
+        assertNotNull(maskedCode);
+        assertTrue(maskedCode.startsWith("ORD-"));
+        assertTrue(maskedCode.endsWith("-CONST"));
+        // Matches ORD-[A-Z]{3}-\d{4}-CONST
+        assertTrue(maskedCode.matches("^ORD-[A-Z]{3}-\\d{4}-CONST$"));
+    }
+
+    @Test
+    void testCustomMaskingFormatNumber() {
+        Map<String, Object> row = new HashMap<>();
+        row.put("id", 501);
+        row.put("balance", -142.368);
+        row.put("penalty", 55.4);
+
+        Map<String, String> customFormats = Map.of(
+                "accounts.balance", "NUM:POSITIVE:SCALE(2)",
+                "accounts.penalty", "NUM:NEGATIVE:INTEGER"
+        );
+
+        Map<String, Object> masked = dataMaskingService.maskDataWithRules(
+                "accounts", row, List.of(), List.of(), List.of(), List.of(), Map.of(), customFormats
+        );
+
+        Number balance = (Number) masked.get("balance");
+        Number penalty = (Number) masked.get("penalty");
+
+        assertNotNull(balance);
+        assertEquals(142.37, balance.doubleValue(), 0.001);
+
+        assertNotNull(penalty);
+        assertTrue(penalty.doubleValue() < 0);
+        assertEquals(-55.0, penalty.doubleValue(), 0.001);
+    }
 }

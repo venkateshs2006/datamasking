@@ -24,8 +24,8 @@ public class QwenAiClientService {
 
     private final ObjectMapper objectMapper;
     private static final int TIMEOUT_MS = 30000; // 30s timeout
-    private static final String DEFAULT_QWEN_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions";
-    private static final String DEFAULT_QWEN_MODEL = "qwen-turbo";
+    public static final String DEFAULT_QWEN_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions";
+    public static final String DEFAULT_QWEN_MODEL = "qwen-turbo";
 
     /**
      * Builds an OpenAI-compatible ChatModel via Spring AI configured for Qwen /

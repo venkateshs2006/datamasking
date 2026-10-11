@@ -27,6 +27,8 @@ public class SamplePreviewRequest {
     @Builder.Default
     private java.util.Map<String, String> defaultValues = new java.util.HashMap<>();
     @Builder.Default
+    private java.util.Map<String, String> customFormats = new java.util.HashMap<>();
+    @Builder.Default
     private int limit = 5;
     @Builder.Default
     private List<String> columns = new ArrayList<>();

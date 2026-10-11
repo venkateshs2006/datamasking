@@ -25,16 +25,23 @@ public class JsonMigrationService {
     private final FormatPreservingEncryptionService fpeService;
     private final ObjectMapper objectMapper;
     private final Faker faker;
+    private final DataMaskingService dataMaskingService;
 
     // In-memory store for async job progress
     private final Map<String, JsonMigrationProgress> progressMap = new ConcurrentHashMap<>();
 
     public JsonMigrationService(FormatPreservingEncryptionService fpeService, Faker faker) {
+        this(fpeService, faker, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public JsonMigrationService(FormatPreservingEncryptionService fpeService, Faker faker, @org.springframework.context.annotation.Lazy DataMaskingService dataMaskingService) {
         this.fpeService = fpeService;
         this.objectMapper = new ObjectMapper()
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
             .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         this.faker = faker;
+        this.dataMaskingService = dataMaskingService;
     }
 
     public String processMigrationAsync(String executionId, JsonMigrationConfig config) {
@@ -172,6 +179,13 @@ public class JsonMigrationService {
                 return defVal;
             }
         }
+        if (rules.getCustomFormats() != null) {
+            String formatRule = getMatchingFormatRule(rules.getCustomFormats(), fieldPath);
+            if (formatRule != null && dataMaskingService != null) {
+                Object result = dataMaskingService.applyCustomFormat(value, formatRule);
+                return result != null ? result.toString() : null;
+            }
+        }
         if (value == null) {
             return null;
         }
@@ -179,7 +193,8 @@ public class JsonMigrationService {
             return generateFakeData(fieldPath);
         } else if (rules.getPartialMaskingColumns() != null && containsIgnoreCase(rules.getPartialMaskingColumns(), fieldPath)) {
             return applyPartialMasking(value);
-        } else if (rules.getConstraintFields() != null && containsIgnoreCase(rules.getConstraintFields(), fieldPath)) {
+        } else if ((rules.getConstraintFields() != null && containsIgnoreCase(rules.getConstraintFields(), fieldPath)) ||
+                   (rules.getConstraintColumns() != null && containsIgnoreCase(rules.getConstraintColumns(), fieldPath))) {
             try {
                 return (String) fpeService.encrypt(value, "string");
             } catch (Exception e) {
@@ -188,6 +203,18 @@ public class JsonMigrationService {
             }
         }
         return value;
+    }
+
+    private String getMatchingFormatRule(Map<String, String> customFormats, String fieldPath) {
+        if (customFormats == null || customFormats.isEmpty() || fieldPath == null) return null;
+        for (Map.Entry<String, String> entry : customFormats.entrySet()) {
+            if (entry.getKey() == null) continue;
+            String key = entry.getKey().trim();
+            if (key.equalsIgnoreCase(fieldPath) || key.endsWith("." + fieldPath) || fieldPath.endsWith("." + key)) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 
     private String getMatchingDefaultValue(Map<String, String> defaultValues, String fieldPath) {

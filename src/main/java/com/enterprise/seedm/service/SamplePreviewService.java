@@ -61,6 +61,7 @@ public class SamplePreviewService {
         Set<String> constraintCols = toLowerSet(request.getConstraintColumns(), tableName);
         Set<String> nullifyCols = toLowerSet(request.getNullifyColumns(), tableName);
         Map<String, String> defaultVals = normalizeDefaultValues(request.getDefaultValues(), tableName);
+        Map<String, String> customFormatRules = normalizeDefaultValues(request.getCustomFormats(), tableName);
 
         int maskedCount = 0;
         for (String col : columns) {
@@ -70,6 +71,9 @@ public class SamplePreviewService {
                 maskedCount++;
             } else if (defaultVals.containsKey(lowerCol)) {
                 columnRules.put(col, "DEFAULT");
+                maskedCount++;
+            } else if (customFormatRules.containsKey(lowerCol)) {
+                columnRules.put(col, "CMF");
                 maskedCount++;
             } else if (constraintCols.contains(lowerCol)) {
                 columnRules.put(col, "FPH");
@@ -116,7 +120,7 @@ public class SamplePreviewService {
             beforeRows.add(beforeRow);
         }
 
-        // 5. Construct 'After' view (Applying synthetic Faker, DateShift, FPH, Nullify, or Default)
+        // 5. Construct 'After' view (Applying synthetic Faker, DateShift, FPH, Nullify, Default, or CMF)
         List<Map<String, Object>> afterRows = new ArrayList<>();
         for (Map<String, Object> row : rawRows) {
             Map<String, Object> masked = dataMaskingService.maskDataWithRules(
@@ -127,6 +131,7 @@ public class SamplePreviewService {
                     request.getPartialMaskingColumns(),
                     request.getNullifyColumns(),
                     request.getDefaultValues(),
+                    request.getCustomFormats(),
                     request.getMaskingKey()
             );
 

@@ -44,7 +44,7 @@ class SamplePreviewServiceTest {
                 Map.of("customer_id", 101, "first_name", "Alice", "email", "alice@secretcorp.com", "status", "ACTIVE")
         ));
 
-        when(dataMaskingService.maskDataWithRules(eq(table), any(), any(), any(), any()))
+        when(dataMaskingService.maskDataWithRules(eq(table), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(Map.of(
                         "customer_id", 101,
                         "first_name", "FakeFirstName",
@@ -89,7 +89,7 @@ class SamplePreviewServiceTest {
         when(tableDiscoveryService.getTableColumns(table)).thenReturn(List.of("id", "email", "amount"));
         when(tableDiscoveryService.getSampleRows(eq(table), anyInt())).thenReturn(List.of());
 
-        when(dataMaskingService.maskDataWithRules(eq(table), any(), any(), any(), any()))
+        when(dataMaskingService.maskDataWithRules(eq(table), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(Map.of("id", 1001, "email", "masked@fake.com", "amount", 123.45));
 
         SamplePreviewRequest request = SamplePreviewRequest.builder()

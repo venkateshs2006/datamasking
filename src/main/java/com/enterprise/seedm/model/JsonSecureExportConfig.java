@@ -38,6 +38,7 @@ public class JsonSecureExportConfig {
         private List<String> constraintFields = new ArrayList<>();
         private List<String> nullifyColumns = new ArrayList<>();
         private java.util.Map<String, String> defaultValues = new java.util.HashMap<>();
+        private java.util.Map<String, String> customFormats = new java.util.HashMap<>();
         private Map<String, List<String>> maskingFields; // file -> list of field paths (SFD)
         private Map<String, List<String>> partialMaskingFields; // file -> list of field paths (PMD)
         private String maskingKey; // Salt key for FPE and AES-256 encryption

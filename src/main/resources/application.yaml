@@ -61,14 +61,6 @@ spring:
       ddl-auto: update
     show-sql: false
 
-# Migration Configuration
-migration:
-  source:
-    schema: public  # Source schema name
-  destination:
-    schema: public  # Destination schema name
-  chunk-size: 1000  # Number of rows per batch
-
 # Server Configuration
 server:
   port: 8080
@@ -97,6 +89,7 @@ seedm:
       schema: public
     destination:
       schema: public
+    chunk-size: 1000
     default-chunk-size: 1000
     default-thread-count: 50
     max-retry-attempts: 3
@@ -105,8 +98,3 @@ seedm:
     masking-constraints: testing.id,testing.mydata_id,data.id
     partial-masking-columns:
     masking-key: SecretKey123
-  ai:
-    qwen:
-      api-url: https://ws-m883gchtem8pwzb4.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions
-      api-key: ${QWEN_API_KEY:}
-      model: qwen-turbo

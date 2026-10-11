@@ -20,16 +20,17 @@ public class MongoItemProcessor implements ItemProcessor<Document, Document> {
 
     private final java.util.List<String> nullifyColumns;
     private final java.util.Map<String, String> defaultValues;
+    private final java.util.Map<String, String> customFormats;
 
     public MongoItemProcessor(String collectionName, DataMaskingService dataMaskingService) {
-        this(collectionName, dataMaskingService, null, null, null, null, null);
+        this(collectionName, dataMaskingService, null, null, null, null, null, null);
     }
 
     public MongoItemProcessor(String collectionName, DataMaskingService dataMaskingService,
                               java.util.List<String> maskingColumns,
                               java.util.List<String> constraintColumns,
                               java.util.List<String> partialMaskingColumns) {
-        this(collectionName, dataMaskingService, maskingColumns, constraintColumns, partialMaskingColumns, null, null);
+        this(collectionName, dataMaskingService, maskingColumns, constraintColumns, partialMaskingColumns, null, null, null);
     }
 
     public MongoItemProcessor(String collectionName, DataMaskingService dataMaskingService,
@@ -38,6 +39,16 @@ public class MongoItemProcessor implements ItemProcessor<Document, Document> {
                               java.util.List<String> partialMaskingColumns,
                               java.util.List<String> nullifyColumns,
                               java.util.Map<String, String> defaultValues) {
+        this(collectionName, dataMaskingService, maskingColumns, constraintColumns, partialMaskingColumns, nullifyColumns, defaultValues, null);
+    }
+
+    public MongoItemProcessor(String collectionName, DataMaskingService dataMaskingService,
+                              java.util.List<String> maskingColumns,
+                              java.util.List<String> constraintColumns,
+                              java.util.List<String> partialMaskingColumns,
+                              java.util.List<String> nullifyColumns,
+                              java.util.Map<String, String> defaultValues,
+                              java.util.Map<String, String> customFormats) {
         this.collectionName = collectionName;
         this.dataMaskingService = dataMaskingService;
         this.maskingColumns = maskingColumns;
@@ -45,12 +56,13 @@ public class MongoItemProcessor implements ItemProcessor<Document, Document> {
         this.partialMaskingColumns = partialMaskingColumns;
         this.nullifyColumns = nullifyColumns;
         this.defaultValues = defaultValues;
+        this.customFormats = customFormats;
     }
 
     @Override
     public Document process(Document item) throws Exception {
-        Map<String, Object> masked = (maskingColumns != null || constraintColumns != null || partialMaskingColumns != null || nullifyColumns != null || defaultValues != null)
-                ? dataMaskingService.maskDataWithRules(collectionName, item, maskingColumns, constraintColumns, partialMaskingColumns, nullifyColumns, defaultValues)
+        Map<String, Object> masked = (maskingColumns != null || constraintColumns != null || partialMaskingColumns != null || nullifyColumns != null || defaultValues != null || customFormats != null)
+                ? dataMaskingService.maskDataWithRules(collectionName, item, maskingColumns, constraintColumns, partialMaskingColumns, nullifyColumns, defaultValues, customFormats)
                 : dataMaskingService.maskNoSqlData(collectionName, item);
         return new Document(masked);
     }

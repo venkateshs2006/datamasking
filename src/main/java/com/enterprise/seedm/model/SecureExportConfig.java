@@ -49,6 +49,7 @@ public class SecureExportConfig {
         private List<String> constraintColumns;
         private List<String> nullifyColumns;
         private java.util.Map<String, String> defaultValues;
+        private java.util.Map<String, String> customFormats;
         private List<String> targetTables;
         private String maskingKey;
     }

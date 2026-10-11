@@ -5,7 +5,6 @@ import com.enterprise.seedm.model.AiPiiDetectionResponse;
 import com.enterprise.seedm.model.AiPiiDetectionResponse.PiiEntityInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -18,15 +17,6 @@ public class AiPiiDetectorService {
 
     private final TableDiscoveryService tableDiscoveryService;
     private final QwenAiClientService qwenAiClientService;
-
-    @Value("${seedm.ai.qwen.api-url:https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions}")
-    private String defaultQwenApiUrl;
-
-    @Value("${seedm.ai.qwen.api-key:}")
-    private String defaultQwenApiKey;
-
-    @Value("${seedm.ai.qwen.model:qwen-turbo}")
-    private String defaultQwenModel;
 
     // Detection Rule definitions for local / fallback analysis
     private static class PiiRule {
@@ -150,11 +140,11 @@ public class AiPiiDetectorService {
 
         // 2. Resolve Qwen credentials
         String apiUrl = (request.getQwenApiUrl() != null && !request.getQwenApiUrl().isBlank())
-                ? request.getQwenApiUrl().trim() : defaultQwenApiUrl;
+                ? request.getQwenApiUrl().trim() : QwenAiClientService.DEFAULT_QWEN_URL;
         String apiKey = (request.getQwenApiKey() != null && !request.getQwenApiKey().isBlank())
-                ? request.getQwenApiKey().trim() : defaultQwenApiKey;
+                ? request.getQwenApiKey().trim() : System.getenv().getOrDefault("QWEN_API_KEY", System.getProperty("QWEN_API_KEY", ""));
         String model = (request.getQwenModel() != null && !request.getQwenModel().isBlank())
-                ? request.getQwenModel().trim() : defaultQwenModel;
+                ? request.getQwenModel().trim() : QwenAiClientService.DEFAULT_QWEN_MODEL;
 
         // 3. If API Key is provided, call Qwen LLM API
         if (apiKey != null && !apiKey.isBlank()) {

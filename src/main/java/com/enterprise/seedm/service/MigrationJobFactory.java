@@ -107,6 +107,7 @@ public class MigrationJobFactory {
         List<String> partialMaskingColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("partialMaskingColumns", rulesConfig.get("partial_masking_columns")) : null;
         List<String> nullifyColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("nullifyColumns", rulesConfig.get("nullify_columns")) : null;
         Map<String, String> defaultValues = rulesConfig != null ? (Map<String, String>) rulesConfig.getOrDefault("defaultValues", rulesConfig.get("default_values")) : null;
+        Map<String, String> customFormats = rulesConfig != null ? (Map<String, String>) rulesConfig.getOrDefault("customFormats", rulesConfig.get("custom_formats")) : null;
         String maskingKey = rulesConfig != null ? (String) rulesConfig.getOrDefault("maskingKey", rulesConfig.get("masking_key")) : null;
 
         // Apply rules to global config so FPE salt key and masking configuration are in sync
@@ -116,18 +117,20 @@ public class MigrationJobFactory {
         maskingConfig.setPartialMaskingColumns(partialMaskingColumns != null ? partialMaskingColumns : java.util.Collections.emptyList());
         maskingConfig.setNullifyColumns(nullifyColumns != null ? nullifyColumns : java.util.Collections.emptyList());
         maskingConfig.setDefaultValues(defaultValues != null ? defaultValues : java.util.Collections.emptyMap());
+        maskingConfig.setCustomFormats(customFormats != null ? customFormats : java.util.Collections.emptyMap());
         if (maskingKey != null && !maskingKey.trim().isEmpty()) {
             maskingConfig.setMaskingKey(maskingKey.trim());
         }
         maskingConfig.setTargetTables(tables != null ? tables : java.util.Collections.emptyList());
         maskingConfigService.updateConfig(maskingConfig);
 
-        log.info("Applied masking config to migration job: SFD={}, PMD={}, FPH={}, NULL={}, DEF={}, key={}",
+        log.info("Applied masking config to migration job: SFD={}, PMD={}, FPH={}, NULL={}, DEF={}, CMF={}, key={}",
                 maskingConfig.getMaskingColumns().size(),
                 maskingConfig.getPartialMaskingColumns().size(),
                 maskingConfig.getConstraintColumns().size(),
                 maskingConfig.getNullifyColumns().size(),
                 maskingConfig.getDefaultValues().size(),
+                maskingConfig.getCustomFormats().size(),
                 maskingConfig.getMaskingKey());
 
         if (tables == null || tables.isEmpty()) {
@@ -151,7 +154,7 @@ public class MigrationJobFactory {
             Step prepareStep = createTablePreparationStep(tableName);
             
             // Step 1.2: Migrate data (Read -> Mask -> Write)
-            Step migrateStep = createTableMigrationStep(tableName, maskingColumns, constraintColumns, partialMaskingColumns, nullifyColumns, defaultValues);
+            Step migrateStep = createTableMigrationStep(tableName, maskingColumns, constraintColumns, partialMaskingColumns, nullifyColumns, defaultValues, customFormats);
 
             if (simpleJobBuilder == null) {
                 simpleJobBuilder = jobBuilder.start(prepareStep);
@@ -204,6 +207,7 @@ public class MigrationJobFactory {
         List<String> partialMaskingColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("partialMaskingColumns", rulesConfig.get("partial_masking_columns")) : null;
         List<String> nullifyColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("nullifyColumns", rulesConfig.get("nullify_columns")) : null;
         Map<String, String> defaultValues = rulesConfig != null ? (Map<String, String>) rulesConfig.getOrDefault("defaultValues", rulesConfig.get("default_values")) : null;
+        Map<String, String> customFormats = rulesConfig != null ? (Map<String, String>) rulesConfig.getOrDefault("customFormats", rulesConfig.get("custom_formats")) : null;
         String maskingKey = rulesConfig != null ? (String) rulesConfig.getOrDefault("maskingKey", rulesConfig.get("masking_key")) : null;
 
         com.enterprise.seedm.model.MaskingConfig maskingConfig = new com.enterprise.seedm.model.MaskingConfig();
@@ -212,6 +216,7 @@ public class MigrationJobFactory {
         maskingConfig.setPartialMaskingColumns(partialMaskingColumns != null ? partialMaskingColumns : java.util.Collections.emptyList());
         maskingConfig.setNullifyColumns(nullifyColumns != null ? nullifyColumns : java.util.Collections.emptyList());
         maskingConfig.setDefaultValues(defaultValues != null ? defaultValues : java.util.Collections.emptyMap());
+        maskingConfig.setCustomFormats(customFormats != null ? customFormats : java.util.Collections.emptyMap());
         if (maskingKey != null && !maskingKey.trim().isEmpty()) {
             maskingConfig.setMaskingKey(maskingKey.trim());
         }
@@ -241,7 +246,8 @@ public class MigrationJobFactory {
                     constraintColumns,
                     partialMaskingColumns,
                     nullifyColumns,
-                    defaultValues
+                    defaultValues,
+                    customFormats
             );
             MongoItemWriter writer = new MongoItemWriter(destClient, destDatabaseName, collectionName);
 
@@ -287,7 +293,8 @@ public class MigrationJobFactory {
                                           List<String> constraintColumns,
                                           List<String> partialMaskingColumns,
                                           List<String> nullifyColumns,
-                                          Map<String, String> defaultValues) {
+                                          Map<String, String> defaultValues,
+                                          Map<String, String> customFormats) {
         log.info("Creating migration step for table: {}", tableName);
 
         // Get detailed column metadata for this table
@@ -316,7 +323,8 @@ public class MigrationJobFactory {
                 constraintColumns,
                 partialMaskingColumns,
                 nullifyColumns,
-                defaultValues
+                defaultValues,
+                customFormats
         );
 
         // Create writer

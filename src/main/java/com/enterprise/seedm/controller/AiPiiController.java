@@ -30,9 +30,12 @@ public class AiPiiController {
 
     @PostMapping("/test-qwen")
     public ResponseEntity<Map<String, Object>> testQwen(@RequestBody Map<String, String> payload) {
-        String apiUrl = payload.get("qwenApiUrl");
-        String apiKey = payload.get("qwenApiKey");
-        String model = payload.get("qwenModel");
+        String apiUrl = (payload.get("qwenApiUrl") != null && !payload.get("qwenApiUrl").isBlank())
+                ? payload.get("qwenApiUrl").trim() : QwenAiClientService.DEFAULT_QWEN_URL;
+        String apiKey = (payload.get("qwenApiKey") != null && !payload.get("qwenApiKey").isBlank())
+                ? payload.get("qwenApiKey").trim() : System.getenv().getOrDefault("QWEN_API_KEY", System.getProperty("QWEN_API_KEY", ""));
+        String model = (payload.get("qwenModel") != null && !payload.get("qwenModel").isBlank())
+                ? payload.get("qwenModel").trim() : QwenAiClientService.DEFAULT_QWEN_MODEL;
 
         log.info("Testing connection to Qwen AI at: {}", apiUrl);
         boolean success = qwenAiClientService.testConnection(apiUrl, apiKey, model);
