@@ -312,6 +312,23 @@ public class MongoSecureExportService {
                 }
             }
         }
+        if (rules.getNullifyColumns() != null) {
+            for (String col : rules.getNullifyColumns()) {
+                if (col.startsWith(collectionName + ".")) {
+                    String fieldPath = col.substring(collectionName.length() + 1);
+                    maskFieldInDocument(copy, fieldPath, "NULL", saltKey);
+                }
+            }
+        }
+        if (rules.getDefaultValues() != null) {
+            for (Map.Entry<String, String> entry : rules.getDefaultValues().entrySet()) {
+                String col = entry.getKey();
+                if (col.startsWith(collectionName + ".")) {
+                    String fieldPath = col.substring(collectionName.length() + 1);
+                    maskFieldInDocument(copy, fieldPath, "DEFAULT:" + entry.getValue(), saltKey);
+                }
+            }
+        }
 
         return copy;
     }
@@ -330,7 +347,12 @@ public class MongoSecureExportService {
 
         if (parts.length == 1) {
             // Leaf field to mask
-            if (currentVal != null) {
+            if ("NULL".equalsIgnoreCase(ruleType)) {
+                doc.put(currentKey, null);
+            } else if (ruleType != null && ruleType.startsWith("DEFAULT:")) {
+                String defVal = ruleType.substring("DEFAULT:".length());
+                doc.put(currentKey, defVal);
+            } else if (currentVal != null) {
                 if ("PMD".equalsIgnoreCase(ruleType)) {
                     String strVal = currentVal.toString();
                     if (strVal.length() > 4) {

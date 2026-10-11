@@ -19,25 +19,39 @@ public class TableItemProcessor implements ItemProcessor<Map<String, Object>, Ma
     private final java.util.List<String> constraintColumns;
     private final java.util.List<String> partialMaskingColumns;
 
+    private final java.util.List<String> nullifyColumns;
+    private final java.util.Map<String, String> defaultValues;
+
     public TableItemProcessor(String tableName, DataMaskingService dataMaskingService) {
-        this(tableName, dataMaskingService, null, null, null);
+        this(tableName, dataMaskingService, null, null, null, null, null);
     }
 
     public TableItemProcessor(String tableName, DataMaskingService dataMaskingService,
                               java.util.List<String> maskingColumns,
                               java.util.List<String> constraintColumns,
                               java.util.List<String> partialMaskingColumns) {
+        this(tableName, dataMaskingService, maskingColumns, constraintColumns, partialMaskingColumns, null, null);
+    }
+
+    public TableItemProcessor(String tableName, DataMaskingService dataMaskingService,
+                              java.util.List<String> maskingColumns,
+                              java.util.List<String> constraintColumns,
+                              java.util.List<String> partialMaskingColumns,
+                              java.util.List<String> nullifyColumns,
+                              java.util.Map<String, String> defaultValues) {
         this.tableName = tableName;
         this.dataMaskingService = dataMaskingService;
         this.maskingColumns = maskingColumns;
         this.constraintColumns = constraintColumns;
         this.partialMaskingColumns = partialMaskingColumns;
+        this.nullifyColumns = nullifyColumns;
+        this.defaultValues = defaultValues;
     }
 
     @Override
     public Map<String, Object> process(Map<String, Object> item) throws Exception {
-        if (maskingColumns != null || constraintColumns != null || partialMaskingColumns != null) {
-            return dataMaskingService.maskDataWithRules(tableName, item, maskingColumns, constraintColumns, partialMaskingColumns);
+        if (maskingColumns != null || constraintColumns != null || partialMaskingColumns != null || nullifyColumns != null || defaultValues != null) {
+            return dataMaskingService.maskDataWithRules(tableName, item, maskingColumns, constraintColumns, partialMaskingColumns, nullifyColumns, defaultValues);
         }
         return dataMaskingService.maskData(tableName, item);
     }

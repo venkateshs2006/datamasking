@@ -41,6 +41,8 @@ public class MongoSecureExportConfig {
         private List<String> maskingColumns; // collection.field (SFD)
         private List<String> partialMaskingColumns; // collection.field (PMD)
         private List<String> constraintColumns; // collection.field (FPH)
+        private List<String> nullifyColumns; // collection.field (NULL)
+        private java.util.Map<String, String> defaultValues; // collection.field -> val
         private String maskingKey;
     }
 }

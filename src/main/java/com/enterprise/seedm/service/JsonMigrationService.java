@@ -126,12 +126,12 @@ public class JsonMigrationService {
                 if (childNode.isObject() || childNode.isArray()) {
                     maskNode(childNode, childPath, config);
                 } else if (childNode.isValueNode()) {
-                    String value = childNode.asText();
-                    if (value != null && !value.isEmpty()) {
-                        String newValue = applyRules(childPath, value, config);
-                        if (newValue != null && !newValue.equals(value)) {
-                            objectNode.put(fieldName, newValue);
-                        }
+                    String value = childNode.isNull() ? null : childNode.asText();
+                    String newValue = applyRules(childPath, value, config);
+                    if ("__NULL__".equals(newValue)) {
+                        objectNode.putNull(fieldName);
+                    } else if (newValue != null && !newValue.equals(value)) {
+                        objectNode.put(fieldName, newValue);
                     }
                 }
             });
@@ -142,14 +142,19 @@ public class JsonMigrationService {
                 if (childNode.isObject() || childNode.isArray()) {
                     maskNode(childNode, currentPath, config); 
                 } else if (childNode.isValueNode()) {
-                    String value = childNode.asText();
-                    if (value != null && !value.isEmpty()) {
-                        String newValue = applyRules(currentPath, value, config);
-                        if (newValue != null && !newValue.equals(value)) {
-                            if (childNode.isTextual()) arrayNode.set(i, arrayNode.textNode(newValue));
-                            else if (childNode.isNumber()) arrayNode.set(i, arrayNode.numberNode(Long.parseLong(newValue)));
-                            else arrayNode.set(i, arrayNode.textNode(newValue));
-                        }
+                    String value = childNode.isNull() ? null : childNode.asText();
+                    String newValue = applyRules(currentPath, value, config);
+                    if ("__NULL__".equals(newValue)) {
+                        arrayNode.set(i, arrayNode.nullNode());
+                    } else if (newValue != null && !newValue.equals(value)) {
+                        if (childNode.isTextual()) arrayNode.set(i, arrayNode.textNode(newValue));
+                        else if (childNode.isNumber()) {
+                            try {
+                                arrayNode.set(i, arrayNode.numberNode(Long.parseLong(newValue)));
+                            } catch (Exception e) {
+                                arrayNode.set(i, arrayNode.textNode(newValue));
+                            }
+                        } else arrayNode.set(i, arrayNode.textNode(newValue));
                     }
                 }
             }
@@ -158,6 +163,18 @@ public class JsonMigrationService {
 
     private String applyRules(String fieldPath, String value, JsonMigrationConfig config) {
         JsonMigrationConfig.RulesConfig rules = config.getRules();
+        if (rules.getNullifyColumns() != null && containsIgnoreCase(rules.getNullifyColumns(), fieldPath)) {
+            return "__NULL__";
+        }
+        if (rules.getDefaultValues() != null) {
+            String defVal = getMatchingDefaultValue(rules.getDefaultValues(), fieldPath);
+            if (defVal != null) {
+                return defVal;
+            }
+        }
+        if (value == null) {
+            return null;
+        }
         if (rules.getMaskingColumns() != null && containsIgnoreCase(rules.getMaskingColumns(), fieldPath)) {
             return generateFakeData(fieldPath);
         } else if (rules.getPartialMaskingColumns() != null && containsIgnoreCase(rules.getPartialMaskingColumns(), fieldPath)) {
@@ -172,11 +189,23 @@ public class JsonMigrationService {
         }
         return value;
     }
+
+    private String getMatchingDefaultValue(Map<String, String> defaultValues, String fieldPath) {
+        if (defaultValues == null || defaultValues.isEmpty() || fieldPath == null) return null;
+        for (Map.Entry<String, String> entry : defaultValues.entrySet()) {
+            if (entry.getKey() == null) continue;
+            String key = entry.getKey().trim();
+            if (key.equalsIgnoreCase(fieldPath) || key.endsWith("." + fieldPath) || fieldPath.endsWith("." + key)) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
     
     private boolean containsIgnoreCase(List<String> list, String target) {
-        if (list == null) return false;
+        if (list == null || target == null) return false;
         for (String item : list) {
-            if (item.equalsIgnoreCase(target)) {
+            if (item != null && (item.equalsIgnoreCase(target) || item.endsWith("." + target) || target.endsWith("." + item))) {
                 return true;
             }
         }

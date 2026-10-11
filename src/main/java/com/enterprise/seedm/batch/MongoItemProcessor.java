@@ -18,25 +18,39 @@ public class MongoItemProcessor implements ItemProcessor<Document, Document> {
     private final java.util.List<String> constraintColumns;
     private final java.util.List<String> partialMaskingColumns;
 
+    private final java.util.List<String> nullifyColumns;
+    private final java.util.Map<String, String> defaultValues;
+
     public MongoItemProcessor(String collectionName, DataMaskingService dataMaskingService) {
-        this(collectionName, dataMaskingService, null, null, null);
+        this(collectionName, dataMaskingService, null, null, null, null, null);
     }
 
     public MongoItemProcessor(String collectionName, DataMaskingService dataMaskingService,
                               java.util.List<String> maskingColumns,
                               java.util.List<String> constraintColumns,
                               java.util.List<String> partialMaskingColumns) {
+        this(collectionName, dataMaskingService, maskingColumns, constraintColumns, partialMaskingColumns, null, null);
+    }
+
+    public MongoItemProcessor(String collectionName, DataMaskingService dataMaskingService,
+                              java.util.List<String> maskingColumns,
+                              java.util.List<String> constraintColumns,
+                              java.util.List<String> partialMaskingColumns,
+                              java.util.List<String> nullifyColumns,
+                              java.util.Map<String, String> defaultValues) {
         this.collectionName = collectionName;
         this.dataMaskingService = dataMaskingService;
         this.maskingColumns = maskingColumns;
         this.constraintColumns = constraintColumns;
         this.partialMaskingColumns = partialMaskingColumns;
+        this.nullifyColumns = nullifyColumns;
+        this.defaultValues = defaultValues;
     }
 
     @Override
     public Document process(Document item) throws Exception {
-        Map<String, Object> masked = (maskingColumns != null || constraintColumns != null || partialMaskingColumns != null)
-                ? dataMaskingService.maskDataWithRules(collectionName, item, maskingColumns, constraintColumns, partialMaskingColumns)
+        Map<String, Object> masked = (maskingColumns != null || constraintColumns != null || partialMaskingColumns != null || nullifyColumns != null || defaultValues != null)
+                ? dataMaskingService.maskDataWithRules(collectionName, item, maskingColumns, constraintColumns, partialMaskingColumns, nullifyColumns, defaultValues)
                 : dataMaskingService.maskNoSqlData(collectionName, item);
         return new Document(masked);
     }

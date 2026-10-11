@@ -59,11 +59,19 @@ public class SamplePreviewService {
         Set<String> maskingCols = toLowerSet(request.getMaskingColumns(), tableName);
         Set<String> partialCols = toLowerSet(request.getPartialMaskingColumns(), tableName);
         Set<String> constraintCols = toLowerSet(request.getConstraintColumns(), tableName);
+        Set<String> nullifyCols = toLowerSet(request.getNullifyColumns(), tableName);
+        Map<String, String> defaultVals = normalizeDefaultValues(request.getDefaultValues(), tableName);
 
         int maskedCount = 0;
         for (String col : columns) {
             String lowerCol = col.toLowerCase();
-            if (constraintCols.contains(lowerCol)) {
+            if (nullifyCols.contains(lowerCol)) {
+                columnRules.put(col, "NULL");
+                maskedCount++;
+            } else if (defaultVals.containsKey(lowerCol)) {
+                columnRules.put(col, "DEFAULT");
+                maskedCount++;
+            } else if (constraintCols.contains(lowerCol)) {
                 columnRules.put(col, "FPH");
                 maskedCount++;
             } else if (partialCols.contains(lowerCol)) {
@@ -108,7 +116,7 @@ public class SamplePreviewService {
             beforeRows.add(beforeRow);
         }
 
-        // 5. Construct 'After' view (Applying synthetic Faker, DateShift, or FPH)
+        // 5. Construct 'After' view (Applying synthetic Faker, DateShift, FPH, Nullify, or Default)
         List<Map<String, Object>> afterRows = new ArrayList<>();
         for (Map<String, Object> row : rawRows) {
             Map<String, Object> masked = dataMaskingService.maskDataWithRules(
@@ -116,13 +124,16 @@ public class SamplePreviewService {
                     row,
                     request.getMaskingColumns(),
                     request.getConstraintColumns(),
-                    request.getPartialMaskingColumns()
+                    request.getPartialMaskingColumns(),
+                    request.getNullifyColumns(),
+                    request.getDefaultValues(),
+                    request.getMaskingKey()
             );
 
             Map<String, Object> afterRow = new LinkedHashMap<>();
             for (String col : columns) {
                 Object val = masked.get(col);
-                afterRow.put(col, val != null ? val : "N/A");
+                afterRow.put(col, val != null ? val : "NULL");
             }
             afterRows.add(afterRow);
         }
@@ -153,6 +164,22 @@ public class SamplePreviewService {
             }
         }
         return set;
+    }
+
+    private Map<String, String> normalizeDefaultValues(Map<String, String> defaults, String tableName) {
+        Map<String, String> map = new HashMap<>();
+        if (defaults == null) return map;
+        String prefix = tableName != null ? tableName.toLowerCase() + "." : "";
+        for (Map.Entry<String, String> e : defaults.entrySet()) {
+            if (e.getKey() == null) continue;
+            String clean = e.getKey().trim().toLowerCase();
+            if (!prefix.isEmpty() && clean.startsWith(prefix)) {
+                map.put(clean.substring(prefix.length()), e.getValue());
+            } else if (!clean.contains(".")) {
+                map.put(clean, e.getValue());
+            }
+        }
+        return map;
     }
 
     private List<Map<String, Object>> generateSyntheticBaseRows(String tableName, List<String> columns, int count) {

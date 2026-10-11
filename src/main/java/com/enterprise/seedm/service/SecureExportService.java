@@ -591,6 +591,18 @@ public class SecureExportService {
         List<String> stdCols = rules.getMaskingColumns() != null ? rules.getMaskingColumns() : Collections.emptyList();
         List<String> prtCols = rules.getPartialMaskingColumns() != null ? rules.getPartialMaskingColumns() : Collections.emptyList();
         List<String> fphCols = rules.getConstraintFields() != null ? rules.getConstraintFields() : (rules.getConstraintColumns() != null ? rules.getConstraintColumns() : Collections.emptyList());
+        List<String> nullCols = rules.getNullifyColumns() != null ? rules.getNullifyColumns() : Collections.emptyList();
+        Map<String, String> defVals = rules.getDefaultValues() != null ? rules.getDefaultValues() : Collections.emptyMap();
+
+        if (nullCols.contains(fullCol) || nullCols.contains(columnName)) {
+            return null;
+        }
+
+        if (defVals.containsKey(fullCol) || defVals.containsKey(columnName)) {
+            String val = defVals.containsKey(fullCol) ? defVals.get(fullCol) : defVals.get(columnName);
+            if (val == null || "null".equalsIgnoreCase(val.trim())) return null;
+            return val;
+        }
 
         if (stdCols.contains(fullCol) || stdCols.contains(columnName)) {
             return generateTypeSafeFakeData(col, originalValue);

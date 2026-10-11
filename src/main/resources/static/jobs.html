@@ -655,10 +655,24 @@
                             </div>`;
                 };
 
+                const renderDefaultRules = (defaultValues) => {
+                    if (!defaultValues || Object.keys(defaultValues).length === 0) return '';
+                    const entries = Object.entries(defaultValues);
+                    return `<div class="mb-4">
+                                <h4 class="text-[10px] font-bold text-gray-500 uppercase mb-2">DEF (Custom Default Values)</h4>
+                                <div class="flex flex-wrap gap-1.5">
+                                    ${entries.map(([col, val]) => `<span class="text-[10px] font-bold px-2 py-1 rounded-md bg-sky-50 text-sky-700 border border-sky-200 shadow-sm">${col} = "${val}"</span>`).join('')}
+                                </div>
+                            </div>`;
+                };
+
                 const sfdHtml = renderRules('SFD (Standard Faker Data)', rules.maskingColumns, 'bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20');
                 const pmdHtml = renderRules('PMD (Partial Masking Data)', rules.partialMaskingColumns, 'bg-orange-100 text-orange-700 border border-orange-200');
                 const fphRules = rules.constraintColumns || rules.constraintFields || [];
                 const fphHtml = renderRules('FPH (Format Preserving Hashing)', fphRules, 'bg-purple-100 text-purple-700 border border-purple-200');
+                const nullRules = rules.nullifyColumns || [];
+                const nullHtml = renderRules('NULL (Nullify Columns)', nullRules, 'bg-sky-100 text-sky-800 border border-sky-300');
+                const defHtml = renderDefaultRules(rules.defaultValues);
 
                 const maskingFields = rules.maskingFields || {};
                 let maskFieldsHtml = '';
@@ -671,10 +685,10 @@
                 }
 
                 html += `<div class="mb-6"><h3 class="font-bold text-sm text-bnp-emerald mb-3 uppercase border-b pb-1">Masking Rules Applied</h3>`;
-                if (!sfdHtml && !pmdHtml && !fphHtml && totalMasked === 0) {
+                if (!sfdHtml && !pmdHtml && !fphHtml && !nullHtml && !defHtml && totalMasked === 0) {
                     html += `<p class="text-sm text-gray-400 italic">No masking rules applied.</p>`;
                 } else {
-                    html += sfdHtml + pmdHtml + fphHtml + maskFieldsHtml;
+                    html += sfdHtml + pmdHtml + fphHtml + nullHtml + defHtml + maskFieldsHtml;
                 }
 
                 if (rules.maskingKey) {
@@ -709,15 +723,29 @@
                             </div>`;
                 };
 
+                const renderDefaultRules = (defaultValues) => {
+                    if (!defaultValues || Object.keys(defaultValues).length === 0) return '';
+                    const entries = Object.entries(defaultValues);
+                    return `<div class="mb-4">
+                                <h4 class="text-[10px] font-bold text-gray-500 uppercase mb-2">DEF (Custom Default Values)</h4>
+                                <div class="flex flex-wrap gap-1.5">
+                                    ${entries.map(([col, val]) => `<span class="text-[10px] font-bold px-2 py-1 rounded-md bg-sky-50 text-sky-700 border border-sky-200 shadow-sm">${col} = "${val}"</span>`).join('')}
+                                </div>
+                            </div>`;
+                };
+
                 const sfdHtml = renderRules('SFD (Standard Faker Data)', rules.maskingColumns, 'bg-bnp-emerald/10 text-bnp-emerald border border-bnp-emerald/20');
                 const pmdHtml = renderRules('PMD (Partial Masking Data)', rules.partialMaskingColumns, 'bg-orange-100 text-orange-700 border border-orange-200');
                 const fphRules = rules.constraintColumns || rules.constraintFields || [];
                 const fphHtml = renderRules('FPH (Format Preserving Hashing)', fphRules, 'bg-purple-100 text-purple-700 border border-purple-200');
+                const nullRules = rules.nullifyColumns || [];
+                const nullHtml = renderRules('NULL (Nullify Columns)', nullRules, 'bg-sky-100 text-sky-800 border border-sky-300');
+                const defHtml = renderDefaultRules(rules.defaultValues);
 
-                if (!sfdHtml && !pmdHtml && !fphHtml) {
+                if (!sfdHtml && !pmdHtml && !fphHtml && !nullHtml && !defHtml) {
                     html += `<p class="text-sm text-gray-400 italic">No masking rules applied.</p>`;
                 } else {
-                    html += sfdHtml + pmdHtml + fphHtml;
+                    html += sfdHtml + pmdHtml + fphHtml + nullHtml + defHtml;
                 }
 
                 if (rules.maskingKey) {

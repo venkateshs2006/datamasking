@@ -105,6 +105,8 @@ public class MigrationJobFactory {
         List<String> maskingColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("maskingColumns", rulesConfig.get("masking_columns")) : null;
         List<String> constraintColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("constraintColumns", rulesConfig.get("constraint_columns")) : null;
         List<String> partialMaskingColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("partialMaskingColumns", rulesConfig.get("partial_masking_columns")) : null;
+        List<String> nullifyColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("nullifyColumns", rulesConfig.get("nullify_columns")) : null;
+        Map<String, String> defaultValues = rulesConfig != null ? (Map<String, String>) rulesConfig.getOrDefault("defaultValues", rulesConfig.get("default_values")) : null;
         String maskingKey = rulesConfig != null ? (String) rulesConfig.getOrDefault("maskingKey", rulesConfig.get("masking_key")) : null;
 
         // Apply rules to global config so FPE salt key and masking configuration are in sync
@@ -112,16 +114,20 @@ public class MigrationJobFactory {
         maskingConfig.setMaskingColumns(maskingColumns != null ? maskingColumns : java.util.Collections.emptyList());
         maskingConfig.setConstraintColumns(constraintColumns != null ? constraintColumns : java.util.Collections.emptyList());
         maskingConfig.setPartialMaskingColumns(partialMaskingColumns != null ? partialMaskingColumns : java.util.Collections.emptyList());
+        maskingConfig.setNullifyColumns(nullifyColumns != null ? nullifyColumns : java.util.Collections.emptyList());
+        maskingConfig.setDefaultValues(defaultValues != null ? defaultValues : java.util.Collections.emptyMap());
         if (maskingKey != null && !maskingKey.trim().isEmpty()) {
             maskingConfig.setMaskingKey(maskingKey.trim());
         }
         maskingConfig.setTargetTables(tables != null ? tables : java.util.Collections.emptyList());
         maskingConfigService.updateConfig(maskingConfig);
 
-        log.info("Applied masking config to migration job: SFD={}, PMD={}, FPH={}, key={}",
+        log.info("Applied masking config to migration job: SFD={}, PMD={}, FPH={}, NULL={}, DEF={}, key={}",
                 maskingConfig.getMaskingColumns().size(),
                 maskingConfig.getPartialMaskingColumns().size(),
                 maskingConfig.getConstraintColumns().size(),
+                maskingConfig.getNullifyColumns().size(),
+                maskingConfig.getDefaultValues().size(),
                 maskingConfig.getMaskingKey());
 
         if (tables == null || tables.isEmpty()) {
@@ -145,7 +151,7 @@ public class MigrationJobFactory {
             Step prepareStep = createTablePreparationStep(tableName);
             
             // Step 1.2: Migrate data (Read -> Mask -> Write)
-            Step migrateStep = createTableMigrationStep(tableName, maskingColumns, constraintColumns, partialMaskingColumns);
+            Step migrateStep = createTableMigrationStep(tableName, maskingColumns, constraintColumns, partialMaskingColumns, nullifyColumns, defaultValues);
 
             if (simpleJobBuilder == null) {
                 simpleJobBuilder = jobBuilder.start(prepareStep);
@@ -196,12 +202,16 @@ public class MigrationJobFactory {
         List<String> maskingColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("maskingColumns", rulesConfig.get("masking_columns")) : null;
         List<String> constraintColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("constraintColumns", rulesConfig.get("constraint_columns")) : null;
         List<String> partialMaskingColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("partialMaskingColumns", rulesConfig.get("partial_masking_columns")) : null;
+        List<String> nullifyColumns = rulesConfig != null ? (List<String>) rulesConfig.getOrDefault("nullifyColumns", rulesConfig.get("nullify_columns")) : null;
+        Map<String, String> defaultValues = rulesConfig != null ? (Map<String, String>) rulesConfig.getOrDefault("defaultValues", rulesConfig.get("default_values")) : null;
         String maskingKey = rulesConfig != null ? (String) rulesConfig.getOrDefault("maskingKey", rulesConfig.get("masking_key")) : null;
 
         com.enterprise.seedm.model.MaskingConfig maskingConfig = new com.enterprise.seedm.model.MaskingConfig();
         maskingConfig.setMaskingColumns(maskingColumns != null ? maskingColumns : java.util.Collections.emptyList());
         maskingConfig.setConstraintColumns(constraintColumns != null ? constraintColumns : java.util.Collections.emptyList());
         maskingConfig.setPartialMaskingColumns(partialMaskingColumns != null ? partialMaskingColumns : java.util.Collections.emptyList());
+        maskingConfig.setNullifyColumns(nullifyColumns != null ? nullifyColumns : java.util.Collections.emptyList());
+        maskingConfig.setDefaultValues(defaultValues != null ? defaultValues : java.util.Collections.emptyMap());
         if (maskingKey != null && !maskingKey.trim().isEmpty()) {
             maskingConfig.setMaskingKey(maskingKey.trim());
         }
@@ -229,7 +239,9 @@ public class MigrationJobFactory {
                     dataMaskingService,
                     maskingColumns,
                     constraintColumns,
-                    partialMaskingColumns
+                    partialMaskingColumns,
+                    nullifyColumns,
+                    defaultValues
             );
             MongoItemWriter writer = new MongoItemWriter(destClient, destDatabaseName, collectionName);
 
@@ -273,7 +285,9 @@ public class MigrationJobFactory {
     private Step createTableMigrationStep(String tableName,
                                           List<String> maskingColumns,
                                           List<String> constraintColumns,
-                                          List<String> partialMaskingColumns) {
+                                          List<String> partialMaskingColumns,
+                                          List<String> nullifyColumns,
+                                          Map<String, String> defaultValues) {
         log.info("Creating migration step for table: {}", tableName);
 
         // Get detailed column metadata for this table
@@ -300,7 +314,9 @@ public class MigrationJobFactory {
                 dataMaskingService,
                 maskingColumns,
                 constraintColumns,
-                partialMaskingColumns
+                partialMaskingColumns,
+                nullifyColumns,
+                defaultValues
         );
 
         // Create writer

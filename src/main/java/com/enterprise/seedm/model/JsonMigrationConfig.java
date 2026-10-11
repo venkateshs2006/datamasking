@@ -59,6 +59,8 @@ public class JsonMigrationConfig {
         private List<String> maskingColumns = new ArrayList<>();
         private List<String> partialMaskingColumns = new ArrayList<>();
         private List<String> constraintFields = new ArrayList<>();
+        private List<String> nullifyColumns = new ArrayList<>();
+        private java.util.Map<String, String> defaultValues = new java.util.HashMap<>();
         private List<String> targetTables = new ArrayList<>();
         private String maskingKey;
     }

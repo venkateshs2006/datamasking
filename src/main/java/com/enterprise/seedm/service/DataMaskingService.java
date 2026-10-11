@@ -78,13 +78,33 @@ public class DataMaskingService {
                                                  List<String> maskingColumns,
                                                  List<String> constraintColumns,
                                                  List<String> partialMaskingColumns) {
+        return maskDataWithRules(tableName, row, maskingColumns, constraintColumns, partialMaskingColumns, null, null);
+    }
+
+    public Map<String, Object> maskDataWithRules(String tableName, Map<String, Object> row,
+                                                 List<String> maskingColumns,
+                                                 List<String> constraintColumns,
+                                                 List<String> partialMaskingColumns,
+                                                 List<String> nullifyColumns,
+                                                 Map<String, String> defaultValues) {
+        return maskDataWithRules(tableName, row, maskingColumns, constraintColumns, partialMaskingColumns, nullifyColumns, defaultValues, null);
+    }
+
+    public Map<String, Object> maskDataWithRules(String tableName, Map<String, Object> row,
+                                                 List<String> maskingColumns,
+                                                 List<String> constraintColumns,
+                                                 List<String> partialMaskingColumns,
+                                                 List<String> nullifyColumns,
+                                                 Map<String, String> defaultValues,
+                                                 String customSalt) {
         Map<String, Set<String>> maskingRules = parseRules(maskingColumns);
         Map<String, Set<String>> constraintRules = parseRules(constraintColumns);
         Map<String, Set<String>> partialMaskingRules = parseRules(partialMaskingColumns);
+        Map<String, Set<String>> nullifyRules = parseRules(nullifyColumns);
 
         Map<String, Object> maskedRow = new Document(row);
         List<ColumnMetadata> metadata = getCachedMetadata(tableName);
-        traverseAndMask(tableName, maskedRow, "", maskingRules, constraintRules, partialMaskingRules, metadata);
+        traverseAndMask(tableName, maskedRow, "", maskingRules, constraintRules, partialMaskingRules, nullifyRules, defaultValues, metadata, customSalt);
         return maskedRow;
     }
 
@@ -93,6 +113,8 @@ public class DataMaskingService {
         Map<String, Set<String>> maskingRules = parseRules(config.getMaskingColumns());
         Map<String, Set<String>> constraintRules = parseRules(config.getConstraintColumns());
         Map<String, Set<String>> partialMaskingRules = parseRules(config.getPartialMaskingColumns());
+        Map<String, Set<String>> nullifyRules = parseRules(config.getNullifyColumns());
+        Map<String, String> defaultValues = config.getDefaultValues();
 
         // We create a deep copy to avoid modifying the original object from the reader
         Map<String, Object> maskedRow = new Document(row);
@@ -102,7 +124,7 @@ public class DataMaskingService {
             metadata = getCachedMetadata(rootName);
         }
 
-        traverseAndMask(rootName, maskedRow, "", maskingRules, constraintRules, partialMaskingRules, metadata);
+        traverseAndMask(rootName, maskedRow, "", maskingRules, constraintRules, partialMaskingRules, nullifyRules, defaultValues, metadata, null);
 
         return maskedRow;
     }
@@ -111,7 +133,20 @@ public class DataMaskingService {
                                  Map<String, Set<String>> maskingRules,
                                  Map<String, Set<String>> constraintRules,
                                  Map<String, Set<String>> partialMaskingRules,
+                                 Map<String, Set<String>> nullifyRules,
+                                 Map<String, String> defaultValues,
                                  List<ColumnMetadata> metadata) {
+        traverseAndMask(rootName, currentMap, currentPath, maskingRules, constraintRules, partialMaskingRules, nullifyRules, defaultValues, metadata, null);
+    }
+
+    private void traverseAndMask(String rootName, Map<String, Object> currentMap, String currentPath,
+                                 Map<String, Set<String>> maskingRules,
+                                 Map<String, Set<String>> constraintRules,
+                                 Map<String, Set<String>> partialMaskingRules,
+                                 Map<String, Set<String>> nullifyRules,
+                                 Map<String, String> defaultValues,
+                                 List<ColumnMetadata> metadata,
+                                 String customSalt) {
 
         // Use a copy of keys to avoid ConcurrentModificationException
         for (String key : new HashSet<>(currentMap.keySet())) {
@@ -119,18 +154,18 @@ public class DataMaskingService {
             String newPath = currentPath.isEmpty() ? key : currentPath + "." + key;
 
             // Apply rules to the current field
-            Object newValue = applyRulesToField(rootName, newPath, value, maskingRules, constraintRules, partialMaskingRules, metadata);
+            Object newValue = applyRulesToField(rootName, newPath, value, maskingRules, constraintRules, partialMaskingRules, nullifyRules, defaultValues, metadata, customSalt);
             currentMap.put(key, newValue);
 
             // Recurse if the new value is a map or a list
             if (newValue instanceof Map) {
-                traverseAndMask(rootName, (Map<String, Object>) newValue, newPath, maskingRules, constraintRules, partialMaskingRules, metadata);
+                traverseAndMask(rootName, (Map<String, Object>) newValue, newPath, maskingRules, constraintRules, partialMaskingRules, nullifyRules, defaultValues, metadata, customSalt);
             } else if (newValue instanceof List) {
                 List<Object> newList = new ArrayList<>();
                 for (Object item : (List<?>) newValue) {
                     if (item instanceof Map) {
                         Map<String, Object> itemMap = new Document((Map<String, Object>) item);
-                        traverseAndMask(rootName, itemMap, newPath, maskingRules, constraintRules, partialMaskingRules, metadata);
+                        traverseAndMask(rootName, itemMap, newPath, maskingRules, constraintRules, partialMaskingRules, nullifyRules, defaultValues, metadata, customSalt);
                         newList.add(itemMap);
                     } else {
                         newList.add(item);
@@ -252,14 +287,42 @@ public class DataMaskingService {
                                      Map<String, Set<String>> maskingRules,
                                      Map<String, Set<String>> constraintRules,
                                      Map<String, Set<String>> partialMaskingRules,
+                                     Map<String, Set<String>> nullifyRules,
+                                     Map<String, String> defaultValues,
                                      List<ColumnMetadata> metadata) {
+        return applyRulesToField(rootName, fieldPath, originalValue, maskingRules, constraintRules, partialMaskingRules, nullifyRules, defaultValues, metadata, null);
+    }
+
+    private Object applyRulesToField(String rootName, String fieldPath, Object originalValue,
+                                     Map<String, Set<String>> maskingRules,
+                                     Map<String, Set<String>> constraintRules,
+                                     Map<String, Set<String>> partialMaskingRules,
+                                     Map<String, Set<String>> nullifyRules,
+                                     Map<String, String> defaultValues,
+                                     List<ColumnMetadata> metadata,
+                                     String customSalt) {
+        String lowerRoot = rootName != null ? rootName.toLowerCase() : "";
+        String lowerField = fieldPath != null ? fieldPath.toLowerCase() : "";
+
+        // 1. Check Nullify Rule
+        if (isRuleActive(nullifyRules, lowerRoot, lowerField)) {
+            return null;
+        }
+
+        // 2. Check Custom Default Value Rule
+        if (defaultValues != null && !defaultValues.isEmpty()) {
+            String defVal = getMatchingDefaultValue(defaultValues, lowerRoot, lowerField);
+            if (defVal != null) {
+                ColumnMetadata colMeta = getColumnMetadata(metadata, fieldPath);
+                return convertDefaultValueToType(defVal, originalValue, colMeta);
+            }
+        }
+
         if (originalValue == null) {
             return null;
         }
 
         String fullPath = rootName + "." + fieldPath;
-        String lowerRoot = rootName != null ? rootName.toLowerCase() : "";
-        String lowerField = fieldPath != null ? fieldPath.toLowerCase() : "";
 
         if (isRuleActive(constraintRules, lowerRoot, lowerField)) {
             try {
@@ -267,7 +330,7 @@ public class DataMaskingService {
                 String dataType = getColumnType(rootName, metadata, fieldPath, originalValue);
                 Integer precision = colMeta != null ? colMeta.getNumericPrecision() : null;
                 Integer scale = colMeta != null ? colMeta.getNumericScale() : null;
-                Object encryptedValue = fpeService.encrypt(originalValue, dataType, null, precision, scale);
+                Object encryptedValue = fpeService.encrypt(originalValue, dataType, customSalt, precision, scale);
                 if ("uuid".equalsIgnoreCase(dataType) && encryptedValue instanceof String) {
                     try {
                         return UUID.fromString((String) encryptedValue);
@@ -293,6 +356,47 @@ public class DataMaskingService {
         }
 
         return originalValue;
+    }
+
+    private String getMatchingDefaultValue(Map<String, String> defaultValues, String lowerRoot, String lowerField) {
+        if (defaultValues == null || defaultValues.isEmpty()) return null;
+        String simpleRoot = lowerRoot.contains(".") ? lowerRoot.substring(lowerRoot.lastIndexOf('.') + 1) : lowerRoot;
+        for (Map.Entry<String, String> entry : defaultValues.entrySet()) {
+            if (entry.getKey() == null) continue;
+            String key = entry.getKey().trim().toLowerCase();
+            if (key.equals(lowerRoot + "." + lowerField) 
+                    || key.equals(simpleRoot + "." + lowerField) 
+                    || key.endsWith("." + simpleRoot + "." + lowerField)
+                    || key.endsWith("." + lowerField)
+                    || key.equals(lowerField) 
+                    || key.equals("*." + lowerField)) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private Object convertDefaultValueToType(String defVal, Object originalValue, ColumnMetadata colMeta) {
+        if (defVal == null || "null".equalsIgnoreCase(defVal.trim())) {
+            return null;
+        }
+        String trimmed = defVal.trim();
+        if (originalValue instanceof Integer || (colMeta != null && isIntegerType(colMeta, originalValue))) {
+            try { return Integer.parseInt(trimmed); } catch (Exception ignored) {}
+        }
+        if (originalValue instanceof Long || (colMeta != null && isBigintType(colMeta, originalValue))) {
+            try { return Long.parseLong(trimmed); } catch (Exception ignored) {}
+        }
+        if (originalValue instanceof Double || originalValue instanceof BigDecimal || (colMeta != null && isNumericType(colMeta, originalValue))) {
+            try { return new BigDecimal(trimmed); } catch (Exception ignored) {}
+        }
+        if (originalValue instanceof Boolean) {
+            return Boolean.parseBoolean(trimmed);
+        }
+        if (originalValue instanceof UUID || (colMeta != null && "uuid".equalsIgnoreCase(colMeta.getDataType()))) {
+            try { return UUID.fromString(trimmed); } catch (Exception ignored) {}
+        }
+        return defVal;
     }
 
     private final Map<String, List<ColumnMetadata>> metadataCache = new HashMap<>();

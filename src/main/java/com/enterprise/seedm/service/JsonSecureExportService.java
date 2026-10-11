@@ -457,6 +457,16 @@ public class JsonSecureExportService {
                 ? fileName.substring(0, fileName.length() - 5) : fileName;
         String baseQualifier = fileNameNoExt + "." + fieldPath;
 
+        // 0. Check dot-notated columns: nullifyColumns (NULL) and defaultValues (DEFAULT)
+        if (matchesField(rules.getNullifyColumns(), fullQualifier, baseQualifier, fieldPath)) {
+            return "NULL";
+        }
+        if (rules.getDefaultValues() != null) {
+            if (rules.getDefaultValues().containsKey(fullQualifier) || rules.getDefaultValues().containsKey(baseQualifier) || rules.getDefaultValues().containsKey(fieldPath)) {
+                return "DEFAULT";
+            }
+        }
+
         // 1. Check dot-notated columns: maskingColumns (SFD)
         if (matchesField(rules.getMaskingColumns(), fullQualifier, baseQualifier, fieldPath)) {
             return "SFD";
@@ -497,7 +507,11 @@ public class JsonSecureExportService {
     }
 
     private void applyMaskToNode(ObjectNode objectNode, String fieldName, JsonNode val, String fieldPath, String ruleType, String saltKey) {
-        if ("PMD".equalsIgnoreCase(ruleType)) {
+        if ("NULL".equalsIgnoreCase(ruleType)) {
+            objectNode.putNull(fieldName);
+        } else if ("DEFAULT".equalsIgnoreCase(ruleType)) {
+            objectNode.put(fieldName, "DEFAULT");
+        } else if ("PMD".equalsIgnoreCase(ruleType)) {
             String masked = applyPartialMasking(val.asText());
             objectNode.put(fieldName, masked);
         } else if ("SFD".equalsIgnoreCase(ruleType)) {
