@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.FileWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -406,6 +407,13 @@ public class BulkDataDumpService {
             DatabaseMetaData metaData = jdbcConn.getMetaData();
             jdbcConn.setAutoCommit(false);
 
+            String dbProdName = "";
+            try {
+                dbProdName = metaData.getDatabaseProductName().toLowerCase();
+            } catch (Exception ignored) {}
+            boolean isPostgres = dbProdName.contains("postgres");
+            boolean isMysql = dbProdName.contains("mysql") || dbProdName.contains("mariadb");
+
             List<BulkDumpTableConfig> tables = config.getTables();
             if (tables == null || tables.isEmpty()) {
                 progress.setStatus("COMPLETED");
@@ -456,12 +464,70 @@ public class BulkDataDumpService {
                 String colNamesJoined = insertColumns.stream()
                         .map(c -> "\"" + c.name + "\"")
                         .collect(Collectors.joining(", "));
+
+                // Handle PostgreSQL tsvector placeholders with to_tsvector('english', coalesce(?::text, ''))
                 String placeholders = insertColumns.stream()
-                        .map(c -> "?")
+                        .map(c -> {
+                            if (c.typeName != null && c.typeName.toLowerCase().contains("tsvector")) {
+                                return "to_tsvector('english', coalesce(?::text, ''))";
+                            }
+                            return "?";
+                        })
                         .collect(Collectors.joining(", "));
 
                 String insertSql = String.format("INSERT INTO \"%s\".\"%s\" (%s) VALUES (%s)",
                         targetSchema, tableName, colNamesJoined, placeholders);
+
+                if (isPostgres) {
+                    insertSql += " ON CONFLICT DO NOTHING";
+                } else if (isMysql) {
+                    insertSql = insertSql.replaceFirst("(?i)INSERT INTO", "INSERT IGNORE INTO");
+                }
+
+                // Check for composite primary keys in this table
+                List<ColumnDetail> pkColsInTable = insertColumns.stream()
+                        .filter(c -> c.isPrimaryKey)
+                        .collect(Collectors.toList());
+                boolean isCompositePk = pkColsInTable.size() > 1;
+
+                // Preload existing composite PKs to prevent duplicate combinations
+                Set<String> usedCompositeKeys = Collections.synchronizedSet(new HashSet<>());
+                if (isCompositePk) {
+                    String pkColsJoined = pkColsInTable.stream()
+                            .map(c -> "\"" + c.name + "\"")
+                            .collect(Collectors.joining(", "));
+                    String query = String.format("SELECT %s FROM \"%s\".\"%s\" LIMIT 10000",
+                            pkColsJoined, targetSchema, tableName);
+                    try (Statement stmt = jdbcConn.createStatement();
+                         ResultSet rs = stmt.executeQuery(query)) {
+                        while (rs.next()) {
+                            StringBuilder sb = new StringBuilder();
+                            for (int k = 1; k <= pkColsInTable.size(); k++) {
+                                if (k > 1) sb.append("::");
+                                sb.append(rs.getObject(k));
+                            }
+                            usedCompositeKeys.add(sb.toString());
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                // Preload and track used unique values for unique columns (e.g. store.manager_staff_id)
+                Map<String, Set<Object>> usedUniqueValues = new ConcurrentHashMap<>();
+                for (ColumnDetail col : columnDetails) {
+                    if (col.isUnique) {
+                        Set<Object> usedSet = ConcurrentHashMap.newKeySet();
+                        usedUniqueValues.put(col.name.toLowerCase(), usedSet);
+                        String query = String.format("SELECT \"%s\" FROM \"%s\".\"%s\" WHERE \"%s\" IS NOT NULL LIMIT 2000",
+                                col.name, targetSchema, tableName, col.name);
+                        try (Statement stmt = jdbcConn.createStatement();
+                             ResultSet rs = stmt.executeQuery(query)) {
+                            while (rs.next()) {
+                                Object uVal = rs.getObject(1);
+                                if (uVal != null) usedSet.add(uVal);
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
 
                 long inserted = 0;
                 int batchSize = 100;
@@ -474,10 +540,23 @@ public class BulkDataDumpService {
                         for (int i = 0; i < currentBatch; i++) {
                             long rowSeq = inserted + i + 1;
                             Map<String, Object> sampleRow = (sampleRows.size() < 5) ? new LinkedHashMap<>() : null;
+                            Map<String, Object> rowValues = new HashMap<>();
+
+                            // If composite PK, pre-generate unique composite PK combination
+                            if (isCompositePk) {
+                                generateCompositePkValues(pkColsInTable, rowSeq, tableName, generatedPrimaryKeys, usedCompositeKeys, rowValues);
+                            }
 
                             for (int colIdx = 0; colIdx < insertColumns.size(); colIdx++) {
                                 ColumnDetail col = insertColumns.get(colIdx);
-                                Object val = generateValueForColumn(col, rowSeq, tableName, generatedPrimaryKeys);
+                                Object val;
+                                if (rowValues.containsKey(col.name.toLowerCase())) {
+                                    val = rowValues.get(col.name.toLowerCase());
+                                } else {
+                                    val = generateValueForColumn(col, rowSeq, tableName, generatedPrimaryKeys, usedUniqueValues);
+                                    rowValues.put(col.name.toLowerCase(), val);
+                                }
+
                                 setPreparedStatementValue(pstmt, colIdx + 1, col, val);
 
                                 // If this column is a Primary Key, record it for child foreign keys
@@ -487,7 +566,7 @@ public class BulkDataDumpService {
                                 }
 
                                 if (sampleRow != null) {
-                                    sampleRow.put(col.name, val != null ? val.toString() : null);
+                                    sampleRow.put(col.name, val != null ? (val instanceof byte[] ? "[binary bytea]" : val.toString()) : null);
                                 }
                             }
 
@@ -513,6 +592,9 @@ public class BulkDataDumpService {
 
                         try { Thread.sleep(25); } catch (InterruptedException ignored) {}
                     }
+
+                    // Refresh primary keys from table so dependent child tables have all new IDs (including auto-inc serials)
+                    refreshPrimaryKeys(jdbcConn, targetSchema, tableName, columnDetails, generatedPrimaryKeys);
 
                     progress.getSampleDataReport().put(tableName, sampleRows);
                     updateTableProgress(progress, tableName, "COMPLETED", inserted);
@@ -608,21 +690,177 @@ public class BulkDataDumpService {
 
     private void preloadExistingPrimaryKeys(Connection jdbcConn, String schema, String tableName,
                                            List<ColumnDetail> columns, Map<String, List<Object>> generatedPrimaryKeys) {
+        // 1. Preload PKs of this table
         for (ColumnDetail col : columns) {
             if (col.isPrimaryKey) {
                 String key = tableName.toLowerCase() + "." + col.name.toLowerCase();
                 List<Object> existing = generatedPrimaryKeys.computeIfAbsent(key, k -> new CopyOnWriteArrayList<>());
                 if (existing.isEmpty()) {
-                    String query = String.format("SELECT \"%s\" FROM \"%s\".\"%s\" WHERE \"%s\" IS NOT NULL LIMIT 200",
+                    String query = String.format("SELECT \"%s\" FROM \"%s\".\"%s\" WHERE \"%s\" IS NOT NULL LIMIT 1000",
                             col.name, schema, tableName, col.name);
                     try (Statement stmt = jdbcConn.createStatement();
                          ResultSet rs = stmt.executeQuery(query)) {
                         while (rs.next()) {
-                            existing.add(rs.getObject(1));
+                            Object val = rs.getObject(1);
+                            if (val != null && !existing.contains(val)) {
+                                existing.add(val);
+                            }
                         }
                     } catch (Exception ignored) {}
                 }
             }
+        }
+
+        // 2. Preload PKs of parent tables referenced by FK columns
+        for (ColumnDetail col : columns) {
+            if (col.foreignTable != null && col.foreignColumn != null) {
+                String fkKey = col.foreignTable.toLowerCase() + "." + col.foreignColumn.toLowerCase();
+                List<Object> existing = generatedPrimaryKeys.computeIfAbsent(fkKey, k -> new CopyOnWriteArrayList<>());
+                if (existing.isEmpty()) {
+                    String query = String.format("SELECT \"%s\" FROM \"%s\".\"%s\" WHERE \"%s\" IS NOT NULL LIMIT 1000",
+                            col.foreignColumn, schema, col.foreignTable, col.foreignColumn);
+                    try (Statement stmt = jdbcConn.createStatement();
+                         ResultSet rs = stmt.executeQuery(query)) {
+                        while (rs.next()) {
+                            Object val = rs.getObject(1);
+                            if (val != null && !existing.contains(val)) {
+                                existing.add(val);
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+            } else if (col.name != null && col.name.toLowerCase().endsWith("_id") && !col.isPrimaryKey) {
+                String assumedParent = col.name.toLowerCase().substring(0, col.name.length() - 3);
+                String fkKey = assumedParent + "." + col.name.toLowerCase();
+                List<Object> existing = generatedPrimaryKeys.computeIfAbsent(fkKey, k -> new CopyOnWriteArrayList<>());
+                if (existing.isEmpty()) {
+                    String query = String.format("SELECT \"%s\" FROM \"%s\".\"%s\" WHERE \"%s\" IS NOT NULL LIMIT 1000",
+                            col.name, schema, assumedParent, col.name);
+                    try (Statement stmt = jdbcConn.createStatement();
+                         ResultSet rs = stmt.executeQuery(query)) {
+                        while (rs.next()) {
+                            Object val = rs.getObject(1);
+                            if (val != null && !existing.contains(val)) {
+                                existing.add(val);
+                            }
+                        }
+                        if (!existing.isEmpty()) {
+                            col.foreignTable = assumedParent;
+                            col.foreignColumn = col.name;
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+    }
+
+    private void refreshPrimaryKeys(Connection jdbcConn, String schema, String tableName,
+                                    List<ColumnDetail> columns, Map<String, List<Object>> generatedPrimaryKeys) {
+        for (ColumnDetail col : columns) {
+            if (col.isPrimaryKey) {
+                String key = tableName.toLowerCase() + "." + col.name.toLowerCase();
+                List<Object> list = generatedPrimaryKeys.computeIfAbsent(key, k -> new CopyOnWriteArrayList<>());
+                Set<Object> currentSet = new HashSet<>(list);
+                String query = String.format("SELECT \"%s\" FROM \"%s\".\"%s\" WHERE \"%s\" IS NOT NULL ORDER BY \"%s\" DESC LIMIT 1000",
+                        col.name, schema, tableName, col.name, col.name);
+                try (Statement stmt = jdbcConn.createStatement();
+                     ResultSet rs = stmt.executeQuery(query)) {
+                    while (rs.next()) {
+                        Object val = rs.getObject(1);
+                        if (val != null && !currentSet.contains(val)) {
+                            list.add(val);
+                            currentSet.add(val);
+                        }
+                    }
+                } catch (Exception ex) {
+                    try (Statement stmt = jdbcConn.createStatement();
+                         ResultSet rs = stmt.executeQuery(String.format("SELECT \"%s\" FROM \"%s\".\"%s\" WHERE \"%s\" IS NOT NULL LIMIT 1000",
+                                 col.name, schema, tableName, col.name))) {
+                        while (rs.next()) {
+                            Object val = rs.getObject(1);
+                            if (val != null && !currentSet.contains(val)) {
+                                list.add(val);
+                                currentSet.add(val);
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+    }
+
+    private void generateCompositePkValues(List<ColumnDetail> pkCols, long seq, String tableName,
+                                           Map<String, List<Object>> generatedPrimaryKeys,
+                                           Set<String> usedCompositeKeys, Map<String, Object> rowValues) {
+        List<List<Object>> candidatesPerCol = new ArrayList<>();
+        for (ColumnDetail pkCol : pkCols) {
+            List<Object> candidates = null;
+            if (pkCol.foreignTable != null && pkCol.foreignColumn != null) {
+                String fkKey = pkCol.foreignTable.toLowerCase() + "." + pkCol.foreignColumn.toLowerCase();
+                candidates = generatedPrimaryKeys.get(fkKey);
+            }
+            candidatesPerCol.add(candidates);
+        }
+
+        String chosenKey = null;
+        List<Object> chosenVals = new ArrayList<>();
+        for (int attempt = 0; attempt < 100; attempt++) {
+            chosenVals.clear();
+            StringBuilder keySb = new StringBuilder();
+            for (int cIdx = 0; cIdx < pkCols.size(); cIdx++) {
+                ColumnDetail pkCol = pkCols.get(cIdx);
+                List<Object> candidates = candidatesPerCol.get(cIdx);
+                Object v;
+                if (candidates != null && !candidates.isEmpty()) {
+                    v = candidates.get(random.nextInt(candidates.size()));
+                } else {
+                    if (pkCol.dataType == Types.SMALLINT) {
+                        v = (int) ((seq * 31L + attempt * 7L + cIdx) % 32000) + 1;
+                    } else if (pkCol.dataType == Types.TINYINT) {
+                        v = (int) ((seq * 31L + attempt * 7L + cIdx) % 120) + 1;
+                    } else {
+                        v = (int) ((seq * 31L + attempt * 7L + cIdx) % 1000000) + 1;
+                    }
+                }
+                chosenVals.add(v);
+                if (cIdx > 0) keySb.append("::");
+                keySb.append(v);
+            }
+            String ck = keySb.toString();
+            if (!usedCompositeKeys.contains(ck)) {
+                chosenKey = ck;
+                break;
+            }
+        }
+
+        if (chosenKey == null) {
+            chosenVals.clear();
+            StringBuilder keySb = new StringBuilder();
+            for (int cIdx = 0; cIdx < pkCols.size(); cIdx++) {
+                ColumnDetail pkCol = pkCols.get(cIdx);
+                List<Object> candidates = candidatesPerCol.get(cIdx);
+                Object v;
+                if (candidates != null && !candidates.isEmpty()) {
+                    v = candidates.get((int) ((seq + cIdx * 13) % candidates.size()));
+                } else {
+                    if (pkCol.dataType == Types.SMALLINT) {
+                        v = (int) ((seq + cIdx) % 32000) + 1;
+                    } else if (pkCol.dataType == Types.TINYINT) {
+                        v = (int) ((seq + cIdx) % 120) + 1;
+                    } else {
+                        v = (seq + cIdx) * 1000L + 1;
+                    }
+                }
+                chosenVals.add(v);
+                if (cIdx > 0) keySb.append("::");
+                keySb.append(v);
+            }
+            chosenKey = keySb.toString();
+        }
+
+        usedCompositeKeys.add(chosenKey);
+        for (int cIdx = 0; cIdx < pkCols.size(); cIdx++) {
+            rowValues.put(pkCols.get(cIdx).name.toLowerCase(), chosenVals.get(cIdx));
         }
     }
 
@@ -955,11 +1193,34 @@ public class BulkDataDumpService {
                 String fkCol = fkRs.getString("FKCOLUMN_NAME");
                 String pkTable = fkRs.getString("PKTABLE_NAME");
                 String pkCol = fkRs.getString("PKCOLUMN_NAME");
-                if (fkCol != null) {
+                if (fkCol != null && pkTable != null && pkCol != null) {
                     fkCols.put(fkCol.toLowerCase(), new String[]{pkTable, pkCol});
                 }
             }
         } catch (Exception ignored) {}
+
+        // Fallback for foreign keys via information_schema if JDBC driver didn't report them
+        if (fkCols.isEmpty()) {
+            String fkQuery = "SELECT kcu.column_name, ccu.table_name AS foreign_table, ccu.column_name AS foreign_column " +
+                    "FROM information_schema.table_constraints tc " +
+                    "JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema " +
+                    "JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name AND tc.table_schema = ccu.table_schema " +
+                    "WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = ? AND tc.table_name = ?";
+            try (PreparedStatement fkStmt = metaData.getConnection().prepareStatement(fkQuery)) {
+                fkStmt.setString(1, schema);
+                fkStmt.setString(2, table);
+                try (ResultSet fkRs = fkStmt.executeQuery()) {
+                    while (fkRs.next()) {
+                        String fkCol = fkRs.getString("column_name");
+                        String pkTable = fkRs.getString("foreign_table");
+                        String pkCol = fkRs.getString("foreign_column");
+                        if (fkCol != null && pkTable != null && pkCol != null) {
+                            fkCols.put(fkCol.toLowerCase(), new String[]{pkTable, pkCol});
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
 
         // 3. Unique keys
         Set<String> uqCols = new HashSet<>();
@@ -989,6 +1250,12 @@ public class BulkDataDumpService {
                 try {
                     cd.isAutoIncrement = "YES".equalsIgnoreCase(rs.getString("IS_AUTOINCREMENT"));
                 } catch (Exception ignored) {}
+                try {
+                    String colDef = rs.getString("COLUMN_DEF");
+                    if (colDef != null && colDef.toLowerCase().contains("nextval")) {
+                        cd.isAutoIncrement = true;
+                    }
+                } catch (Exception ignored) {}
 
                 // Parse size from typeName if not provided (e.g. "varchar(2)", "varry(2)", "varying(2)")
                 if (cd.typeName != null) {
@@ -1008,6 +1275,9 @@ public class BulkDataDumpService {
                         if (cd.dataType == Types.OTHER || cd.dataType == 0) {
                             cd.dataType = Types.VARCHAR;
                         }
+                    }
+                    if (lowerType.contains("bytea") || lowerType.contains("blob")) {
+                        cd.dataType = Types.VARBINARY;
                     }
                 }
 
@@ -1059,11 +1329,35 @@ public class BulkDataDumpService {
     }
 
     private Object generateValueForColumn(ColumnDetail col, long seq, String tableName, Map<String, List<Object>> generatedPrimaryKeys) {
+        return generateValueForColumn(col, seq, tableName, generatedPrimaryKeys, null);
+    }
+
+    private Object generateValueForColumn(ColumnDetail col, long seq, String tableName,
+                                         Map<String, List<Object>> generatedPrimaryKeys,
+                                         Map<String, Set<Object>> usedUniqueValues) {
+        String colName = col.name.toLowerCase();
+        int type = col.dataType;
+        String typeName = col.typeName != null ? col.typeName.toLowerCase() : "";
+
         // 1. Maintain Foreign Key Referential Integrity
         if (col.foreignTable != null && col.foreignColumn != null) {
             String fkLookupKey = col.foreignTable.toLowerCase() + "." + col.foreignColumn.toLowerCase();
             List<Object> parentKeys = generatedPrimaryKeys.get(fkLookupKey);
             if (parentKeys != null && !parentKeys.isEmpty()) {
+                if (col.isUnique && usedUniqueValues != null) {
+                    Set<Object> used = usedUniqueValues.get(colName);
+                    if (used != null) {
+                        List<Object> available = parentKeys.stream()
+                                .filter(k -> !used.contains(k))
+                                .collect(Collectors.toList());
+                        if (!available.isEmpty()) {
+                            Object chosen = available.get(random.nextInt(available.size()));
+                            used.add(chosen);
+                            return chosen;
+                        }
+                        if (col.isNullable) return null;
+                    }
+                }
                 return parentKeys.get(random.nextInt(parentKeys.size()));
             }
             if (col.isNullable && random.nextBoolean()) {
@@ -1073,19 +1367,37 @@ public class BulkDataDumpService {
             if (col.size > 0 && col.size <= 2) {
                 return "R" + (seq % 10);
             }
-            return (col.dataType == Types.BIGINT || col.dataType == Types.INTEGER || col.dataType == Types.SMALLINT)
+            return (type == Types.BIGINT || type == Types.INTEGER || type == Types.SMALLINT)
                     ? 1L : (col.size > 0 && col.size < 5 ? "R" + (seq % 9 + 1) : "REF-1");
         }
 
-        // 2. Primary Key / Unique constraints: guarantee uniqueness
+        // 2. Primary Key / Unique constraints: guarantee uniqueness while matching exact data type
         if (col.isPrimaryKey || col.isUnique) {
-            if (col.dataType == Types.BIGINT) return seq;
-            if (col.dataType == Types.INTEGER || col.dataType == Types.SMALLINT || col.dataType == Types.TINYINT) {
-                return (int) (seq % 1000000);
+            // Date / Time unique constraints (e.g. rental.rental_date)
+            if (type == Types.DATE) {
+                return java.sql.Date.valueOf(LocalDate.now().minusDays(seq % 7300));
             }
-            if (col.typeName != null && col.typeName.toLowerCase().contains("uuid")) {
+            if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE || type == Types.TIME
+                    || typeName.contains("timestamp") || typeName.contains("time")
+                    || colName.contains("date") || colName.contains("time")) {
+                return java.sql.Timestamp.valueOf(LocalDateTime.now().minusMinutes(seq * 5L + (seq % 60)));
+            }
+
+            // Numeric unique constraints
+            if (type == Types.BIGINT) return seq;
+            if (type == Types.SMALLINT) return (int) (Math.abs(seq) % 32000) + 1;
+            if (type == Types.TINYINT) return (int) (Math.abs(seq) % 120) + 1;
+            if (type == Types.INTEGER) return (int) (Math.abs(seq) % 1000000) + 1;
+            if (type == Types.NUMERIC || type == Types.DECIMAL || type == Types.FLOAT || type == Types.DOUBLE || type == Types.REAL) {
+                return (double) seq;
+            }
+
+            // UUID
+            if (typeName.contains("uuid")) {
                 return UUID.randomUUID();
             }
+
+            // String unique constraints
             int maxLen = col.size > 0 ? col.size : 50;
             if (maxLen <= 1) {
                 return String.valueOf((char) ('A' + ((seq - 1) % 26)));
@@ -1096,24 +1408,61 @@ public class BulkDataDumpService {
             if (maxLen <= 5) {
                 return generateShortAlphaNum(seq, maxLen);
             }
-            String base = (col.name.toLowerCase().contains("email"))
+            String base = (colName.contains("email"))
                     ? "user" + seq + "@bnp.com"
                     : col.name.toUpperCase() + "_" + seq;
             return base.length() > maxLen ? base.substring(0, maxLen) : base;
         }
 
-        String colName = col.name.toLowerCase();
-        int type = col.dataType;
-        String typeName = col.typeName != null ? col.typeName.toLowerCase() : "";
+        // 3. PostgreSQL & Specialized Data Types:
+        // A. PostgreSQL tsvector
+        if (typeName.contains("tsvector")) {
+            return faker.lorem().sentence();
+        }
 
-        // UUID Data Type Check
-        if (typeName.contains("uuid") || type == Types.OTHER) {
+        // B. Binary / Bytea
+        if (typeName.contains("bytea") || type == Types.BINARY || type == Types.VARBINARY 
+                || type == Types.LONGVARBINARY || type == Types.BLOB 
+                || colName.contains("picture") || colName.contains("avatar") 
+                || colName.contains("image") || colName.contains("photo") || colName.contains("blob")) {
+            byte[] bytes = new byte[32];
+            random.nextBytes(bytes);
+            return bytes;
+        }
+
+        // C. PostgreSQL Arrays (e.g. special_features text[], tags)
+        if (type == Types.ARRAY || typeName.startsWith("_") || typeName.endsWith("[]") 
+                || colName.contains("special_features") || colName.contains("features") || colName.contains("tags")) {
+            if (colName.contains("feature")) {
+                String[] opts = {"Trailers", "Commentaries", "Deleted Scenes", "Behind the Scenes"};
+                return new String[]{opts[random.nextInt(opts.length)]};
+            }
+            return new String[]{"item1", "item2"};
+        }
+
+        // D. PostgreSQL Enum - MPAA Rating
+        if (colName.contains("rating") || typeName.contains("rating") || typeName.contains("mpaa")) {
+            String[] ratings = {"G", "PG", "PG-13", "R", "NC-17"};
+            return ratings[random.nextInt(ratings.length)];
+        }
+
+        // E. Year (e.g. film.release_year)
+        if (colName.contains("year") || typeName.contains("year")) {
+            return (int) (1990 + (seq % 35));
+        }
+
+        // F. UUID (only when typeName actually contains uuid)
+        if (typeName.contains("uuid")) {
             return UUID.randomUUID();
         }
 
-        // 3. ID / Reference Columns & Foreign Key Inferences
+        // G. JSON / JSONB
+        if (typeName.contains("json")) {
+            return "{\"status\":\"ok\",\"seq\":" + seq + "}";
+        }
+
+        // 4. Inferred Foreign Key Columns (ends with _id or is id)
         if (colName.endsWith("_id") || colName.endsWith("id") || colName.equals("id")) {
-            // Check inferred foreign key if not explicitly marked by JDBC
             String assumedParent = colName.endsWith("_id") ? colName.substring(0, colName.length() - 3) : colName;
             for (Map.Entry<String, List<Object>> entry : generatedPrimaryKeys.entrySet()) {
                 String key = entry.getKey();
@@ -1131,7 +1480,7 @@ public class BulkDataDumpService {
             return (int) (seq % 50000) + 1;
         }
 
-        // Heuristic mapping based on column names with strict length clipping
+        // 5. Heuristic mapping based on column names with strict length clipping
         int maxLen = col.size > 0 ? col.size : 255;
 
         if (colName.contains("email") || colName.contains("mail")) {
@@ -1184,8 +1533,9 @@ public class BulkDataDumpService {
             return clipString(faker.finance().creditCard(), maxLen);
         }
 
-        // Numeric precision and scale constraint bounds checking
+        // 6. Numeric precision and scale constraint bounds checking
         if (colName.contains("amount") || colName.contains("salary") || colName.contains("price") || colName.contains("balance")
+                || colName.contains("cost") || colName.contains("rate")
                 || type == Types.NUMERIC || type == Types.DECIMAL || type == Types.FLOAT || type == Types.DOUBLE || type == Types.REAL) {
             int scale = Math.max(0, col.scale);
             int prec = col.precision > 0 ? col.precision : 10;
@@ -1196,24 +1546,29 @@ public class BulkDataDumpService {
             return Math.round(num * multiplier) / multiplier;
         }
 
-        // Integer data types
+        // 7. Date & Timestamp columns
+        if (type == Types.DATE || colName.endsWith("_date") || colName.equals("date")) {
+            return java.sql.Date.valueOf(LocalDate.now().minusDays(random.nextInt(730)));
+        }
+        if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE || type == Types.TIME
+                || typeName.contains("timestamp") || typeName.contains("time")
+                || colName.contains("time") || colName.contains("last_update") || colName.contains("created_at") || colName.contains("updated_at")) {
+            return java.sql.Timestamp.valueOf(LocalDateTime.now().minusHours(random.nextInt(8760)));
+        }
+
+        // 8. Other data types
         switch (type) {
             case Types.TINYINT:
-                return (int) (seq % 120);
+                return (int) (Math.abs(seq) % 120) + 1;
             case Types.SMALLINT:
-                return (int) (seq % 30000);
+                return (int) (Math.abs(seq) % 32000) + 1;
             case Types.INTEGER:
-                return (int) (seq % 1000000);
+                return (int) (Math.abs(seq) % 1000000) + 1;
             case Types.BIGINT:
                 return seq;
             case Types.BOOLEAN:
             case Types.BIT:
                 return random.nextBoolean();
-            case Types.DATE:
-                return java.sql.Date.valueOf(LocalDate.now().minusDays(random.nextInt(730)));
-            case Types.TIMESTAMP:
-            case Types.TIMESTAMP_WITH_TIMEZONE:
-                return java.sql.Timestamp.valueOf(LocalDateTime.now().minusHours(random.nextInt(8760)));
             case Types.CHAR:
                 if (maxLen <= 1) return String.valueOf((char) ('A' + ((seq - 1) % 26)));
                 if (maxLen <= 2) return generateTwoCharCode(seq);
@@ -1242,83 +1597,180 @@ public class BulkDataDumpService {
             return;
         }
 
+        // 1. Binary / Bytea
+        if (val instanceof byte[]) {
+            pstmt.setBytes(index, (byte[]) val);
+            return;
+        }
+        if (col.typeName != null && col.typeName.toLowerCase().contains("bytea")) {
+            if (val instanceof byte[]) {
+                pstmt.setBytes(index, (byte[]) val);
+            } else {
+                pstmt.setBytes(index, val.toString().getBytes(StandardCharsets.UTF_8));
+            }
+            return;
+        }
+
+        // 2. Arrays
+        if (val instanceof String[] || col.dataType == Types.ARRAY
+                || (col.typeName != null && (col.typeName.startsWith("_") || col.typeName.endsWith("[]")))) {
+            String baseType = "text";
+            if (col.typeName != null) {
+                String tn = col.typeName.toLowerCase();
+                if (tn.startsWith("_")) baseType = tn.substring(1);
+                else if (tn.endsWith("[]")) baseType = tn.substring(0, tn.length() - 2);
+            }
+            Object[] arr = (val instanceof Object[]) ? (Object[]) val : new Object[]{val.toString()};
+            try {
+                Array sqlArray = pstmt.getConnection().createArrayOf(baseType, arr);
+                pstmt.setArray(index, sqlArray);
+            } catch (Exception e) {
+                String joined = "{" + Arrays.stream(arr).map(Object::toString).collect(Collectors.joining(",")) + "}";
+                pstmt.setString(index, joined);
+            }
+            return;
+        }
+
+        // 3. Dates & Timestamps
+        if (val instanceof java.sql.Date) {
+            pstmt.setDate(index, (java.sql.Date) val);
+            return;
+        }
+        if (val instanceof java.sql.Timestamp) {
+            pstmt.setTimestamp(index, (java.sql.Timestamp) val);
+            return;
+        }
+        if (col.dataType == Types.DATE) {
+            pstmt.setDate(index, java.sql.Date.valueOf(LocalDate.now()));
+            return;
+        }
+        if (col.dataType == Types.TIMESTAMP || col.dataType == Types.TIMESTAMP_WITH_TIMEZONE) {
+            pstmt.setTimestamp(index, java.sql.Timestamp.valueOf(LocalDateTime.now()));
+            return;
+        }
+
+        // 4. UUID
         if (val instanceof UUID) {
             pstmt.setObject(index, val);
-        } else if (val instanceof java.sql.Date) {
-            pstmt.setDate(index, (java.sql.Date) val);
-        } else if (val instanceof java.sql.Timestamp) {
-            pstmt.setTimestamp(index, (java.sql.Timestamp) val);
-        } else if (val instanceof Long) {
-            if (col.dataType == Types.SMALLINT || col.dataType == Types.TINYINT) {
-                pstmt.setShort(index, ((Long) val).shortValue());
-            } else if (col.dataType == Types.INTEGER) {
-                pstmt.setInt(index, ((Long) val).intValue());
-            } else {
-                pstmt.setLong(index, (Long) val);
-            }
-        } else if (val instanceof Integer) {
-            if (col.dataType == Types.SMALLINT || col.dataType == Types.TINYINT) {
-                pstmt.setShort(index, ((Integer) val).shortValue());
-            } else if (col.dataType == Types.BIGINT) {
-                pstmt.setLong(index, ((Integer) val).longValue());
-            } else {
-                pstmt.setInt(index, (Integer) val);
-            }
-        } else if (val instanceof Short) {
-            if (col.dataType == Types.INTEGER) {
-                pstmt.setInt(index, ((Short) val).intValue());
-            } else if (col.dataType == Types.BIGINT) {
-                pstmt.setLong(index, ((Short) val).longValue());
-            } else {
-                pstmt.setShort(index, (Short) val);
-            }
-        } else if (val instanceof Double) {
-            if (col.dataType == Types.INTEGER || col.dataType == Types.SMALLINT || col.dataType == Types.TINYINT) {
-                pstmt.setInt(index, ((Double) val).intValue());
-            } else if (col.dataType == Types.BIGINT) {
-                pstmt.setLong(index, ((Double) val).longValue());
-            } else {
-                pstmt.setDouble(index, (Double) val);
-            }
-        } else if (val instanceof Boolean) {
-            pstmt.setBoolean(index, (Boolean) val);
-        } else {
-            // Strict datatype conversion if string or other object passed for numeric column
-            String strVal = val.toString();
-            if (col.dataType == Types.SMALLINT || col.dataType == Types.TINYINT) {
-                try {
-                    pstmt.setShort(index, Short.parseShort(strVal));
-                } catch (Exception ex) {
-                    pstmt.setShort(index, (short) 1);
-                }
-                return;
-            } else if (col.dataType == Types.INTEGER) {
-                try {
-                    pstmt.setInt(index, Integer.parseInt(strVal));
-                } catch (Exception ex) {
-                    pstmt.setInt(index, 1);
-                }
-                return;
-            } else if (col.dataType == Types.BIGINT) {
-                try {
-                    pstmt.setLong(index, Long.parseLong(strVal));
-                } catch (Exception ex) {
-                    pstmt.setLong(index, 1L);
-                }
-                return;
-            } else if (col.dataType == Types.NUMERIC || col.dataType == Types.DECIMAL || col.dataType == Types.FLOAT || col.dataType == Types.DOUBLE || col.dataType == Types.REAL) {
-                try {
-                    pstmt.setDouble(index, Double.parseDouble(strVal));
-                } catch (Exception ex) {
-                    pstmt.setDouble(index, 0.0);
-                }
-                return;
-            }
-            if (col.size > 0 && strVal.length() > col.size) {
-                strVal = strVal.substring(0, col.size);
-            }
-            pstmt.setString(index, strVal);
+            return;
         }
+
+        // 5. Numbers (Types.SMALLINT, TINYINT, INTEGER, BIGINT, NUMERIC/DOUBLE)
+        if (col.dataType == Types.SMALLINT) {
+            long lVal = 1L;
+            if (val instanceof Number) {
+                lVal = ((Number) val).longValue();
+            } else {
+                try { lVal = Long.parseLong(val.toString()); } catch (Exception ignored) {}
+            }
+            short sVal = (short) (lVal > 0 && lVal <= 32767 ? lVal : (Math.abs(lVal) % 32000 + 1));
+            pstmt.setShort(index, sVal);
+            return;
+        }
+        if (col.dataType == Types.TINYINT) {
+            long lVal = 1L;
+            if (val instanceof Number) {
+                lVal = ((Number) val).longValue();
+            } else {
+                try { lVal = Long.parseLong(val.toString()); } catch (Exception ignored) {}
+            }
+            short sVal = (short) (lVal > 0 && lVal <= 127 ? lVal : (Math.abs(lVal) % 120 + 1));
+            pstmt.setShort(index, sVal);
+            return;
+        }
+        if (col.dataType == Types.INTEGER) {
+            long lVal = 1L;
+            if (val instanceof Number) {
+                lVal = ((Number) val).longValue();
+            } else {
+                try { lVal = Long.parseLong(val.toString()); } catch (Exception ignored) {}
+            }
+            int iVal = (int) (lVal > 0 && lVal <= Integer.MAX_VALUE ? lVal : (Math.abs(lVal) % 1000000 + 1));
+            pstmt.setInt(index, iVal);
+            return;
+        }
+        if (col.dataType == Types.BIGINT) {
+            long lVal = 1L;
+            if (val instanceof Number) {
+                lVal = ((Number) val).longValue();
+            } else {
+                try { lVal = Long.parseLong(val.toString()); } catch (Exception ignored) {}
+            }
+            pstmt.setLong(index, lVal);
+            return;
+        }
+        if (val instanceof Double || col.dataType == Types.NUMERIC || col.dataType == Types.DECIMAL 
+                || col.dataType == Types.FLOAT || col.dataType == Types.DOUBLE || col.dataType == Types.REAL) {
+            double dVal = 0.0;
+            if (val instanceof Number) {
+                dVal = ((Number) val).doubleValue();
+            } else {
+                try { dVal = Double.parseDouble(val.toString()); } catch (Exception ignored) {}
+            }
+            pstmt.setDouble(index, dVal);
+            return;
+        }
+        if (val instanceof Boolean) {
+            pstmt.setBoolean(index, (Boolean) val);
+            return;
+        }
+
+        // 6. Postgres custom types & Enums (Types.OTHER)
+        if (col.typeName != null && col.typeName.toLowerCase().contains("tsvector")) {
+            pstmt.setString(index, val != null ? val.toString() : "");
+            return;
+        }
+
+        if (col.dataType == Types.OTHER && col.typeName != null) {
+            String tn = col.typeName.toLowerCase();
+            if (!tn.contains("varchar") && !tn.contains("text") && !tn.contains("tsvector")) {
+                try {
+                    org.postgresql.util.PGobject pgObj = new org.postgresql.util.PGobject();
+                    pgObj.setType(col.typeName);
+                    pgObj.setValue(val.toString());
+                    pstmt.setObject(index, pgObj);
+                    return;
+                } catch (Exception ignored) {
+                    // fall through to string binding
+                }
+            }
+        }
+
+        // 7. Strict datatype conversion if string or other object passed for numeric column
+        String strVal = val.toString();
+        if (col.dataType == Types.SMALLINT || col.dataType == Types.TINYINT) {
+            try {
+                pstmt.setShort(index, Short.parseShort(strVal));
+            } catch (Exception ex) {
+                pstmt.setShort(index, (short) 1);
+            }
+            return;
+        } else if (col.dataType == Types.INTEGER) {
+            try {
+                pstmt.setInt(index, Integer.parseInt(strVal));
+            } catch (Exception ex) {
+                pstmt.setInt(index, 1);
+            }
+            return;
+        } else if (col.dataType == Types.BIGINT) {
+            try {
+                pstmt.setLong(index, Long.parseLong(strVal));
+            } catch (Exception ex) {
+                pstmt.setLong(index, 1L);
+            }
+            return;
+        } else if (col.dataType == Types.NUMERIC || col.dataType == Types.DECIMAL || col.dataType == Types.FLOAT || col.dataType == Types.DOUBLE || col.dataType == Types.REAL) {
+            try {
+                pstmt.setDouble(index, Double.parseDouble(strVal));
+            } catch (Exception ex) {
+                pstmt.setDouble(index, 0.0);
+            }
+            return;
+        }
+        if (col.size > 0 && strVal.length() > col.size) {
+            strVal = strVal.substring(0, col.size);
+        }
+        pstmt.setString(index, strVal);
     }
 
     private Object generateMongoValueForField(String field, long seq) {
