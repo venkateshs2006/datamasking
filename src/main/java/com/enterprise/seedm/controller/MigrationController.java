@@ -325,6 +325,7 @@ public class MigrationController {
                     .addString("name",jobName)
                     .addLong("startTime", System.currentTimeMillis())
                     .toJobParameters();
+            jobExecution = null;
             taskExecutor.execute(()->{
                 try {
                     jobExecution = jobLauncher.run(migrationJob, jobParameters);
@@ -434,6 +435,7 @@ public class MigrationController {
                     .addString("jobType", "MONGO")
                     .toJobParameters();
 
+            jobExecution = null;
             taskExecutor.execute(() -> {
                 try {
                     jobExecution = jobLauncher.run(mongoJob, jobParameters);
@@ -448,6 +450,12 @@ public class MigrationController {
                      jobExecution = jobExplorer.findRunningJobExecutions("DBMigrationJob").stream()
                              .max(Comparator.comparing(JobExecution::getId))
                              .orElse(null);
+                }
+                if (jobExecution == null) {
+                    JobInstance lastInstance = jobExplorer.getLastJobInstance("DBMigrationJob");
+                    if (lastInstance != null) {
+                        jobExecution = jobExplorer.getLastJobExecution(lastInstance);
+                    }
                 }
             }
 
@@ -787,6 +795,9 @@ public class MigrationController {
         response.put("startTime", execution.getStartTime());
         response.put("endTime", execution.getEndTime());
         response.put("exitStatus", execution.getExitStatus().getExitCode());
+        if (execution.getJobParameters() != null && execution.getJobParameters().getString("jobType") != null) {
+            response.put("jobType", execution.getJobParameters().getString("jobType"));
+        }
 
         // Add failure exceptions if any
         if (execution.getStatus() == BatchStatus.FAILED) {

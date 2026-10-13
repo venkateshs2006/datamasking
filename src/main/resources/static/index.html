@@ -488,8 +488,8 @@
         const activeId = data.executionId || currentExecutionId;
         document.getElementById('executionIdDisplay').textContent = `ID: ${activeId}`;
 
-        const isMongo = activeId && activeId.startsWith('mongo-');
-        const isJson = activeId && activeId.startsWith('json-');
+        const isMongo = (activeId && String(activeId).startsWith('mongo-')) || data.jobType === 'MONGO' || data.totalCollections != null;
+        const isJson = (activeId && String(activeId).startsWith('json-')) || data.jobType === 'JSON' || data.totalFiles != null;
         const isSecureExport = activeId && activeId.startsWith('secure-export-');
         const isSecureImport = activeId && activeId.startsWith('secure-import-');
 

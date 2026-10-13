@@ -888,15 +888,15 @@
             }
 
             let url = '';
-            if (normalizedJobType === 'postgres' || normalizedJobType === 'secure-export' || normalizedJobType === 'secureexport') {
+            if (normalizedJobType === 'postgres' || normalizedJobType === 'rdbms' || normalizedJobType === 'sql' || normalizedJobType === 'relational' || normalizedJobType === 'secure-export' || normalizedJobType === 'secureexport') {
                 url = `/api/migration/start/${activeJobId}`;
-            } else if (normalizedJobType === 'mongo-secure-export') {
+            } else if (normalizedJobType === 'mongo-secure-export' || normalizedJobType === 'mongo-export') {
                 url = `/api/migration/mongo-secure-export/start/${activeJobId}`;
-            } else if (normalizedJobType === 'json-secure-export') {
+            } else if (normalizedJobType === 'json-secure-export' || normalizedJobType === 'json-export') {
                 url = `/api/migration/json-secure-export/start/${activeJobId}`;
             } else if (normalizedJobType === 'json') {
                 url = `/api/migration/json/start/${activeJobId}`;
-            } else if (normalizedJobType === 'mongo') {
+            } else if (normalizedJobType === 'mongo' || normalizedJobType === 'mongodb' || normalizedJobType === 'mongo-db') {
                 url = `/api/migration/mongo/start/${activeJobId}`;
             }
 
@@ -905,33 +905,55 @@
                 return;
             }
 
+            const btnRun = document.getElementById('btnRun');
+            const origContent = btnRun ? btnRun.innerHTML : '';
+            if (btnRun) {
+                btnRun.disabled = true;
+                btnRun.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Starting...';
+            }
+
             try {
                 const res = await fetch(url, { method: 'POST' });
                 if (res.ok) {
-                    if (normalizedJobType === 'postgres' || normalizedJobType === 'secure-export' || normalizedJobType === 'secureexport') {
-                        // Follow redirect
+                    if (res.redirected || (res.url && res.url.includes('/index.html'))) {
                         window.location.href = res.url;
-                    } else if (normalizedJobType === 'mongo-secure-export' || normalizedJobType === 'json-secure-export') {
+                        return;
+                    }
+
+                    const contentType = res.headers.get('content-type') || '';
+                    if (contentType.includes('application/json')) {
                         const data = await res.json();
-                        if (data.status === 'SUCCESS' && data.executionId) {
-                            window.location.href = `/index.html?executionId=${data.executionId}`;
+                        if (data.status === 'SUCCESS' || (!data.status && !data.error)) {
+                            if (data.executionId && data.executionId !== 'error') {
+                                window.location.href = `/index.html?executionId=${data.executionId}`;
+                            } else {
+                                window.location.href = '/index.html';
+                            }
                         } else {
-                            alert(data.message || 'Job started');
-                            closeModal();
-                            fetchJobs();
+                            alert(data.message || 'Job started, redirecting to monitoring...');
+                            window.location.href = '/index.html';
                         }
                     } else {
-                        const data = await res.json();
-                        alert(data.message || 'Migration job started successfully!');
-                        closeModal();
-                        fetchJobs();
+                        window.location.href = res.url || '/index.html';
                     }
                 } else {
-                    const error = await res.json();
-                    alert(`Failed to start job: ${error.message}`);
+                    let errMsg = res.statusText;
+                    try {
+                        const error = await res.json();
+                        errMsg = error.message || error.error || errMsg;
+                    } catch (_) {}
+                    alert(`Failed to start job: ${errMsg}`);
+                    if (btnRun) {
+                        btnRun.disabled = false;
+                        btnRun.innerHTML = origContent;
+                    }
                 }
             } catch (e) {
                 alert(`An error occurred: ${e.message}`);
+                if (btnRun) {
+                    btnRun.disabled = false;
+                    btnRun.innerHTML = origContent;
+                }
             }
         }
 
@@ -991,7 +1013,11 @@
                     closeSecretKeyModal();
                     closeModal();
                     // Redirect to dashboard with executionId
-                    window.location.href = `/index.html?executionId=${data.executionId}`;
+                    if (data.executionId && data.executionId !== 'error') {
+                        window.location.href = `/index.html?executionId=${data.executionId}`;
+                    } else {
+                        window.location.href = '/index.html';
+                    }
                 } else {
                     // Invalid key or execution error
                     errMsg.innerText = data.message || 'Invalid secret key. Decryption failed.';
