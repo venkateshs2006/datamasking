@@ -161,9 +161,11 @@
                                 </div>
 
                                 <div id="src-local-option">
-                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Directory Path</label>
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Source Storage</label>
                                     <div class="flex gap-2">
-                                        <input type="text" id="src-local-path" name="src-local-path" class="input-field font-mono" placeholder="e.g., /home/sv/data" value="/home/sv/data" oninput="validateStep1()">
+                                        <select id="src-local-connection" name="src-local-connection" class="input-field cursor-pointer bg-white" onchange="validateStep1()">
+                                            <option value="">Loading local storage connections...</option>
+                                        </select>
                                         <button type="button" id="btnScanLocal" onclick="scanSourceFiles()" class="btn btn-secondary text-xs px-4 whitespace-nowrap"><i class="fas fa-search mr-1.5"></i>Scan</button>
                                     </div>
                                 </div>
@@ -216,8 +218,10 @@
                                 </div>
 
                                 <div id="local-storage-option" class="mt-4" style="display: none;">
-                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Path</label>
-                                    <input type="text" id="local-path" name="local-path" class="input-field font-mono" placeholder="e.g., secure-export" value="secure-export" oninput="validateStep1()">
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Storage Location</label>
+                                    <select id="local-connection" name="local-connection" class="input-field cursor-pointer bg-white" onchange="validateStep1()">
+                                        <option value="">Loading local storage connections...</option>
+                                    </select>
                                 </div>
                             </form>
                         </div>
@@ -613,28 +617,6 @@
                                     </span>
                                 </div>
                                 <input type="hidden" id="department" name="department" value="">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">File Encryption Password</label>
-                                <div class="flex items-center justify-between p-3.5 bg-indigo-50/60 border border-indigo-200 rounded-xl shadow-inner">
-                                    <div class="flex items-center space-x-3">
-                                        <div class="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm border border-indigo-200 shadow-sm">
-                                            <i class="fas fa-lock"></i>
-                                        </div>
-                                        <div>
-                                            <div class="flex items-center gap-2">
-                                                <input type="password" id="previewFileKeyDisplay" readonly class="font-mono font-bold text-indigo-950 text-sm tracking-wider bg-transparent border-none p-0 focus:outline-none select-all w-48" value="--">
-                                                <button type="button" onclick="toggleFileKeyVisibility('previewFileKeyDisplay', 'previewFileKeyEye')" class="text-indigo-400 hover:text-indigo-700 text-xs transition" title="Show/Hide">
-                                                    <i id="previewFileKeyEye" class="fas fa-eye"></i>
-                                                </button>
-                                            </div>
-                                            <p class="text-[11px] text-gray-500 font-medium">AES-256 password to decrypt this JSON export archive</p>
-                                        </div>
-                                    </div>
-                                    <button type="button" onclick="copyFileEncryptionKey('previewFileKeyDisplay', 'previewCopyBtnText')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm transition flex items-center gap-1 shrink-0">
-                                        <i class="fas fa-copy"></i> <span id="previewCopyBtnText">Copy</span>
-                                    </button>
-                                </div>
                             </div>
                         </div>
 
@@ -1037,6 +1019,8 @@
         }
     }
 
+    let isAiScanInProgress = false;
+
     function toggleAiPiiDetection() {
         const toggle = document.getElementById('aiPiiToggle');
         const badge = document.getElementById('aiPiiStatusBadge');
@@ -1044,9 +1028,10 @@
             if (toggle.checked) {
                 badge.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200';
                 badge.innerHTML = '<i class="fas fa-check-circle mr-1"></i> AI Active';
-                if (currentStep === 3) {
-                    runManualAiScan();
-                }
+                const bannerText = document.getElementById('aiPiiBannerText');
+                const bannerSubtext = document.getElementById('aiPiiBannerSubtext');
+                if (bannerText) bannerText.textContent = 'AI Auto-Detection Ready';
+                if (bannerSubtext) bannerSubtext.textContent = 'Sensitive PII JSON fields will be classified and Faker masking rules applied.';
             } else {
                 badge.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200';
                 badge.innerHTML = '<i class="fas fa-minus-circle mr-1"></i> AI Inactive';
@@ -1089,67 +1074,118 @@
         const qwenKey = document.getElementById('qwenApiKey')?.value.trim() || '';
         const qwenModel = document.getElementById('qwenModel')?.value || 'qwen-turbo';
 
-        try {
-            const payload = {
-                tables: state.selectedTables,
-                tableColumns: state.columnsCache,
-                qwenApiUrl: qwenUrl,
-                qwenApiKey: qwenKey,
-                qwenModel: qwenModel
-            };
-            const res = await fetch('/api/ai/detect-pii', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+        const payload = {
+            tables: state.selectedTables,
+            tableColumns: state.columnsCache,
+            qwenApiUrl: qwenUrl,
+            qwenApiKey: qwenKey,
+            qwenModel: qwenModel
+        };
 
-            if (res.ok) {
-                const aiData = await res.json();
-                state.aiSuggestions = aiData.detectedEntities || {};
+        let aiData = null;
+        let attempts = 0;
+        const maxRetries = 1; // Strict max retry: 1 time only
 
-                if (aiData.maskingColumns) {
-                    aiData.maskingColumns.forEach(col => {
-                        if (!state.rules.maskingColumns.includes(col)) {
-                            state.rules.maskingColumns.push(col);
-                        }
-                    });
-                }
-                if (aiData.partialMaskingColumns) {
-                    aiData.partialMaskingColumns.forEach(col => {
-                        if (!state.rules.partialMaskingColumns.includes(col)) {
-                            state.rules.partialMaskingColumns.push(col);
-                        }
-                    });
-                }
-                if (aiData.constraintColumns) {
-                    aiData.constraintColumns.forEach(col => {
-                        if (!state.rules.constraintColumns.includes(col)) {
-                            state.rules.constraintColumns.push(col);
-                        }
-                    });
-                }
+        while (attempts <= maxRetries && !aiData) {
+            attempts++;
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-                const bannerText = document.getElementById('aiPiiBannerText');
-                const bannerSubtext = document.getElementById('aiPiiBannerSubtext');
-                const engine = aiData.engineUsed || 'Smart AI';
-                if (bannerText) {
-                    bannerText.textContent = `${engine} Scan Completed (${aiData.totalPiiColumnsFound || 0} PII Fields Found)`;
+                const res = await fetch('/api/ai/detect-pii', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (res.ok) {
+                    aiData = await res.json();
+                    break;
+                } else {
+                    console.warn(`JSON AI scan attempt ${attempts} returned status: ${res.status}`);
                 }
-                if (bannerSubtext) {
-                    bannerSubtext.textContent = `Automatically detected ${aiData.totalPiiColumnsFound || 0} sensitive fields across ${state.selectedTables.length} JSON files and applied standard Faker masking rules.`;
-                }
+            } catch (err) {
+                console.warn(`JSON AI scan attempt ${attempts} failed:`, err);
             }
-        } catch (e) {
-            console.error("AI PII Detection error:", e);
+        }
+
+        // If AI detection failed after max 1 retry, directly fallback to heuristic detection!
+        if (!aiData) {
+            try {
+                console.info("Directly falling back to Heuristic PII detection...");
+                const hRes = await fetch('/api/ai/detect-heuristic', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (hRes.ok) {
+                    aiData = await hRes.json();
+                }
+            } catch (hErr) {
+                console.error("Heuristic fallback error:", hErr);
+            }
+        }
+
+        if (aiData) {
+            applyAiDetectionResults(aiData);
+        }
+    }
+
+    function applyAiDetectionResults(aiData) {
+        state.aiSuggestions = aiData.detectedEntities || {};
+
+        if (aiData.maskingColumns) {
+            aiData.maskingColumns.forEach(col => {
+                if (!state.rules.maskingColumns.includes(col)) {
+                    state.rules.maskingColumns.push(col);
+                }
+            });
+        }
+        if (aiData.partialMaskingColumns) {
+            aiData.partialMaskingColumns.forEach(col => {
+                if (!state.rules.partialMaskingColumns.includes(col)) {
+                    state.rules.partialMaskingColumns.push(col);
+                }
+            });
+        }
+        if (aiData.constraintColumns) {
+            aiData.constraintColumns.forEach(col => {
+                if (!state.rules.constraintColumns.includes(col)) {
+                    state.rules.constraintColumns.push(col);
+                }
+            });
+        }
+
+        const bannerText = document.getElementById('aiPiiBannerText');
+        const bannerSubtext = document.getElementById('aiPiiBannerSubtext');
+        const engine = aiData.engineUsed || 'Smart AI';
+        if (bannerText) {
+            bannerText.textContent = `${engine} Scan Completed (${aiData.totalPiiColumnsFound || 0} PII Fields Found)`;
+        }
+        if (bannerSubtext) {
+            bannerSubtext.textContent = `Automatically detected ${aiData.totalPiiColumnsFound || 0} sensitive fields across ${state.selectedTables.length} JSON files and applied standard Faker masking rules.`;
         }
     }
 
     async function runManualAiScan() {
+        if (isAiScanInProgress) return;
+        isAiScanInProgress = true;
+
         const isAiEnabled = document.getElementById('aiPiiToggle');
         if (isAiEnabled) isAiEnabled.checked = true;
         toggleAiPiiDetection();
 
-        await triggerAiPiiDetection();
+        const bannerText = document.getElementById('aiPiiBannerText');
+        if (bannerText) bannerText.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Scanning Schema...';
+
+        try {
+            await triggerAiPiiDetection();
+        } finally {
+            isAiScanInProgress = false;
+        }
+
         if (activeRuleTable && state.columnsCache[activeRuleTable]) {
             renderColumnList(activeRuleTable, state.columnsCache[activeRuleTable]);
             renderTags(activeRuleTable);
@@ -1190,6 +1226,13 @@
                 }
             }
         } else {
+            const localSelect = document.getElementById('local-connection');
+            if (localSelect && localSelect.selectedIndex >= 0) {
+                const opt = localSelect.options[localSelect.selectedIndex];
+                if (opt && opt.dataset && opt.dataset.department) {
+                    return opt.dataset.department;
+                }
+            }
             // Local storage: fallback to source COS connection if source is COS
             const srcStorageType = document.querySelector('input[name="src-storage-type"]:checked')?.value;
             if (srcStorageType === 'cos') {
@@ -1236,27 +1279,67 @@
     }
 
     async function fetchConnections() {
-        // Fetch destination COS connections
         try {
-            const resCos = await fetch('/api/cos-connections?envType=destination');
-            if (resCos.ok) {
-                cosConnections = await resCos.json();
-                const srcCosSelect = document.getElementById('src-cos-connection');
-                const cosSelect = document.getElementById('cos-connection');
-                srcCosSelect.innerHTML = '<option value="">Select a Source COS connection...</option>';
-                cosSelect.innerHTML = '<option value="">Select a Destination COS connection...</option>';
-                cosConnections.forEach(c => {
-                    const label = (c.cosName || c.name || 'COS') + ' (' + (c.department || c.departmentId || '') + ')';
-                    const optSrc = new Option(label, c.id);
-                    optSrc.dataset.department = c.department || c.departmentId || '';
-                    srcCosSelect.add(optSrc);
+            const res = await fetch('/api/cos-connections');
+            if (res.ok) {
+                const allConnections = await res.json();
+                cosConnections = allConnections;
+                const cosConns = allConnections.filter(c => (c.storageType || '').toLowerCase() !== 'local');
+                const localConns = allConnections.filter(c => (c.storageType || '').toLowerCase() === 'local');
 
-                    const optDest = new Option(label, c.id);
-                    optDest.dataset.department = c.department || c.departmentId || '';
-                    cosSelect.add(optDest);
-                });
+                // Source COS
+                const srcCosSelect = document.getElementById('src-cos-connection');
+                if (srcCosSelect) {
+                    srcCosSelect.innerHTML = '<option value="">Select a Source COS connection...</option>';
+                    cosConns.forEach(c => {
+                        const label = (c.cosName || c.name || 'COS') + ' (' + (c.department || c.departmentId || '') + ')';
+                        const opt = new Option(label, c.id);
+                        opt.dataset.department = c.department || c.departmentId || '';
+                        srcCosSelect.add(opt);
+                    });
+                }
+
+                // Source Local
+                const srcLocalSelect = document.getElementById('src-local-connection');
+                if (srcLocalSelect) {
+                    srcLocalSelect.innerHTML = '<option value="">Select a Source Local Storage...</option>';
+                    localConns.forEach(c => {
+                        const label = (c.cosName || c.name || 'Local') + ' - ' + (c.storageLocation || '');
+                        const opt = new Option(label, c.id);
+                        opt.dataset.path = c.storageLocation || '';
+                        opt.dataset.department = c.department || c.departmentId || '';
+                        srcLocalSelect.add(opt);
+                    });
+                }
+
+                // Destination COS
+                const cosSelect = document.getElementById('cos-connection');
+                if (cosSelect) {
+                    cosSelect.innerHTML = '<option value="">Select a Destination COS connection...</option>';
+                    cosConns.forEach(c => {
+                        const label = (c.cosName || c.name || 'COS') + ' (' + (c.department || c.departmentId || '') + ')';
+                        const opt = new Option(label, c.id);
+                        opt.dataset.department = c.department || c.departmentId || '';
+                        cosSelect.add(opt);
+                    });
+                }
+
+                // Destination Local
+                const localSelect = document.getElementById('local-connection');
+                if (localSelect) {
+                    localSelect.innerHTML = '<option value="">Select a Destination Local Storage...</option>';
+                    localConns.forEach(c => {
+                        const label = (c.cosName || c.name || 'Local') + ' - ' + (c.storageLocation || '');
+                        const opt = new Option(label, c.id);
+                        opt.dataset.path = c.storageLocation || '';
+                        opt.dataset.department = c.department || c.departmentId || '';
+                        localSelect.add(opt);
+                    });
+                }
             }
-        } catch (e) { console.error("Error loading COS connections", e); }
+        } catch (e) {
+            console.error("Error loading connections", e);
+        }
 
         validateStep1();
     }
@@ -1293,10 +1376,18 @@
         const srcType = document.querySelector('input[name="src-storage-type"]:checked').value;
         const payload = { type: srcType };
         if (srcType === 'local') {
-            payload.path = document.getElementById('src-local-path').value.trim();
+            const select = document.getElementById('src-local-connection');
+            if (select && select.value) {
+                payload.id = Number(select.value);
+                payload.cosId = Number(select.value);
+                payload.path = select.options[select.selectedIndex]?.dataset?.path || '';
+            }
         } else {
             const cosId = document.getElementById('src-cos-connection').value;
-            if (cosId) payload.cosId = Number(cosId);
+            if (cosId) {
+                payload.cosId = Number(cosId);
+                payload.id = Number(cosId);
+            }
         }
         return payload;
     }
@@ -1309,6 +1400,11 @@
         const payload = getSourcePayload();
         if (payload.type === 'cos' && !payload.cosId) {
             badge.innerText = 'Select a COS connection first';
+            badge.className = 'font-mono text-[11px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded';
+            return;
+        }
+        if (payload.type === 'local' && !payload.id && !payload.path) {
+            badge.innerText = 'Select a local storage connection first';
             badge.className = 'font-mono text-[11px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded';
             return;
         }
@@ -1349,17 +1445,17 @@
         const srcType = document.querySelector('input[name="src-storage-type"]:checked').value;
         let srcValid = false;
         if (srcType === 'local') {
-            srcValid = !!document.getElementById('src-local-path').value.trim();
+            srcValid = !!document.getElementById('src-local-connection')?.value;
         } else {
-            srcValid = !!document.getElementById('src-cos-connection').value;
+            srcValid = !!document.getElementById('src-cos-connection')?.value;
         }
 
         const storageType = document.querySelector('input[name="storage-type"]:checked').value;
         let storageValid = false;
         if (storageType === 'cos') {
-            storageValid = !!document.getElementById('cos-connection').value;
+            storageValid = !!document.getElementById('cos-connection')?.value;
         } else {
-            storageValid = !!document.getElementById('local-path').value.trim();
+            storageValid = !!document.getElementById('local-connection')?.value;
         }
 
         updateDepartmentDisplay();
@@ -1453,7 +1549,10 @@
                     state.storage.id = cosSelect.value;
                     state.storage.name = cosSelect.options[cosSelect.selectedIndex]?.text;
                 } else {
-                    state.storage.path = document.getElementById('local-path').value.trim() || 'secure-export';
+                    const localSelect = document.getElementById('local-connection');
+                    state.storage.id = localSelect ? localSelect.value : '';
+                    state.storage.name = localSelect && localSelect.options[localSelect.selectedIndex] ? localSelect.options[localSelect.selectedIndex].text : '';
+                    state.storage.path = localSelect && localSelect.options[localSelect.selectedIndex] ? (localSelect.options[localSelect.selectedIndex].dataset?.path || '') : '';
                 }
 
                 if (state.tables.length === 0) {
@@ -2284,7 +2383,7 @@
             });
 
             if (res.ok) {
-                alert(`JSON Secure Export job submitted for approval successfully!\n\nFile Encryption Password: ${fileEncKey}\n(Please keep this password safe for decrypting during import)`);
+                alert("JSON Secure Export job submitted for approval successfully!");
                 window.location.href = '/jobs.html';
             } else {
                 throw new Error('Failed to submit job.');

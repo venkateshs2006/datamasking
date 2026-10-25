@@ -52,7 +52,7 @@ public class MongoMigrationService {
         job.setJobStatus("RUNNING");
         job.setCreatedAt(LocalDateTime.now());
         job.setUpdatedAt(LocalDateTime.now());
-        migrationJobRepository.save(job);
+        migrationJobRepository.saveAndFlush(job);
 
         log.info("Starting MongoDB migration for job: {}", jobRequest.getMigrationName());
         ObjectMapper mapper = new ObjectMapper();
@@ -177,7 +177,7 @@ public class MongoMigrationService {
                 MigrationJob j = existingJob.get();
                 j.setJobStatus("COMPLETED");
                 j.setUpdatedAt(LocalDateTime.now());
-                migrationJobRepository.save(j);
+                migrationJobRepository.saveAndFlush(j);
             }
             
             log.info("MongoDB migration completed successfully.");
@@ -193,7 +193,7 @@ public class MongoMigrationService {
                 MigrationJob j = existingJob.get();
                 j.setJobStatus("FAILED");
                 j.setUpdatedAt(LocalDateTime.now());
-                migrationJobRepository.save(j);
+                migrationJobRepository.saveAndFlush(j);
             }
         }
     }
@@ -282,7 +282,7 @@ public class MongoMigrationService {
         job.setCreatedAt(LocalDateTime.now());
         job.setUpdatedAt(LocalDateTime.now());
 
-        migrationJobRepository.save(job);
+        migrationJobRepository.saveAndFlush(job);
         return jobId;
     }
 
@@ -308,7 +308,7 @@ public class MongoMigrationService {
             details.setCompletedAt(LocalDateTime.now());
         }
 
-        mongoDetailsRepository.save(details);
+        mongoDetailsRepository.saveAndFlush(details);
     }
 
     public void updateJobStatus(String jobId, String status) {
@@ -316,6 +316,6 @@ public class MongoMigrationService {
                 .orElseThrow(() -> new RuntimeException("Job not found"));
         job.setJobStatus(status);
         job.setUpdatedAt(LocalDateTime.now());
-        migrationJobRepository.save(job);
+        migrationJobRepository.saveAndFlush(job);
     }
 }

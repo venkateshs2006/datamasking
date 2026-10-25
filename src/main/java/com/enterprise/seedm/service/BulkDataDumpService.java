@@ -246,7 +246,44 @@ public class BulkDataDumpService {
 
         if (connectionId != null) {
             CosConnection cos = cosConnectionService.getConnection(connectionId);
-            if (cos != null && "Local".equalsIgnoreCase(cos.getStorageType())) {
+            if (cos != null && "COS".equalsIgnoreCase(cos.getStorageType())) {
+                try {
+                    List<Map<String, Object>> objects = ibmCosService.listObjects(cos, dirPath);
+                    List<String> jsonFiles = objects.stream()
+                            .map(o -> (String) o.get("name"))
+                            .filter(n -> n != null && n.toLowerCase().endsWith(".json"))
+                            .toList();
+
+                    for (String key : jsonFiles) {
+                        String name = key.contains("/") ? key.substring(key.lastIndexOf('/') + 1) : key;
+                        Set<String> keys = ibmCosService.extractJsonKeys(cos, key);
+                        List<String> keyList = new ArrayList<>(keys);
+                        result.add(BulkDumpTableConfig.builder()
+                                .tableName(name)
+                                .currentCount(1)
+                                .targetCount(100)
+                                .columnCount(keyList.size())
+                                .columns(keyList)
+                                .primaryKeys(keyList.contains("id") ? List.of("id") : List.of())
+                                .foreignKeys(new ArrayList<>())
+                                .uniqueKeys(new ArrayList<>())
+                                .build());
+                    }
+                    if (!result.isEmpty()) {
+                        return result;
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not list COS objects for connection {}: {}", connectionId, e.getMessage());
+                }
+                return List.of(
+                        BulkDumpTableConfig.builder().tableName("customers.json").currentCount(0).targetCount(100).columnCount(6)
+                                .columns(List.of("id", "fullName", "email", "phone", "city", "status")).primaryKeys(List.of("id")).build(),
+                        BulkDumpTableConfig.builder().tableName("transactions.json").currentCount(0).targetCount(100).columnCount(7)
+                                .columns(List.of("id", "customerId", "amount", "currency", "status", "createdDate", "card")).primaryKeys(List.of("id")).build(),
+                        BulkDumpTableConfig.builder().tableName("accounts.json").currentCount(0).targetCount(100).columnCount(5)
+                                .columns(List.of("id", "accountNumber", "balance", "department", "status")).primaryKeys(List.of("id")).build()
+                );
+            } else if (cos != null && "Local".equalsIgnoreCase(cos.getStorageType())) {
                 resolvedPath = cos.getStorageLocation();
             } else {
                 DbConnection dbConn = dbConnectionService.getConnection(connectionId);
@@ -1027,6 +1064,12 @@ public class BulkDataDumpService {
             progress.setMessage("Targeting IBM Cloud Object Storage (Bucket: " + cosConn.getBucketName() + ", Prefix: " + targetLocation + ")...");
             progress.getLogs().add("Target COS Bucket: " + cosConn.getBucketName() + " | Prefix: " + targetLocation);
         } else {
+            if (config.getConnectionId() != null && (config.getDirPath() == null || config.getDirPath().trim().isEmpty() || "./data/bulk_dump".equals(config.getDirPath()))) {
+                CosConnection localCos = cosConnectionService.getConnection(config.getConnectionId());
+                if (localCos != null && "Local".equalsIgnoreCase(localCos.getStorageType()) && localCos.getStorageLocation() != null && !localCos.getStorageLocation().trim().isEmpty()) {
+                    targetLocation = localCos.getStorageLocation();
+                }
+            }
             progress.setMessage("Targeting Local Storage Directory: " + targetLocation + "...");
             progress.getLogs().add("Target Local JSON Directory: " + targetLocation);
             File dir = new File(targetLocation);

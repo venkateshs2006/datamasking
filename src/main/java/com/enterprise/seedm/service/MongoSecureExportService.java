@@ -493,10 +493,11 @@ public class MongoSecureExportService {
 
     private Path resolveDestDirectory(MongoSecureExportConfig config) {
         if (config.getDest() != null) {
-            if ("cos".equalsIgnoreCase(config.getDest().getType()) && config.getDest().getCosId() != null) {
-                CosConnection cos = cosConnectionService.getConnection(config.getDest().getCosId());
-                if (cos != null && cos.getStorageLocation() != null) {
-                    return Paths.get(cos.getStorageLocation());
+            Long cosId = config.getDest().getCosId() != null ? config.getDest().getCosId() : config.getDest().getId();
+            if (cosId != null && cosConnectionService != null) {
+                CosConnection cos = cosConnectionService.getConnection(cosId);
+                if (cos != null && cos.getStorageLocation() != null && !cos.getStorageLocation().isBlank()) {
+                    return Paths.get(cos.getStorageLocation().trim());
                 }
             }
             if (config.getDest().getDestDir() != null && !config.getDest().getDestDir().trim().isEmpty()) {
@@ -506,26 +507,55 @@ public class MongoSecureExportService {
                 return Paths.get(config.getDest().getPath().trim());
             }
         }
+        if (config.getStorage() != null) {
+            Long sId = config.getStorage().getCosId() != null ? config.getStorage().getCosId() : config.getStorage().getId();
+            if (sId != null && cosConnectionService != null) {
+                CosConnection cos = cosConnectionService.getConnection(sId);
+                if (cos != null && cos.getStorageLocation() != null && !cos.getStorageLocation().isBlank()) {
+                    return Paths.get(cos.getStorageLocation().trim());
+                }
+            }
+            if (config.getStorage().getPath() != null && !config.getStorage().getPath().trim().isEmpty()) {
+                return Paths.get(config.getStorage().getPath().trim());
+            }
+        }
         return Paths.get(DEFAULT_EXPORT_DIR);
     }
 
     private void saveJobRecord(String executionId, MongoSecureExportConfig config, String status, String errorMessage) {
+        if (jobRepository == null) return;
         try {
+            MongoSecureExportProgress progress = progressMap.get(executionId);
             MongoSecureExportJob job = jobRepository.findByExecutionId(executionId);
             if (job == null) {
                 job = new MongoSecureExportJob();
                 job.setExecutionId(executionId);
-                job.setJobName(config.getJobName() != null ? config.getJobName() : "Mongo Secure Export");
+                job.setJobName((config != null && config.getJobName() != null && !config.getJobName().trim().isEmpty()) ? config.getJobName().trim() : executionId);
                 job.setCreatedAt(System.currentTimeMillis());
             }
             job.setStatus(status);
             job.setErrorMessage(errorMessage);
-            job.setFileEncryptionKey(config.getFileEncryptionKey());
+            if (config != null && config.getFileEncryptionKey() != null) {
+                job.setFileEncryptionKey(config.getFileEncryptionKey());
+            }
+            if (progress != null) {
+                if (job.getFileEncryptionKey() == null && progress.fileEncryptionKey != null) {
+                    job.setFileEncryptionKey(progress.fileEncryptionKey);
+                }
+                job.setTotalCollections(progress.totalCollections.get());
+                job.setProcessedCollections(progress.processedCollections.get());
+                job.setTotalRecords(progress.totalRecords.get());
+                if (progress.collectionProgress != null) {
+                    job.setProgressDetails(objectMapper.writeValueAsString(progress.collectionProgress));
+                }
+            }
             if ("COMPLETED".equals(status) || "FAILED".equals(status)) {
                 job.setCompletedAt(System.currentTimeMillis());
             }
-            job.setConfigDetails(objectMapper.writeValueAsString(config));
-            jobRepository.save(job);
+            if (config != null) {
+                job.setConfigDetails(objectMapper.writeValueAsString(config));
+            }
+            jobRepository.saveAndFlush(job);
         } catch (Exception e) {
             log.error("Failed to save MongoSecureExportJob record", e);
         }
@@ -537,6 +567,9 @@ public class MongoSecureExportService {
             return progress.toMap();
         }
 
+        if (jobRepository == null) {
+            return Map.of("status", "NOT_FOUND");
+        }
         MongoSecureExportJob job = jobRepository.findByExecutionId(executionId);
         if (job == null) {
             return Map.of("status", "NOT_FOUND");
@@ -549,19 +582,65 @@ public class MongoSecureExportService {
         map.put("fileEncryptionKey", job.getFileEncryptionKey());
         map.put("startTime", job.getCreatedAt());
         map.put("completedTime", job.getCompletedAt() != null ? job.getCompletedAt() : 0);
+        map.put("endTime", job.getCompletedAt() != null ? job.getCompletedAt() : 0);
+        map.put("totalCollections", job.getTotalCollections() != null ? job.getTotalCollections() : 0);
+        map.put("processedCollections", job.getProcessedCollections() != null ? job.getProcessedCollections() : 0);
+        map.put("totalTables", job.getTotalCollections() != null ? job.getTotalCollections() : 0);
+        map.put("processedTables", job.getProcessedCollections() != null ? job.getProcessedCollections() : 0);
+        map.put("totalRecords", job.getTotalRecords() != null ? job.getTotalRecords() : 0L);
+
+        List<Map<String, Object>> collectionProgress = new ArrayList<>();
+        List<String> completedCollections = new ArrayList<>();
+        if (job.getProgressDetails() != null && !job.getProgressDetails().isBlank()) {
+            try {
+                collectionProgress = objectMapper.readValue(job.getProgressDetails(), List.class);
+                for (Map<String, Object> cp : collectionProgress) {
+                    if ("COMPLETED".equals(cp.get("status")) && cp.get("tableName") != null) {
+                        completedCollections.add(cp.get("tableName").toString());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse progress details for mongo export: {}", executionId, e);
+            }
+        }
+        map.put("tableProgress", collectionProgress);
+        map.put("completedTables", completedCollections);
+        long start = job.getCreatedAt() != null ? job.getCreatedAt() : 0;
+        long end = job.getCompletedAt() != null ? job.getCompletedAt() : System.currentTimeMillis();
+        map.put("elapsedSeconds", (end - start) / 1000);
         return map;
     }
 
     public List<Map<String, Object>> getAllExecutions() {
         List<Map<String, Object>> list = new ArrayList<>();
-        for (MongoSecureExportJob job : jobRepository.findAllByOrderByCreatedAtDesc()) {
+        Set<String> seenIds = new HashSet<>();
+
+        // From memory
+        for (Map.Entry<String, MongoSecureExportProgress> entry : progressMap.entrySet()) {
             Map<String, Object> map = new HashMap<>();
-            map.put("id", job.getExecutionId());
-            map.put("jobName", job.getJobName());
-            map.put("status", job.getStatus());
-            map.put("startTime", job.getCreatedAt());
-            map.put("completedTime", job.getCompletedAt());
+            map.put("id", entry.getKey());
+            map.put("jobName", entry.getKey());
+            map.put("status", entry.getValue().status);
+            map.put("startTime", entry.getValue().startTime);
+            map.put("completedTime", entry.getValue().completedTime);
             list.add(map);
+            seenIds.add(entry.getKey());
+        }
+
+        // From DB
+        if (jobRepository != null) {
+            for (MongoSecureExportJob job : jobRepository.findAllByOrderByCreatedAtDesc()) {
+                if (!seenIds.contains(job.getExecutionId())) {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", job.getExecutionId());
+                    map.put("jobName", job.getJobName());
+                    map.put("status", job.getStatus());
+                    map.put("startTime", job.getCreatedAt());
+                    map.put("completedTime", job.getCompletedAt());
+                    list.add(map);
+                    seenIds.add(job.getExecutionId());
+                }
+            }
         }
         return list;
     }

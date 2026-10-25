@@ -28,6 +28,13 @@ public class AiPiiController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/detect-heuristic")
+    public ResponseEntity<AiPiiDetectionResponse> detectHeuristic(@RequestBody AiPiiDetectionRequest request) {
+        log.info("API request received for direct heuristic PII detection for tables: {}", request.getTables());
+        AiPiiDetectionResponse response = aiPiiDetectorService.detectPiiWithHeuristicsOnly(request);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/test-qwen")
     public ResponseEntity<Map<String, Object>> testQwen(@RequestBody Map<String, String> payload) {
         String apiUrl = (payload.get("qwenApiUrl") != null && !payload.get("qwenApiUrl").isBlank())

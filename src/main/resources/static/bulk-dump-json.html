@@ -163,35 +163,135 @@
                     <!-- LOCAL STORAGE FIELDS -->
                     <div id="localStorageFields" class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
                         <div>
-                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local JSON Connection (Optional)</label>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide block">Local Storage Connection</label>
+                                <a href="/admin-cos.html" class="text-[11px] text-bnp-emerald hover:text-[#007a4c] font-semibold flex items-center gap-1">
+                                    <i class="fas fa-plus-circle text-[10px]"></i> Add in COS Admin
+                                </a>
+                            </div>
                             <select id="localConnSelect" class="input-field cursor-pointer bg-white font-mono" onchange="onLocalConnSelected()">
                                 <option value="">-- Custom Local Directory --</option>
                             </select>
-                            <p class="text-[11px] text-gray-400 mt-1.5"><i class="fas fa-info-circle mr-1"></i> Pre-registered local JSON directory connections.</p>
+                            <p class="text-[11px] text-gray-400 mt-1.5"><i class="fas fa-info-circle mr-1"></i> Pre-registered local filesystem directory connections.</p>
                         </div>
                         <div>
                             <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Target Directory Path</label>
                             <input type="text" id="targetLocalDir" class="input-field font-mono" value="./data/bulk_dump" placeholder="e.g. ./data/bulk_dump or /var/data/exports">
                             <p class="text-[11px] text-gray-400 mt-1.5"><i class="fas fa-folder-open mr-1"></i> Absolute or relative directory path where JSON files will be written.</p>
                         </div>
+
+                        <!-- No Local Connections Hint -->
+                        <div id="noLocalHint" class="hidden col-span-1 md:col-span-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center justify-between">
+                            <span class="flex items-center gap-1.5"><i class="fas fa-info-circle text-amber-600"></i> No pre-registered local storage connections found. You can enter any directory path above or register shared local storage paths in COS Admin.</span>
+                            <a href="/admin-cos.html" class="font-bold text-bnp-emerald hover:underline shrink-0 ml-3">Open COS Admin &rarr;</a>
+                        </div>
+
+                        <!-- Local Connection Details Card -->
+                        <div id="localConnDetailsCard" class="hidden col-span-1 md:col-span-2 bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-4 shadow-sm">
+                            <div class="flex items-center justify-between pb-2 mb-3 border-b border-emerald-200/60">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-6 h-6 rounded-md bg-bnp-emerald/15 flex items-center justify-center text-bnp-emerald text-xs">
+                                        <i class="fas fa-hdd"></i>
+                                    </div>
+                                    <span class="text-xs font-bold text-gray-800 uppercase tracking-wider">Local Storage Details</span>
+                                </div>
+                                <span class="text-[10px] font-mono px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold uppercase" id="localDetailEnv">DESTINATION</span>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Connection Name</span>
+                                    <span id="localDetailName" class="font-bold text-gray-800 font-mono text-xs">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Storage Directory</span>
+                                    <span id="localDetailPath" class="font-mono text-gray-700 truncate block text-[11px]">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Department</span>
+                                    <span id="localDetailDept" class="font-semibold text-gray-800">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Storage Type</span>
+                                    <span class="font-mono text-emerald-700 font-bold flex items-center gap-1"><i class="fas fa-check-circle text-[10px]"></i> Local Filesystem</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- COS STORAGE FIELDS -->
                     <div id="cosStorageFields" class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl hidden">
                         <div>
-                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Cloud Object Storage (COS) Connection</label>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide block">Cloud Object Storage (COS) Connection</label>
+                                <a href="/admin-cos.html" class="text-[11px] text-bnp-emerald hover:text-[#007a4c] font-semibold flex items-center gap-1">
+                                    <i class="fas fa-plus-circle text-[10px]"></i> Add in COS Admin
+                                </a>
+                            </div>
                             <select id="cosConnSelect" class="input-field cursor-pointer bg-white font-mono" onchange="onCosConnSelected()">
                                 <option value="">-- Choose COS Connection --</option>
                             </select>
-                            <p class="text-[11px] text-gray-400 mt-1.5"><i class="fas fa-shield-alt mr-1"></i> Pre-configured IAM / S3 credentials.</p>
+                            <p class="text-[11px] text-gray-400 mt-1.5"><i class="fas fa-shield-alt mr-1"></i> Pre-configured IAM / S3 credentials from COS Admin.</p>
                         </div>
                         <div>
                             <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Target Bucket / Prefix Folder</label>
                             <div class="flex items-center gap-2">
                                 <span id="cosBucketDisplay" class="px-3 py-2 bg-gray-100 rounded-lg text-xs font-mono font-bold text-gray-600 border border-gray-200">bucket</span>
-                                <input type="text" id="targetCosPrefix" class="input-field font-mono flex-1" value="bulk-dump" placeholder="prefix/folder">
+                                <input type="text" id="targetCosPrefix" class="input-field font-mono flex-1" value="bulk-dump" placeholder="prefix/folder" oninput="const el = document.getElementById('cosDetailPrefix'); if (el) el.textContent = this.value || 'bulk-dump';">
                             </div>
                             <p class="text-[11px] text-gray-400 mt-1.5"><i class="fas fa-cloud-upload-alt mr-1"></i> S3 Object key prefix inside the selected COS bucket.</p>
+                        </div>
+
+                        <!-- No COS Connections Hint -->
+                        <div id="noCosHint" class="hidden col-span-1 md:col-span-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center justify-between">
+                            <span class="flex items-center gap-1.5"><i class="fas fa-exclamation-triangle text-amber-600"></i> No Cloud Object Storage (COS) connections found.</span>
+                            <a href="/admin-cos.html" class="font-bold text-bnp-emerald hover:underline shrink-0 ml-3">Configure in COS Admin &rarr;</a>
+                        </div>
+
+                        <!-- COS Connection Details Card -->
+                        <div id="cosConnDetailsCard" class="hidden col-span-1 md:col-span-2 bg-blue-50/60 border border-blue-200/80 rounded-xl p-4 shadow-sm">
+                            <div class="flex items-center justify-between pb-2 mb-3 border-b border-blue-200/60">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-6 h-6 rounded-md bg-blue-600/15 flex items-center justify-center text-blue-600 text-xs">
+                                        <i class="fas fa-cloud"></i>
+                                    </div>
+                                    <span class="text-xs font-bold text-blue-950 uppercase tracking-wider">Cloud Object Storage Connection Details</span>
+                                </div>
+                                <span class="text-[10px] font-mono px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-bold uppercase" id="cosDetailEnv">DESTINATION</span>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Connection Name</span>
+                                    <span id="cosDetailName" class="font-bold text-gray-800 font-mono text-xs">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Target Bucket</span>
+                                    <span id="cosDetailBucket" class="font-mono text-blue-700 font-bold truncate block text-xs">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Endpoint URL</span>
+                                    <span id="cosDetailEndpoint" class="font-mono text-gray-600 truncate block text-[11px]">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Location / Region</span>
+                                    <span id="cosDetailRegion" class="font-mono text-gray-700 font-semibold">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Auth Type</span>
+                                    <span id="cosDetailAuth" class="font-mono text-gray-700 font-semibold uppercase">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Department</span>
+                                    <span id="cosDetailDept" class="font-semibold text-gray-800">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Prefix / Key</span>
+                                    <span id="cosDetailPrefix" class="font-mono text-gray-700 text-[11px]">bulk-dump</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Status</span>
+                                    <span class="inline-flex items-center gap-1 text-emerald-700 font-bold"><i class="fas fa-check-circle text-[10px]"></i> Active</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -303,6 +403,7 @@
                         </h4>
                         <div class="text-xs text-gray-600 flex flex-wrap gap-4 font-mono">
                             <div>Storage: <strong id="summaryStorage" class="text-gray-900">Local Filesystem</strong></div>
+                            <div>Connection: <strong id="summaryConnection" class="text-gray-900">Custom Local Directory</strong></div>
                             <div>Target Path: <strong id="summaryPath" class="text-gray-900">./data/bulk_dump</strong></div>
                             <div>Selected Datasets: <strong id="summaryDatasetsCount" class="text-gray-900">0</strong></div>
                             <div>Total Target Records: <strong id="summaryRecordsCount" class="text-bnp-emerald font-bold">0</strong></div>
@@ -570,6 +671,16 @@
                 // Update Step 3 summaries
                 const sumStorage = document.getElementById('summaryStorage');
                 if (sumStorage) sumStorage.textContent = state.storageType === 'COS' ? 'IBM Cloud Object Storage (COS)' : 'Local Filesystem';
+                const sumConn = document.getElementById('summaryConnection');
+                if (sumConn) {
+                    if (state.storageType === 'COS') {
+                        const conn = state.cosConnections.find(c => c.id === state.selectedCosId);
+                        sumConn.textContent = conn ? `${conn.cosName || conn.name || 'COS #' + conn.id} (Bucket: ${conn.bucketName || 'default'})` : 'None selected';
+                    } else {
+                        const conn = state.localConnections.find(c => c.id === state.selectedLocalConnId);
+                        sumConn.textContent = conn ? conn.name : 'Custom Local Directory';
+                    }
+                }
                 const sumPath = document.getElementById('summaryPath');
                 if (sumPath) sumPath.textContent = state.targetPath;
                 const sumDatasets = document.getElementById('summaryDatasetsCount');
@@ -647,38 +758,118 @@
         }
 
         async function loadConnections() {
-            // 1. Local JSON Connections
-            try {
-                const res = await fetch('/api/connections');
-                if (res.ok) {
-                    const list = await res.json();
-                    state.localConnections = list.filter(c => (c.dbType || '').toLowerCase().includes('json'));
+            const localSel = document.getElementById('localConnSelect');
+            const cosSel = document.getElementById('cosConnSelect');
 
-                    const sel = document.getElementById('localConnSelect');
-                    state.localConnections.forEach(c => {
-                        const opt = document.createElement('option');
-                        opt.value = c.id;
-                        opt.textContent = `${c.name || 'JSON Dir #' + c.id} (${c.url || ''})`;
-                        sel.appendChild(opt);
-                    });
-                }
-            } catch (ignored) {}
-
-            // 2. COS Connections
             try {
-                const res = await fetch('/api/cos-connections');
-                if (res.ok) {
-                    state.cosConnections = await res.json();
-                    const sel = document.getElementById('cosConnSelect');
-                    sel.innerHTML = '<option value="">-- Choose COS Connection --</option>';
-                    state.cosConnections.forEach(c => {
-                        const opt = document.createElement('option');
-                        opt.value = c.id;
-                        opt.textContent = `${c.name || 'COS #' + c.id} (Bucket: ${c.bucketName || 'default'})`;
-                        sel.appendChild(opt);
-                    });
+                // 1. Fetch storage connections from /api/cos-connections
+                let allCosConns = [];
+                try {
+                    const resCos = await fetch('/api/cos-connections');
+                    if (resCos.ok) {
+                        allCosConns = await resCos.json();
+                    } else if (resCos.status === 401) {
+                        console.warn("Session unauthorized while fetching COS connections");
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch /api/cos-connections", e);
                 }
-            } catch (ignored) {}
+
+                // 2. Also fetch legacy db connections with json dbType if any
+                let dbJsonConns = [];
+                try {
+                    const resDb = await fetch('/api/connections');
+                    if (resDb.ok) {
+                        const allDb = await resDb.json();
+                        dbJsonConns = allDb.filter(c => (c.dbType || '').toLowerCase().includes('json'));
+                    }
+                } catch (e) {
+                    console.warn("Failed to fetch /api/connections", e);
+                }
+
+                // 3. Process Cloud Object Storage (COS) connections
+                state.cosConnections = allCosConns.filter(c => {
+                    const st = (c.storageType || '').toUpperCase();
+                    return st === 'COS' || st === '';
+                });
+
+                if (cosSel) {
+                    cosSel.innerHTML = '<option value="">-- Choose COS Connection --</option>';
+                    const noCosHint = document.getElementById('noCosHint');
+                    if (state.cosConnections.length === 0) {
+                        if (noCosHint) noCosHint.classList.remove('hidden');
+                        const opt = document.createElement('option');
+                        opt.value = "";
+                        opt.disabled = true;
+                        opt.textContent = "-- No COS connections configured --";
+                        cosSel.appendChild(opt);
+                    } else {
+                        if (noCosHint) noCosHint.classList.add('hidden');
+                        state.cosConnections.forEach(c => {
+                            const opt = document.createElement('option');
+                            opt.value = c.id;
+                            const name = c.cosName || c.name || `COS #${c.id}`;
+                            const bucket = c.bucketName || 'default';
+                            const dept = c.department ? ` - ${c.department}` : '';
+                            opt.textContent = `${name} (Bucket: ${bucket}${dept})`;
+                            cosSel.appendChild(opt);
+                        });
+                    }
+
+                    if (state.selectedCosId) {
+                        cosSel.value = state.selectedCosId;
+                        onCosConnSelected();
+                    }
+                }
+
+                // 4. Process Local Storage connections (from cos_connections storageType='Local' + legacy db connections)
+                const cosLocal = allCosConns.filter(c => (c.storageType || '').toLowerCase() === 'local');
+                state.localConnections = [
+                    ...cosLocal.map(c => ({
+                        id: c.id,
+                        name: c.cosName || c.name || `Local Storage #${c.id}`,
+                        path: c.storageLocation || c.url || './data/bulk_dump',
+                        department: c.department || '',
+                        envType: c.envType || 'destination',
+                        storageType: 'Local',
+                        raw: c
+                    })),
+                    ...dbJsonConns.map(c => ({
+                        id: c.id,
+                        name: c.name || `JSON Dir #${c.id}`,
+                        path: c.url || './data/bulk_dump',
+                        department: c.department || '',
+                        envType: c.envType || 'destination',
+                        storageType: 'Local (Legacy)',
+                        raw: c
+                    }))
+                ];
+
+                if (localSel) {
+                    localSel.innerHTML = '<option value="">-- Custom Local Directory --</option>';
+                    const noLocalHint = document.getElementById('noLocalHint');
+                    if (state.localConnections.length === 0) {
+                        if (noLocalHint) noLocalHint.classList.remove('hidden');
+                    } else {
+                        if (noLocalHint) noLocalHint.classList.add('hidden');
+                        state.localConnections.forEach(c => {
+                            const opt = document.createElement('option');
+                            opt.value = c.id;
+                            const dept = c.department ? ` - ${c.department}` : '';
+                            opt.textContent = `${c.name} (${c.path}${dept})`;
+                            localSel.appendChild(opt);
+                        });
+                    }
+
+                    if (state.selectedLocalConnId) {
+                        localSel.value = state.selectedLocalConnId;
+                        onLocalConnSelected();
+                    }
+                }
+
+            } catch (err) {
+                console.error("Error loading storage connections:", err);
+            }
         }
 
         function setStorageType(type) {
@@ -706,26 +897,79 @@
 
         function onLocalConnSelected() {
             const sel = document.getElementById('localConnSelect');
-            if (sel.value) {
+            const detailsCard = document.getElementById('localConnDetailsCard');
+            if (sel && sel.value) {
                 state.selectedLocalConnId = Number(sel.value);
                 const conn = state.localConnections.find(c => c.id === state.selectedLocalConnId);
-                if (conn && conn.url) {
-                    document.getElementById('targetLocalDir').value = conn.url;
+                if (conn) {
+                    if (conn.path) {
+                        document.getElementById('targetLocalDir').value = conn.path;
+                    }
+                    if (conn.department) {
+                        const deptEl = document.getElementById('userDepartment');
+                        if (deptEl) deptEl.value = conn.department;
+                    }
+                    if (detailsCard) {
+                        detailsCard.classList.remove('hidden');
+                        const elName = document.getElementById('localDetailName');
+                        if (elName) elName.textContent = conn.name || 'N/A';
+                        const elPath = document.getElementById('localDetailPath');
+                        if (elPath) elPath.textContent = conn.path || 'N/A';
+                        const elDept = document.getElementById('localDetailDept');
+                        if (elDept) elDept.textContent = conn.department || 'All Departments';
+                        const elEnv = document.getElementById('localDetailEnv');
+                        if (elEnv) elEnv.textContent = (conn.envType || 'destination').toUpperCase();
+                    }
+                }
+            } else {
+                state.selectedLocalConnId = null;
+                if (detailsCard) {
+                    detailsCard.classList.add('hidden');
                 }
             }
         }
 
         function onCosConnSelected() {
             const sel = document.getElementById('cosConnSelect');
-            if (sel.value) {
+            const detailsCard = document.getElementById('cosConnDetailsCard');
+            if (sel && sel.value) {
                 state.selectedCosId = Number(sel.value);
                 const conn = state.cosConnections.find(c => c.id === state.selectedCosId);
                 if (conn) {
-                    document.getElementById('cosBucketDisplay').textContent = conn.bucketName || 'bucket';
+                    const bucket = conn.bucketName || 'bucket';
+                    const bucketEl = document.getElementById('cosBucketDisplay');
+                    if (bucketEl) bucketEl.textContent = bucket;
                     if (conn.department) {
                         const deptEl = document.getElementById('userDepartment');
                         if (deptEl) deptEl.value = conn.department;
                     }
+                    if (detailsCard) {
+                        detailsCard.classList.remove('hidden');
+                        const elName = document.getElementById('cosDetailName');
+                        if (elName) elName.textContent = conn.cosName || conn.name || `COS #${conn.id}`;
+                        const elBucket = document.getElementById('cosDetailBucket');
+                        if (elBucket) elBucket.textContent = bucket;
+                        const elEndpoint = document.getElementById('cosDetailEndpoint');
+                        if (elEndpoint) elEndpoint.textContent = conn.bucketUrl || conn.endpoint || 'IBM Cloud Object Storage';
+                        const elRegion = document.getElementById('cosDetailRegion');
+                        if (elRegion) elRegion.textContent = conn.location || 'default';
+                        const elAuth = document.getElementById('cosDetailAuth');
+                        if (elAuth) elAuth.textContent = conn.authenticationType || 'IAM';
+                        const elDept = document.getElementById('cosDetailDept');
+                        if (elDept) elDept.textContent = conn.department || 'All Departments';
+                        const elEnv = document.getElementById('cosDetailEnv');
+                        if (elEnv) elEnv.textContent = (conn.envType || 'destination').toUpperCase();
+                        const prefixInput = document.getElementById('targetCosPrefix');
+                        const elPrefix = document.getElementById('cosDetailPrefix');
+                        if (elPrefix && prefixInput) elPrefix.textContent = prefixInput.value || 'bulk-dump';
+                    }
+                }
+            } else {
+                state.selectedCosId = null;
+                const bucketEl = document.getElementById('cosBucketDisplay');
+                if (bucketEl) bucketEl.textContent = 'bucket';
+                if (detailsCard) {
+                    detailsCard.classList.add('hidden');
                 }
             }
         }
@@ -1209,11 +1453,21 @@
                         state.targetPath = config.dirPath || './data/bulk_dump';
                         const dirEl = document.getElementById('targetLocalDir');
                         if (dirEl) dirEl.value = state.targetPath;
+                        const localSel = document.getElementById('localConnSelect');
+                        if (localSel && config.connectionId) {
+                            localSel.value = config.connectionId;
+                        }
+                        onLocalConnSelected();
                     } else {
                         state.selectedCosId = config.cosId;
                         state.targetPath = config.dirPath || 'bulk-dump';
                         const prefixEl = document.getElementById('targetCosPrefix');
                         if (prefixEl) prefixEl.value = state.targetPath;
+                        const cosSel = document.getElementById('cosConnSelect');
+                        if (cosSel && config.cosId) {
+                            cosSel.value = config.cosId;
+                        }
+                        onCosConnSelected();
                     }
 
                     const migrationJobNameEl = document.getElementById('migrationJobName');

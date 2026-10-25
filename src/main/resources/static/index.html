@@ -391,7 +391,8 @@
             executions.forEach(ex => {
                 const date = ex.startTime ? new Date(ex.startTime).toLocaleString() : '';
                 const dateStr = date ? ` (${date})` : '';
-                const option = new Option(`ID: ${ex.id} - ${ex.status}${dateStr}`, ex.id);
+                const nameStr = (ex.jobName && String(ex.jobName) !== String(ex.id)) ? ` [${ex.jobName}]` : '';
+                const option = new Option(`ID: ${ex.id}${nameStr} - ${ex.status}${dateStr}`, ex.id);
                 selector.add(option);
             });
 
@@ -518,16 +519,16 @@
         let totalWrites = 0;
 
         if (isMongo) {
-            totalEntities = data.totalCollections != null ? data.totalCollections : (data.tableProgress ? data.tableProgress.length : 0);
-            completedEntities = data.processedCollections != null ? data.processedCollections : (data.completedTables ? data.completedTables.length : 0);
+            totalEntities = data.totalCollections != null ? data.totalCollections : (data.totalTables != null ? data.totalTables : (data.tableProgress ? data.tableProgress.length : 0));
+            completedEntities = data.processedCollections != null ? data.processedCollections : (data.processedTables != null ? data.processedTables : (data.completedTables ? data.completedTables.length : 0));
             if (data.status === 'COMPLETED' && totalEntities > 0 && completedEntities === 0) {
                 completedEntities = totalEntities;
             }
             document.getElementById('tableHeaderTitle').innerText = 'MongoDB Collections Log';
             document.getElementById('thEntityName').innerText = 'Collection Name';
         } else if (isJson) {
-            totalEntities = data.totalFiles != null ? data.totalFiles : (data.tableProgress ? data.tableProgress.length : 0);
-            completedEntities = data.processedFiles != null ? data.processedFiles : (data.completedTables ? data.completedTables.length : 0);
+            totalEntities = data.totalFiles != null ? data.totalFiles : (data.totalTables != null ? data.totalTables : (data.tableProgress ? data.tableProgress.length : 0));
+            completedEntities = data.processedFiles != null ? data.processedFiles : (data.processedTables != null ? data.processedTables : (data.completedTables ? data.completedTables.length : 0));
             if (data.status === 'COMPLETED' && totalEntities > 0 && completedEntities === 0) {
                 completedEntities = totalEntities;
             }

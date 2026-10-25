@@ -21,7 +21,6 @@ public class JsonSecureExportJob {
     @Column(name = "status", nullable = false)
     private String status; // PENDING, RUNNING, COMPLETED, FAILED
 
-    @Lob
     @Column(name = "config_details", columnDefinition = "TEXT")
     private String configDetails;
 
@@ -40,7 +39,18 @@ public class JsonSecureExportJob {
     @Column(name = "completed_at")
     private Long completedAt;
 
-    @Lob
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
+
+    @Column(name = "total_files")
+    private Integer totalFiles = 0;
+
+    @Column(name = "processed_files")
+    private Integer processedFiles = 0;
+
+    @Column(name = "total_records")
+    private Long totalRecords = 0L;
+
+    @Column(name = "progress_details", columnDefinition = "TEXT")
+    private String progressDetails;
 }

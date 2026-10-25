@@ -200,8 +200,10 @@
                                 </div>
 
                                 <div id="local-storage-option" class="mt-4" style="display: none;">
-                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Path</label>
-                                    <input type="text" id="local-path" name="local-path" class="input-field" placeholder="e.g., secure-export" value="secure-export" oninput="validateStep1()">
+                                    <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Storage Location</label>
+                                    <select id="local-connection" name="local-connection" class="input-field cursor-pointer bg-white" onchange="validateStep1()">
+                                        <option value="">Loading local storage connections...</option>
+                                    </select>
                                 </div>
                             </form>
                         </div>
@@ -597,28 +599,6 @@
                                     </span>
                                 </div>
                                 <input type="hidden" id="department" name="department" value="">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">File Encryption Password</label>
-                                <div class="flex items-center justify-between p-3.5 bg-indigo-50/60 border border-indigo-200 rounded-xl shadow-inner">
-                                    <div class="flex items-center space-x-3">
-                                        <div class="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm border border-indigo-200 shadow-sm">
-                                            <i class="fas fa-lock"></i>
-                                        </div>
-                                        <div>
-                                            <div class="flex items-center gap-2">
-                                                <input type="password" id="previewFileKeyDisplay" readonly class="font-mono font-bold text-indigo-950 text-sm tracking-wider bg-transparent border-none p-0 focus:outline-none select-all w-48" value="--">
-                                                <button type="button" onclick="toggleFileKeyVisibility('previewFileKeyDisplay', 'previewFileKeyEye')" class="text-indigo-400 hover:text-indigo-700 text-xs transition" title="Show/Hide">
-                                                    <i id="previewFileKeyEye" class="fas fa-eye"></i>
-                                                </button>
-                                            </div>
-                                            <p class="text-[11px] text-gray-500 font-medium">AES-256 password to decrypt this Mongo BSON export archive</p>
-                                        </div>
-                                    </div>
-                                    <button type="button" onclick="copyFileEncryptionKey('previewFileKeyDisplay', 'previewCopyBtnText')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm transition flex items-center gap-1 shrink-0">
-                                        <i class="fas fa-copy"></i> <span id="previewCopyBtnText">Copy</span>
-                                    </button>
-                                </div>
                             </div>
                         </div>
 
@@ -1016,6 +996,8 @@
         }
     }
 
+    let isAiScanInProgress = false;
+
     function toggleAiPiiDetection() {
         const toggle = document.getElementById('aiPiiToggle');
         const badge = document.getElementById('aiPiiStatusBadge');
@@ -1023,9 +1005,10 @@
             if (toggle.checked) {
                 badge.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200';
                 badge.innerHTML = '<i class="fas fa-check-circle mr-1"></i> AI Active';
-                if (currentStep === 3) {
-                    runManualAiScan();
-                }
+                const bannerText = document.getElementById('aiPiiBannerText');
+                const bannerSubtext = document.getElementById('aiPiiBannerSubtext');
+                if (bannerText) bannerText.textContent = 'AI Auto-Detection Ready';
+                if (bannerSubtext) bannerSubtext.textContent = 'Sensitive PII collections & fields will be classified and Faker masking rules applied.';
             } else {
                 badge.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200';
                 badge.innerHTML = '<i class="fas fa-minus-circle mr-1"></i> AI Inactive';
@@ -1059,67 +1042,118 @@
         const qwenKey = document.getElementById('qwenApiKey')?.value.trim() || '';
         const qwenModel = document.getElementById('qwenModel')?.value || 'qwen-turbo';
 
-        try {
-            const payload = {
-                tables: state.selectedTables,
-                tableColumns: state.columnsCache,
-                qwenApiUrl: qwenUrl,
-                qwenApiKey: qwenKey,
-                qwenModel: qwenModel
-            };
-            const res = await fetch('/api/ai/detect-pii', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+        const payload = {
+            tables: state.selectedTables,
+            tableColumns: state.columnsCache,
+            qwenApiUrl: qwenUrl,
+            qwenApiKey: qwenKey,
+            qwenModel: qwenModel
+        };
 
-            if (res.ok) {
-                const aiData = await res.json();
-                state.aiSuggestions = aiData.detectedEntities || {};
+        let aiData = null;
+        let attempts = 0;
+        const maxRetries = 1; // Strict max retry: 1 time only
 
-                if (aiData.maskingColumns) {
-                    aiData.maskingColumns.forEach(col => {
-                        if (!state.rules.maskingColumns.includes(col)) {
-                            state.rules.maskingColumns.push(col);
-                        }
-                    });
-                }
-                if (aiData.partialMaskingColumns) {
-                    aiData.partialMaskingColumns.forEach(col => {
-                        if (!state.rules.partialMaskingColumns.includes(col)) {
-                            state.rules.partialMaskingColumns.push(col);
-                        }
-                    });
-                }
-                if (aiData.constraintColumns) {
-                    aiData.constraintColumns.forEach(col => {
-                        if (!state.rules.constraintColumns.includes(col)) {
-                            state.rules.constraintColumns.push(col);
-                        }
-                    });
-                }
+        while (attempts <= maxRetries && !aiData) {
+            attempts++;
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-                const bannerText = document.getElementById('aiPiiBannerText');
-                const bannerSubtext = document.getElementById('aiPiiBannerSubtext');
-                const engine = aiData.engineUsed || 'Smart AI';
-                if (bannerText) {
-                    bannerText.textContent = `${engine} Scan Completed (${aiData.totalPiiColumnsFound || 0} PII Columns Found)`;
+                const res = await fetch('/api/ai/detect-pii', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (res.ok) {
+                    aiData = await res.json();
+                    break;
+                } else {
+                    console.warn(`Mongo AI scan attempt ${attempts} returned status: ${res.status}`);
                 }
-                if (bannerSubtext) {
-                    bannerSubtext.textContent = `Automatically detected ${aiData.totalPiiColumnsFound || 0} sensitive fields across ${state.selectedTables.length} collections and applied standard Faker masking rules.`;
-                }
+            } catch (err) {
+                console.warn(`Mongo AI scan attempt ${attempts} failed:`, err);
             }
-        } catch (e) {
-            console.error("AI PII Detection error:", e);
+        }
+
+        // If AI detection failed after max 1 retry, directly fallback to heuristic detection!
+        if (!aiData) {
+            try {
+                console.info("Directly falling back to Heuristic PII detection...");
+                const hRes = await fetch('/api/ai/detect-heuristic', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (hRes.ok) {
+                    aiData = await hRes.json();
+                }
+            } catch (hErr) {
+                console.error("Heuristic fallback error:", hErr);
+            }
+        }
+
+        if (aiData) {
+            applyAiDetectionResults(aiData);
+        }
+    }
+
+    function applyAiDetectionResults(aiData) {
+        state.aiSuggestions = aiData.detectedEntities || {};
+
+        if (aiData.maskingColumns) {
+            aiData.maskingColumns.forEach(col => {
+                if (!state.rules.maskingColumns.includes(col)) {
+                    state.rules.maskingColumns.push(col);
+                }
+            });
+        }
+        if (aiData.partialMaskingColumns) {
+            aiData.partialMaskingColumns.forEach(col => {
+                if (!state.rules.partialMaskingColumns.includes(col)) {
+                    state.rules.partialMaskingColumns.push(col);
+                }
+            });
+        }
+        if (aiData.constraintColumns) {
+            aiData.constraintColumns.forEach(col => {
+                if (!state.rules.constraintColumns.includes(col)) {
+                    state.rules.constraintColumns.push(col);
+                }
+            });
+        }
+
+        const bannerText = document.getElementById('aiPiiBannerText');
+        const bannerSubtext = document.getElementById('aiPiiBannerSubtext');
+        const engine = aiData.engineUsed || 'Smart AI';
+        if (bannerText) {
+            bannerText.textContent = `${engine} Scan Completed (${aiData.totalPiiColumnsFound || 0} PII Columns Found)`;
+        }
+        if (bannerSubtext) {
+            bannerSubtext.textContent = `Automatically detected ${aiData.totalPiiColumnsFound || 0} sensitive fields across ${state.selectedTables.length} collections and applied standard Faker masking rules.`;
         }
     }
 
     async function runManualAiScan() {
+        if (isAiScanInProgress) return;
+        isAiScanInProgress = true;
+
         const isAiEnabled = document.getElementById('aiPiiToggle');
         if (isAiEnabled) isAiEnabled.checked = true;
         toggleAiPiiDetection();
 
-        await triggerAiPiiDetection();
+        const bannerText = document.getElementById('aiPiiBannerText');
+        if (bannerText) bannerText.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Scanning Schema...';
+
+        try {
+            await triggerAiPiiDetection();
+        } finally {
+            isAiScanInProgress = false;
+        }
+
         if (activeRuleTable && state.columnsCache[activeRuleTable]) {
             renderColumnList(activeRuleTable, state.columnsCache[activeRuleTable]);
             renderTags(activeRuleTable);
@@ -1205,33 +1239,135 @@
     }
 
     async function fetchConnections() {
-        // Fetch source connections for MongoDB
-        const resSrc = await fetch('/api/connections?dbType=mongo&envType=source');
-        if (resSrc.ok) {
-            const srcConns = await resSrc.json();
-            state.srcConnections = srcConns;
-            const srcSelect = document.getElementById('sourceId');
-            srcSelect.innerHTML = '<option value="">Select a source MongoDB...</option>';
-            srcConns.forEach(c => {
-                const label = (c.name || c.connectionName) + ' (' + (c.department || 'Default') + ')';
-                const opt = new Option(label, c.id);
-                opt.dataset.department = c.department || '';
-                srcSelect.add(opt);
-            });
+        const srcSelect = document.getElementById('sourceId');
+        if (srcSelect) srcSelect.innerHTML = '<option value="">Loading MongoDB connections...</option>';
+
+        // 1. Fetch MongoDB source connections (try envType=source, then all mongo connections, then general)
+        try {
+            let mongoConns = [];
+            try {
+                const resSrc = await fetch('/api/connections?dbType=mongo&envType=source');
+                if (resSrc.ok) {
+                    const data = await resSrc.json();
+                    if (Array.isArray(data) && data.length > 0) mongoConns = data;
+                }
+            } catch (e1) {
+                console.warn("Direct fetch source mongo error", e1);
+            }
+
+            // Fallback: If no connections with envType=source, fetch all mongo connections
+            if (!mongoConns || mongoConns.length === 0) {
+                try {
+                    const resAll = await fetch('/api/connections?dbType=mongo');
+                    if (resAll.ok) {
+                        const dataAll = await resAll.json();
+                        if (Array.isArray(dataAll) && dataAll.length > 0) mongoConns = dataAll;
+                    }
+                } catch (e2) {
+                    console.warn("Fetch dbType=mongo error", e2);
+                }
+            }
+
+            // Fallback 2: fetch general /api/connections and filter for mongo
+            if (!mongoConns || mongoConns.length === 0) {
+                try {
+                    const resGen = await fetch('/api/connections');
+                    if (resGen.ok) {
+                        const allList = await resGen.json();
+                        if (Array.isArray(allList)) {
+                            mongoConns = allList.filter(c => {
+                                const dbType = (c.dbType || c.databaseType || '').toLowerCase();
+                                const url = (c.url || '').toLowerCase();
+                                const name = (c.name || c.connectionName || '').toLowerCase();
+                                return dbType.includes('mongo') || url.includes('mongodb') || name.includes('mongo');
+                            });
+                        }
+                    }
+                } catch (e3) {
+                    console.warn("Fetch /api/connections error", e3);
+                }
+            }
+
+            state.srcConnections = mongoConns || [];
+            if (srcSelect) {
+                srcSelect.innerHTML = '<option value="">Select a source MongoDB...</option>';
+                if (state.srcConnections.length === 0) {
+                    srcSelect.innerHTML = '<option value="" disabled>-- No MongoDB Connections Found (Add in DB Admin) --</option>';
+                } else {
+                    state.srcConnections.forEach(c => {
+                        const name = c.name || c.connectionName || ('MongoDB #' + c.id);
+                        const envBadge = c.envType ? ` [${c.envType.toUpperCase()}]` : '';
+                        const label = `${name} (${c.department || 'Default'})${envBadge}`;
+                        const opt = new Option(label, c.id);
+                        opt.dataset.department = c.department || '';
+                        srcSelect.add(opt);
+                    });
+                }
+            }
+        } catch (err) {
+            console.error("Failed to load source MongoDB connections", err);
+            if (srcSelect) srcSelect.innerHTML = '<option value="" disabled>Error loading MongoDB connections</option>';
         }
 
-        // Fetch destination COS connections
-        const resCos = await fetch('/api/cos-connections?envType=destination');
-        if (resCos.ok) {
-            const cosConns = await resCos.json();
-            state.cosConnections = cosConns;
-            const cosSelect = document.getElementById('cos-connection');
-            cosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
-            cosConns.forEach(c => {
-                const opt = new Option(c.cosName + ' (' + (c.department || '') + ')', c.id);
-                opt.dataset.department = c.department || c.departmentId || '';
-                cosSelect.add(opt);
+        // 2. Fetch destination COS connections (try with fallback)
+        const cosSelect = document.getElementById('cos-connection');
+        if (cosSelect) cosSelect.innerHTML = '<option value="">Loading COS connections...</option>';
+        try {
+            let cosConns = [];
+            try {
+                const resCos = await fetch('/api/cos-connections?envType=destination');
+                if (resCos.ok) {
+                    const data = await resCos.json();
+                    if (Array.isArray(data) && data.length > 0) cosConns = data;
+                }
+            } catch (e1) {}
+
+            if (!cosConns || cosConns.length === 0) {
+                try {
+                    const resAllCos = await fetch('/api/cos-connections');
+                    if (resAllCos.ok) {
+                        const dataAll = await resAllCos.json();
+                        if (Array.isArray(dataAll)) cosConns = dataAll;
+                    }
+                } catch (e2) {}
+            }
+
+            state.cosConnections = (cosConns || []).filter(c => {
+                const st = (c.storageType || '').toUpperCase();
+                return st === 'COS' || st === '';
             });
+
+            if (cosSelect) {
+                cosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
+                if (state.cosConnections.length === 0) {
+                    cosSelect.innerHTML = '<option value="" disabled>-- No COS Connections Found (Add in COS Admin) --</option>';
+                } else {
+                    state.cosConnections.forEach(c => {
+                        const name = c.cosName || c.name || ('COS #' + c.id);
+                        const bucket = c.bucketName || 'default';
+                        const dept = c.department ? ` - ${c.department}` : '';
+                        const opt = new Option(`${name} (${bucket}${dept})`, c.id);
+                        opt.dataset.department = c.department || c.departmentId || '';
+                        opt.dataset.path = c.storageLocation || '';
+                        cosSelect.add(opt);
+                    });
+                }
+            }
+
+            const localSelect = document.getElementById('local-connection');
+            if (localSelect) {
+                localSelect.innerHTML = '<option value="">Select a registered Local storage connection...</option>';
+                const localConns = (cosConns || []).filter(c => (c.storageType || '').toUpperCase() === 'LOCAL');
+                localConns.forEach(c => {
+                    const opt = new Option(`${c.cosName} (${c.storageLocation || 'N/A'}) [${c.department || 'GLOBAL'}]`, c.id);
+                    opt.dataset.department = c.department || c.departmentId || '';
+                    opt.dataset.path = c.storageLocation || '';
+                    localSelect.add(opt);
+                });
+            }
+        } catch (err) {
+            console.error("Failed to load storage connections", err);
+            if (cosSelect) cosSelect.innerHTML = '<option value="" disabled>Error loading COS connections</option>';
         }
 
         validateStep1();
@@ -1296,9 +1432,9 @@
         const storageType = document.querySelector('input[name="storage-type"]:checked').value;
         let storageValid = false;
         if (storageType === 'cos') {
-            storageValid = !!document.getElementById('cos-connection').value;
+            storageValid = !!document.getElementById('cos-connection')?.value;
         } else { // local
-            storageValid = !!document.getElementById('local-path').value.trim();
+            storageValid = !!document.getElementById('local-connection')?.value;
         }
 
         updateDepartmentDisplay();
@@ -1390,8 +1526,13 @@
                     const cosSelect = document.getElementById('cos-connection');
                     state.storage.id = cosSelect.value;
                     state.storage.name = cosSelect.options[cosSelect.selectedIndex]?.text;
+                    state.storage.path = null;
                 } else {
-                    state.storage.path = document.getElementById('local-path').value.trim() || 'secure-export';
+                    const localSelect = document.getElementById('local-connection');
+                    const opt = localSelect.options[localSelect.selectedIndex];
+                    state.storage.id = localSelect.value;
+                    state.storage.name = opt ? opt.text : 'Local';
+                    state.storage.path = opt?.dataset?.path || '';
                 }
 
                 const res = await fetch(`/api/mongo/collections/${sourceId}/${sourceSchema}`);
@@ -2069,7 +2210,7 @@
         if (state.storage.type === 'cos') {
             destPreview.innerText = `COS: ${state.storage.name}`;
         } else {
-            destPreview.innerText = `Local: ${state.storage.path}`;
+            destPreview.innerText = `Local: ${state.storage.name || state.storage.path || 'Local Storage'}`;
         }
 
         updateDepartmentDisplay();
@@ -2142,12 +2283,13 @@
                     },
                     storage: {
                         type: state.storage.type,
-                        id: state.storage.type === 'cos' ? state.storage.id : null,
-                        name: state.storage.type === 'cos' ? state.storage.name : null,
-                        path: state.storage.type === 'local' ? state.storage.path : null
+                        id: state.storage.id,
+                        name: state.storage.name,
+                        path: state.storage.path
                     },
                     dest: {
                         type: state.storage.type,
+                        id: state.storage.id,
                         destDir: state.storage.type === 'local' ? state.storage.path : null,
                         dest_dir: state.storage.type === 'local' ? state.storage.path : null,
                         path: state.storage.type === 'local' ? state.storage.path : null,
@@ -2174,7 +2316,7 @@
             });
 
             if (res.ok) {
-                alert(`MongoDB Secure Export job submitted for approval successfully!\n\nFile Encryption Password: ${fileEncKey}\n(Please keep this password safe for decrypting during import)`);
+                alert('MongoDB Secure Export job submitted for approval successfully!');
                 window.location.href = '/jobs.html';
             } else {
                 throw new Error('Failed to submit job.');

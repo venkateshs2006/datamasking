@@ -31,8 +31,8 @@ public class DatabaseConfig {
 
     @Bean
     @Primary
-    public PlatformTransactionManager transactionManager(DataSource dataSource) {
-        return new DataSourceTransactionManager(dataSource);
+    public PlatformTransactionManager transactionManager(jakarta.persistence.EntityManagerFactory entityManagerFactory) {
+        return new org.springframework.orm.jpa.JpaTransactionManager(entityManagerFactory);
     }
 
     @Bean(name = "sourceDataSource")

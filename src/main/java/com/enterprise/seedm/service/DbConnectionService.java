@@ -24,12 +24,20 @@ public class DbConnectionService {
     public List<DbConnection> getConnectionsByFilters(List<String> departments, String dbType, String envType) {
         return connectionRepository.findAll().stream()
                 .filter(c -> departments != null && (departments.contains("ALL") || 
-                        (c.getDepartment() != null && departments.stream().anyMatch(d -> d.equalsIgnoreCase(c.getDepartment())))))
+                        c.getDepartment() == null || c.getDepartment().trim().isEmpty() ||
+                        "ALL".equalsIgnoreCase(c.getDepartment().trim()) || "DEFAULT".equalsIgnoreCase(c.getDepartment().trim()) ||
+                        departments.stream().anyMatch(d -> d.equalsIgnoreCase(c.getDepartment()))))
                 .filter(c -> dbType == null || dbType.isEmpty() || 
                         (c.getDbType() != null && (c.getDbType().equalsIgnoreCase(dbType) || 
-                         (dbType.toLowerCase().contains("mongo") && c.getDbType().toLowerCase().contains("mongo")))))
+                         (dbType.toLowerCase().contains("mongo") && c.getDbType().toLowerCase().contains("mongo")))) ||
+                        (dbType.toLowerCase().contains("mongo") && (
+                            (c.getUrl() != null && c.getUrl().toLowerCase().contains("mongo")) ||
+                            (c.getName() != null && c.getName().toLowerCase().contains("mongo"))
+                        )))
                 .filter(c -> envType == null || envType.isEmpty() || 
-                        (c.getEnvType() != null && c.getEnvType().equalsIgnoreCase(envType)))
+                        c.getEnvType() == null || c.getEnvType().trim().isEmpty() ||
+                        "ALL".equalsIgnoreCase(c.getEnvType().trim()) || "BOTH".equalsIgnoreCase(c.getEnvType().trim()) ||
+                        c.getEnvType().equalsIgnoreCase(envType))
                 .collect(Collectors.toList());
     }
 

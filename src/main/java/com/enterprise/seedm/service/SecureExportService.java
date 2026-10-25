@@ -83,16 +83,19 @@ public class SecureExportService {
     private final DataMaskingService dataMaskingService;
 
     public SecureExportService(ObjectMapper objectMapper, Faker faker, FormatPreservingEncryptionService fpeService, MaskingConfigService maskingConfigService) {
-        this(objectMapper, faker, fpeService, maskingConfigService, null);
+        this(objectMapper, faker, fpeService, maskingConfigService, null, null, null, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
-    public SecureExportService(ObjectMapper objectMapper, Faker faker, FormatPreservingEncryptionService fpeService, MaskingConfigService maskingConfigService, @org.springframework.context.annotation.Lazy DataMaskingService dataMaskingService) {
+    public SecureExportService(ObjectMapper objectMapper, Faker faker, FormatPreservingEncryptionService fpeService, MaskingConfigService maskingConfigService, @org.springframework.context.annotation.Lazy DataMaskingService dataMaskingService, SecureExportJobRepository jobRepository, CosConnectionService cosConnectionService, IbmCosService ibmCosService) {
         this.objectMapper = objectMapper;
         this.faker = faker;
         this.fpeService = fpeService;
         this.maskingConfigService = maskingConfigService;
         this.dataMaskingService = dataMaskingService;
+        this.jobRepository = jobRepository;
+        this.cosConnectionService = cosConnectionService;
+        this.ibmCosService = ibmCosService;
     }
 
     public String processSecureExport(String executionId, SecureExportConfig config) {
@@ -144,7 +147,20 @@ public class SecureExportService {
             }
             updateProgress(executionId, "RUNNING", 0, totalTables, null);
 
-            String destDirStr = config.getDest() != null ? config.getDest().getDestDir() : null;
+            String destDirStr = null;
+            if (config.getDest() != null && config.getDest().getDestDir() != null && !config.getDest().getDestDir().isBlank()) {
+                destDirStr = config.getDest().getDestDir().trim();
+            } else if (config.getDest() != null && config.getDest().getPath() != null && !config.getDest().getPath().isBlank()) {
+                destDirStr = config.getDest().getPath().trim();
+            } else if (config.getStorage() != null && config.getStorage().getPath() != null && !config.getStorage().getPath().isBlank()) {
+                destDirStr = config.getStorage().getPath().trim();
+            } else if (config.getStorage() != null && (config.getStorage().getId() != null || config.getStorage().getCosId() != null) && cosConnectionService != null) {
+                Long sId = config.getStorage().getId() != null ? config.getStorage().getId() : config.getStorage().getCosId();
+                CosConnection sConn = cosConnectionService.getConnection(sId);
+                if (sConn != null && sConn.getStorageLocation() != null && !sConn.getStorageLocation().isBlank()) {
+                    destDirStr = sConn.getStorageLocation().trim();
+                }
+            }
             if (destDirStr == null || destDirStr.trim().isEmpty()) {
                 destDirStr = DEFAULT_EXPORT_DIR;
                 log.warn("Destination directory not specified, using default: {}", destDirStr);
@@ -769,17 +785,41 @@ public class SecureExportService {
             return progress.toMap();
         }
 
+        if (jobRepository == null) {
+            return Map.of("status", "NOT_FOUND");
+        }
         SecureExportJob job = jobRepository.findByExecutionId(executionId);
         if (job == null) {
             return Map.of("status", "NOT_FOUND");
         }
         Map<String, Object> map = new HashMap<>();
         map.put("executionId", job.getExecutionId());
+        map.put("jobName", job.getJobName());
         map.put("status", job.getStatus());
         map.put("errorMessage", job.getErrorMessage());
         map.put("fileEncryptionKey", job.getFileEncryptionKey());
         map.put("startTime", job.getCreatedAt());
         map.put("endTime", job.getCompletedAt());
+        map.put("totalTables", job.getTotalTables() != null ? job.getTotalTables() : 0);
+        map.put("processedTables", job.getProcessedTables() != null ? job.getProcessedTables() : 0);
+        map.put("totalRecords", job.getTotalRecords() != null ? job.getTotalRecords() : 0L);
+
+        List<Map<String, Object>> tableProgress = new ArrayList<>();
+        List<String> completedTables = new ArrayList<>();
+        if (job.getProgressDetails() != null && !job.getProgressDetails().isBlank()) {
+            try {
+                tableProgress = objectMapper.readValue(job.getProgressDetails(), List.class);
+                for (Map<String, Object> tp : tableProgress) {
+                    if ("COMPLETED".equals(tp.get("status")) && tp.get("tableName") != null) {
+                        completedTables.add(tp.get("tableName").toString());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse progress details for job: {}", executionId, e);
+            }
+        }
+        map.put("tableProgress", tableProgress);
+        map.put("completedTables", completedTables);
         return map;
     }
 
@@ -798,33 +838,59 @@ public class SecureExportService {
         }
 
         // Add from DB
-        for (SecureExportJob job : jobRepository.findAll()) {
-            if (!seenIds.contains(job.getExecutionId())) {
-                Map<String, Object> execMap = new HashMap<>();
-                execMap.put("id", job.getExecutionId());
-                execMap.put("status", job.getStatus());
-                execMap.put("startTime", job.getCreatedAt());
-                executions.add(execMap);
-                seenIds.add(job.getExecutionId());
+        if (jobRepository != null) {
+            for (SecureExportJob job : jobRepository.findAllByOrderByCreatedAtDesc()) {
+                if (!seenIds.contains(job.getExecutionId())) {
+                    Map<String, Object> execMap = new HashMap<>();
+                    execMap.put("id", job.getExecutionId());
+                    execMap.put("status", job.getStatus());
+                    execMap.put("startTime", job.getCreatedAt());
+                    executions.add(execMap);
+                    seenIds.add(job.getExecutionId());
+                }
             }
         }
         return executions;
     }
 
     private void saveJob(String executionId, SecureExportConfig config, String status, String errorMessage) {
-        SecureExportJob job = new SecureExportJob();
-        job.setExecutionId(executionId);
-        job.setJobName(config.getJobName());
-        job.setStatus(status);
-        job.setErrorMessage(errorMessage);
-        job.setFileEncryptionKey(config.getFileEncryptionKey());
-        job.setCreatedAt(System.currentTimeMillis());
+        if (jobRepository == null) return;
         try {
-            job.setConfigDetails(objectMapper.writeValueAsString(config));
-        } catch (IOException e) {
-            log.error("Failed to serialize config details", e);
+            SecureExportProgress progress = progressMap.get(executionId);
+            SecureExportJob job = jobRepository.findByExecutionId(executionId);
+            if (job == null) {
+                job = new SecureExportJob();
+                job.setExecutionId(executionId);
+                job.setJobName((config != null && config.getJobName() != null && !config.getJobName().trim().isEmpty()) ? config.getJobName().trim() : executionId);
+                job.setCreatedAt(System.currentTimeMillis());
+            }
+            job.setStatus(status);
+            job.setErrorMessage(errorMessage);
+            if (config != null && config.getFileEncryptionKey() != null) {
+                job.setFileEncryptionKey(config.getFileEncryptionKey());
+            }
+            if (progress != null) {
+                if (job.getFileEncryptionKey() == null && progress.getFileEncryptionKey() != null) {
+                    job.setFileEncryptionKey(progress.getFileEncryptionKey());
+                }
+                job.setTotalTables(progress.totalTables.get());
+                job.setProcessedTables(progress.processedTables.get());
+                job.setTotalRecords((long) progress.totalRecords.get());
+                if (progress.tableProgress != null) {
+                    job.setProgressDetails(objectMapper.writeValueAsString(progress.tableProgress));
+                }
+            }
+            if (config != null) {
+                try {
+                    job.setConfigDetails(objectMapper.writeValueAsString(config));
+                } catch (IOException e) {
+                    log.error("Failed to serialize config details", e);
+                }
+            }
+            jobRepository.saveAndFlush(job);
+        } catch (Exception e) {
+            log.error("Failed to save SecureExportJob record", e);
         }
-        jobRepository.save(job);
     }
 
     private void updateProgress(String executionId, String status, int processed, int total, String errorMessage) {
@@ -839,14 +905,34 @@ public class SecureExportService {
             }
         }
 
-        SecureExportJob job = jobRepository.findByExecutionId(executionId);
-        if (job != null) {
+        if (jobRepository == null) return;
+        try {
+            SecureExportJob job = jobRepository.findByExecutionId(executionId);
+            if (job == null) {
+                job = new SecureExportJob();
+                job.setExecutionId(executionId);
+                job.setJobName(executionId);
+                job.setCreatedAt(System.currentTimeMillis());
+            }
             job.setStatus(status);
+            job.setTotalTables(total);
+            job.setProcessedTables(processed);
+            if (progress != null) {
+                job.setTotalRecords((long) progress.totalRecords.get());
+                if (progress.getFileEncryptionKey() != null) {
+                    job.setFileEncryptionKey(progress.getFileEncryptionKey());
+                }
+                if (progress.tableProgress != null) {
+                    job.setProgressDetails(objectMapper.writeValueAsString(progress.tableProgress));
+                }
+            }
             job.setErrorMessage(errorMessage);
             if ("FAILED".equals(status) || "COMPLETED".equals(status)) {
                 job.setCompletedAt(System.currentTimeMillis());
             }
-            jobRepository.save(job);
+            jobRepository.saveAndFlush(job);
+        } catch (Exception e) {
+            log.error("Failed to update SecureExportJob progress in DB", e);
         }
     }
 

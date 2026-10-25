@@ -9,4 +9,5 @@ import java.util.Optional;
 public interface MigrationJobRepository extends JpaRepository<MigrationJob, Long> {
     Optional<MigrationJob> findByJobId(String jobId);
     List<MigrationJob> findBySourceDbType(String sourceDbType);
+    List<MigrationJob> findAllByOrderByCreatedAtDesc();
 }

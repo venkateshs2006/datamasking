@@ -443,20 +443,31 @@ public class JsonSecureImportService {
     private void saveJobRecord(String executionId, JsonSecureImportConfig config, String status, String errorMessage) {
         if (jobRepository == null) return;
         try {
+            JsonSecureImportProgress progress = progressMap.get(executionId);
             JsonSecureImportJob job = jobRepository.findByExecutionId(executionId);
             if (job == null) {
                 job = new JsonSecureImportJob();
                 job.setExecutionId(executionId);
-                job.setJobName(config.getJobName() != null ? config.getJobName() : "JSON Secure Import");
+                job.setJobName((config != null && config.getJobName() != null && !config.getJobName().trim().isEmpty()) ? config.getJobName().trim() : executionId);
                 job.setCreatedAt(System.currentTimeMillis());
             }
             job.setStatus(status);
             job.setErrorMessage(errorMessage);
+            if (progress != null) {
+                job.setTotalFiles(progress.totalFiles.get());
+                job.setProcessedFiles(progress.processedFiles.get());
+                job.setTotalRecords(progress.totalRecords.get());
+                if (progress.fileProgress != null) {
+                    job.setProgressDetails(objectMapper.writeValueAsString(progress.fileProgress));
+                }
+            }
             if ("COMPLETED".equals(status) || "FAILED".equals(status)) {
                 job.setCompletedAt(System.currentTimeMillis());
             }
-            job.setConfigDetails(objectMapper.writeValueAsString(config));
-            jobRepository.save(job);
+            if (config != null) {
+                job.setConfigDetails(objectMapper.writeValueAsString(config));
+            }
+            jobRepository.saveAndFlush(job);
         } catch (Exception e) {
             log.error("Failed to save JsonSecureImportJob record", e);
         }
@@ -468,6 +479,9 @@ public class JsonSecureImportService {
             return progress.toMap();
         }
 
+        if (jobRepository == null) {
+            return Map.of("status", "NOT_FOUND");
+        }
         JsonSecureImportJob job = jobRepository.findByExecutionId(executionId);
         if (job == null) {
             return Map.of("status", "NOT_FOUND");
@@ -479,19 +493,65 @@ public class JsonSecureImportService {
         map.put("errorMessage", job.getErrorMessage());
         map.put("startTime", job.getCreatedAt());
         map.put("completedTime", job.getCompletedAt() != null ? job.getCompletedAt() : 0);
+        map.put("endTime", job.getCompletedAt() != null ? job.getCompletedAt() : 0);
+        map.put("totalFiles", job.getTotalFiles() != null ? job.getTotalFiles() : 0);
+        map.put("processedFiles", job.getProcessedFiles() != null ? job.getProcessedFiles() : 0);
+        map.put("totalTables", job.getTotalFiles() != null ? job.getTotalFiles() : 0);
+        map.put("processedTables", job.getProcessedFiles() != null ? job.getProcessedFiles() : 0);
+        map.put("totalRecords", job.getTotalRecords() != null ? job.getTotalRecords() : 0L);
+
+        List<Map<String, Object>> fileProgress = new ArrayList<>();
+        List<String> completedFiles = new ArrayList<>();
+        if (job.getProgressDetails() != null && !job.getProgressDetails().isBlank()) {
+            try {
+                fileProgress = objectMapper.readValue(job.getProgressDetails(), List.class);
+                for (Map<String, Object> fp : fileProgress) {
+                    if ("COMPLETED".equals(fp.get("status")) && fp.get("tableName") != null) {
+                        completedFiles.add(fp.get("tableName").toString());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse progress details for json import: {}", executionId, e);
+            }
+        }
+        map.put("tableProgress", fileProgress);
+        map.put("completedTables", completedFiles);
+        long start = job.getCreatedAt() != null ? job.getCreatedAt() : 0;
+        long end = job.getCompletedAt() != null ? job.getCompletedAt() : System.currentTimeMillis();
+        map.put("elapsedSeconds", (end - start) / 1000);
         return map;
     }
 
     public List<Map<String, Object>> getAllExecutions() {
         List<Map<String, Object>> list = new ArrayList<>();
-        for (JsonSecureImportJob job : jobRepository.findAllByOrderByCreatedAtDesc()) {
+        Set<String> seenIds = new HashSet<>();
+
+        // From memory
+        for (Map.Entry<String, JsonSecureImportProgress> entry : progressMap.entrySet()) {
             Map<String, Object> map = new HashMap<>();
-            map.put("id", job.getExecutionId());
-            map.put("jobName", job.getJobName());
-            map.put("status", job.getStatus());
-            map.put("startTime", job.getCreatedAt());
-            map.put("completedTime", job.getCompletedAt());
+            map.put("id", entry.getKey());
+            map.put("jobName", entry.getKey());
+            map.put("status", entry.getValue().status);
+            map.put("startTime", entry.getValue().startTime);
+            map.put("completedTime", entry.getValue().completedTime);
             list.add(map);
+            seenIds.add(entry.getKey());
+        }
+
+        // From DB
+        if (jobRepository != null) {
+            for (JsonSecureImportJob job : jobRepository.findAllByOrderByCreatedAtDesc()) {
+                if (!seenIds.contains(job.getExecutionId())) {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", job.getExecutionId());
+                    map.put("jobName", job.getJobName());
+                    map.put("status", job.getStatus());
+                    map.put("startTime", job.getCreatedAt());
+                    map.put("completedTime", job.getCompletedAt());
+                    list.add(map);
+                    seenIds.add(job.getExecutionId());
+                }
+            }
         }
         return list;
     }

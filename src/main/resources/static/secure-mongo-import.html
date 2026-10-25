@@ -118,9 +118,11 @@
                 </div>
 
                 <div id="srcLocalContainer">
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Directory / File Path <span class="text-rose-500">*</span></label>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Local Storage Location <span class="text-rose-500">*</span></label>
                     <div class="flex gap-2">
-                        <input type="text" id="srcDirPath" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono" value="/home/sv/data" placeholder="e.g. /home/sv/data">
+                        <select id="srcDirPath" onchange="scanStorage()" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs bg-white">
+                            <option value="" disabled selected>Loading local storage connections...</option>
+                        </select>
                         <button type="button" onclick="scanStorage()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg transition shrink-0">
                             <i class="fas fa-search mr-1"></i> Scan
                         </button>
@@ -330,26 +332,74 @@
     }
 
     async function loadMongoConnections() {
+        const select = document.getElementById('destConnSelect');
+        if (select) select.innerHTML = '<option value="" disabled selected>Loading MongoDB connections...</option>';
+
         try {
-            const res = await fetch('/api/connections?dbType=mongo&envType=destination');
-            if (res.ok) {
-                mongoConnections = await res.json();
-                const select = document.getElementById('destConnSelect');
+            let list = [];
+            // 1. Try destination mongo connections
+            try {
+                const res = await fetch('/api/connections?dbType=mongo&envType=destination');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data) && data.length > 0) list = data;
+                }
+            } catch (e1) {
+                console.warn("Direct fetch destination mongo error", e1);
+            }
+
+            // 2. Fallback: all mongo connections
+            if (!list || list.length === 0) {
+                try {
+                    const resAll = await fetch('/api/connections?dbType=mongo');
+                    if (resAll.ok) {
+                        const dataAll = await resAll.json();
+                        if (Array.isArray(dataAll) && dataAll.length > 0) list = dataAll;
+                    }
+                } catch (e2) {
+                    console.warn("Fetch dbType=mongo error", e2);
+                }
+            }
+
+            // 3. Fallback: general /api/connections
+            if (!list || list.length === 0) {
+                try {
+                    const resGen = await fetch('/api/connections');
+                    if (resGen.ok) {
+                        const allList = await resGen.json();
+                        if (Array.isArray(allList)) {
+                            list = allList.filter(c => {
+                                const dbType = (c.dbType || c.databaseType || '').toLowerCase();
+                                const url = (c.url || '').toLowerCase();
+                                const name = (c.name || c.connectionName || '').toLowerCase();
+                                return dbType.includes('mongo') || url.includes('mongodb') || name.includes('mongo');
+                            });
+                        }
+                    }
+                } catch (e3) {
+                    console.warn("Fetch /api/connections error", e3);
+                }
+            }
+
+            mongoConnections = list || [];
+            if (select) {
                 select.innerHTML = '<option value="" disabled selected>Select Target MongoDB...</option>';
                 if (mongoConnections.length === 0) {
-                    select.innerHTML = '<option value="" disabled>No destination MongoDB connections configured</option>';
+                    select.innerHTML = '<option value="" disabled>-- No MongoDB Connections Found (Add in DB Admin) --</option>';
                     return;
                 }
                 mongoConnections.forEach(c => {
-                    const name = c.name || c.connectionName || 'Mongo DB';
+                    const name = c.name || c.connectionName || ('MongoDB #' + c.id);
                     const dept = c.department ? ` (${c.department})` : '';
-                    const opt = new Option(`${name}${dept}`, c.id);
+                    const envBadge = c.envType ? ` [${c.envType.toUpperCase()}]` : '';
+                    const opt = new Option(`${name}${dept}${envBadge}`, c.id);
                     opt.dataset.department = c.department || '';
                     select.add(opt);
                 });
             }
         } catch (e) {
             console.error('Failed to load mongo connections', e);
+            if (select) select.innerHTML = '<option value="" disabled>Error loading MongoDB connections</option>';
         }
     }
 
@@ -438,14 +488,54 @@
         try {
             const res = await fetch('/api/cos-connections');
             if (res.ok) {
-                cosConnections = await res.json();
-                const select = document.getElementById('srcCosSelect');
-                select.innerHTML = '<option value="" disabled selected>Select COS Bucket...</option>';
-                cosConnections.forEach(c => {
-                    select.innerHTML += `<option value="${c.id}">${c.cosName} - ${c.bucketName || 'Bucket'} (${c.departmentId})</option>`;
+                const data = await res.json();
+                cosConnections = (data || []).filter(c => {
+                    const st = (c.storageType || '').toUpperCase();
+                    return st !== 'LOCAL';
                 });
+                const localConnections = (data || []).filter(c => {
+                    const st = (c.storageType || '').toUpperCase();
+                    return st === 'LOCAL';
+                });
+
+                const select = document.getElementById('srcCosSelect');
+                if (select) {
+                    select.innerHTML = '<option value="" disabled selected>Select COS Bucket...</option>';
+                    if (cosConnections.length === 0) {
+                        select.innerHTML = '<option value="" disabled>-- No COS Connections Found (Add in COS Admin) --</option>';
+                    } else {
+                        cosConnections.forEach(c => {
+                            const name = c.cosName || c.name || ('COS #' + c.id);
+                            const bucket = c.bucketName || 'Bucket';
+                            const dept = c.department ? ` (${c.department})` : '';
+                            select.innerHTML += `<option value="${c.id}">${name} - ${bucket}${dept}</option>`;
+                        });
+                    }
+                }
+
+                const localSelect = document.getElementById('srcDirPath');
+                if (localSelect) {
+                    localSelect.innerHTML = '<option value="" disabled selected>Select Local Storage...</option>';
+                    if (localConnections.length === 0) {
+                        localSelect.innerHTML = '<option value="" disabled>-- No Local Connections Found --</option>';
+                    } else {
+                        localConnections.forEach(c => {
+                            const name = c.cosName || c.name || ('Local #' + c.id);
+                            const loc = c.storageLocation || '';
+                            const dept = c.department ? ` (${c.department})` : '';
+                            const opt = document.createElement('option');
+                            opt.value = c.id;
+                            opt.dataset.path = loc;
+                            opt.textContent = `${name} - ${loc}${dept}`;
+                            localSelect.appendChild(opt);
+                        });
+                        localSelect.selectedIndex = 1;
+                    }
+                }
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error('Error loading connections', e);
+        }
     }
 
     function onSrcTypeChanged() {
@@ -471,7 +561,15 @@
 
         const payload = { type: srcType };
         if (srcType === 'local') {
-            payload.path = document.getElementById('srcDirPath').value.trim();
+            const localSelect = document.getElementById('srcDirPath');
+            if (!localSelect || !localSelect.value) {
+                container.innerHTML = '<div class="text-center py-4 text-gray-400 text-xs italic">Select a local storage connection to scan.</div>';
+                return;
+            }
+            payload.id = Number(localSelect.value);
+            payload.cosId = Number(localSelect.value);
+            const opt = localSelect.options[localSelect.selectedIndex];
+            payload.path = opt ? (opt.dataset.path || opt.value) : '';
         } else {
             const cosId = document.getElementById('srcCosSelect').value;
             if (!cosId) {
@@ -610,9 +708,14 @@
             fileName: selectedFileName
         };
         if (srcType === 'local') {
-            storageConfig.path = document.getElementById('srcDirPath').value.trim();
+            const localSelect = document.getElementById('srcDirPath');
+            const opt = localSelect ? localSelect.options[localSelect.selectedIndex] : null;
+            storageConfig.id = localSelect && localSelect.value ? Number(localSelect.value) : null;
+            storageConfig.cosId = storageConfig.id;
+            storageConfig.path = opt ? (opt.dataset.path || opt.value) : '';
         } else {
             storageConfig.id = Number(document.getElementById('srcCosSelect').value);
+            storageConfig.cosId = storageConfig.id;
         }
 
         const payload = {

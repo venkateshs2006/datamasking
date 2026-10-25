@@ -1098,26 +1098,95 @@
 
     async function fetchConnections() {
         // Fetch source connections for mongo
-        const resSrc = await fetch('/api/connections?dbType=mongo&envType=source');
-        if (resSrc.ok) {
-            const srcConns = await resSrc.json();
-            const srcSelect = document.getElementById('sourceId');
+        let srcConns = [];
+        try {
+            const resSrc = await fetch('/api/connections?dbType=mongo&envType=source');
+            if (resSrc.ok) {
+                const data = await resSrc.json();
+                if (Array.isArray(data) && data.length > 0) srcConns = data;
+            }
+        } catch (e) {}
+
+        if (!srcConns || srcConns.length === 0) {
+            try {
+                const resAll = await fetch('/api/connections?dbType=mongo');
+                if (resAll.ok) {
+                    const dataAll = await resAll.json();
+                    if (Array.isArray(dataAll) && dataAll.length > 0) srcConns = dataAll;
+                }
+            } catch (e) {}
+        }
+
+        if (!srcConns || srcConns.length === 0) {
+            try {
+                const resGen = await fetch('/api/connections');
+                if (resGen.ok) {
+                    const all = await resGen.json();
+                    if (Array.isArray(all)) {
+                        srcConns = all.filter(c => {
+                            const dbType = (c.dbType || c.databaseType || '').toLowerCase();
+                            const url = (c.url || '').toLowerCase();
+                            const name = (c.name || c.connectionName || '').toLowerCase();
+                            return dbType.includes('mongo') || url.includes('mongodb') || name.includes('mongo');
+                        });
+                    }
+                }
+            } catch (e) {}
+        }
+
+        const srcSelect = document.getElementById('sourceId');
+        if (srcSelect) {
             srcSelect.innerHTML = '<option value="">Select a source database...</option>';
-            srcConns.forEach(c => srcSelect.add(new Option(c.name + ' (' + c.url + ')', c.id)));
+            if (!srcConns || srcConns.length === 0) {
+                srcSelect.innerHTML = '<option value="" disabled>-- No MongoDB Connections Found (Add in DB Admin) --</option>';
+            } else {
+                srcConns.forEach(c => {
+                    const name = c.name || c.connectionName || ('MongoDB #' + c.id);
+                    const envBadge = c.envType ? ` [${c.envType.toUpperCase()}]` : '';
+                    srcSelect.add(new Option(`${name}${envBadge} (${c.url || 'mongo'})`, c.id));
+                });
+            }
         }
 
         // Fetch destination connections for mongo
-        const resDest = await fetch('/api/connections?dbType=mongo&envType=destination');
-        if (resDest.ok) {
-            const destConns = await resDest.json();
-            state.destConnections = destConns;
-            const destSelect = document.getElementById('destId');
+        let destConns = [];
+        try {
+            const resDest = await fetch('/api/connections?dbType=mongo&envType=destination');
+            if (resDest.ok) {
+                const data = await resDest.json();
+                if (Array.isArray(data) && data.length > 0) destConns = data;
+            }
+        } catch (e) {}
+
+        if (!destConns || destConns.length === 0) {
+            try {
+                const resAll = await fetch('/api/connections?dbType=mongo');
+                if (resAll.ok) {
+                    const dataAll = await resAll.json();
+                    if (Array.isArray(dataAll) && dataAll.length > 0) destConns = dataAll;
+                }
+            } catch (e) {}
+        }
+
+        if (!destConns || destConns.length === 0) {
+            destConns = srcConns || [];
+        }
+
+        state.destConnections = destConns || [];
+        const destSelect = document.getElementById('destId');
+        if (destSelect) {
             destSelect.innerHTML = '<option value="">Select a destination database...</option>';
-            destConns.forEach(c => {
-                const opt = new Option(c.name + ' (' + c.url + ')', c.id);
-                opt.dataset.department = c.department || '';
-                destSelect.add(opt);
-            });
+            if (!destConns || destConns.length === 0) {
+                destSelect.innerHTML = '<option value="" disabled>-- No Destination MongoDB Connections Found --</option>';
+            } else {
+                destConns.forEach(c => {
+                    const name = c.name || c.connectionName || ('MongoDB #' + c.id);
+                    const envBadge = c.envType ? ` [${c.envType.toUpperCase()}]` : '';
+                    const opt = new Option(`${name}${envBadge} (${c.url || 'mongo'})`, c.id);
+                    opt.dataset.department = c.department || '';
+                    destSelect.add(opt);
+                });
+            }
         }
 
         validateStep1();

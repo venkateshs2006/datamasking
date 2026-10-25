@@ -25,8 +25,13 @@ public class CosConnectionService {
 
     public List<CosConnection> getConnectionsByFilters(List<String> departments, String envType, String storageType) {
         return cosConnectionRepository.findAll().stream()
-                .filter(c -> departments != null && (departments.contains("ALL") || departments.contains(c.getDepartment())))
-                .filter(c -> envType == null || envType.isEmpty() || c.getEnvType().equalsIgnoreCase(envType))
+                .filter(c -> departments != null && (departments.contains("ALL") || departments.contains(c.getDepartment()) || c.getDepartment() == null || c.getDepartment().isBlank()))
+                .filter(c -> {
+                    if (envType == null || envType.isEmpty() || "ALL".equalsIgnoreCase(envType)) return true;
+                    if (c.getEnvType() == null || c.getEnvType().isBlank()) return true;
+                    if ("BOTH".equalsIgnoreCase(c.getEnvType())) return true;
+                    return c.getEnvType().equalsIgnoreCase(envType);
+                })
                 .filter(c -> !StringUtils.hasText(storageType) || (c.getStorageType() != null && c.getStorageType().equalsIgnoreCase(storageType)))
                 .collect(Collectors.toList());
     }

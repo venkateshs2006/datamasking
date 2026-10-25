@@ -703,10 +703,11 @@ public class JsonSecureExportService {
 
     private Path resolveStoragePath(JsonSecureExportConfig.StorageConfig storage) {
         if (storage != null) {
-            if ("cos".equalsIgnoreCase(storage.getType()) && storage.getCosId() != null) {
-                CosConnection cos = cosConnectionService.getConnection(storage.getCosId());
-                if (cos != null && cos.getStorageLocation() != null) {
-                    return Paths.get(cos.getStorageLocation());
+            Long cosId = storage.getCosId() != null ? storage.getCosId() : storage.getId();
+            if (cosId != null && cosConnectionService != null) {
+                CosConnection cos = cosConnectionService.getConnection(cosId);
+                if (cos != null && cos.getStorageLocation() != null && !cos.getStorageLocation().isBlank()) {
+                    return Paths.get(cos.getStorageLocation().trim());
                 }
             }
             if (storage.getPath() != null && !storage.getPath().trim().isEmpty()) {
@@ -719,21 +720,37 @@ public class JsonSecureExportService {
     private void saveJobRecord(String executionId, JsonSecureExportConfig config, String status, String errorMessage) {
         if (jobRepository == null) return;
         try {
+            JsonSecureExportProgress progress = progressMap.get(executionId);
             JsonSecureExportJob job = jobRepository.findByExecutionId(executionId);
             if (job == null) {
                 job = new JsonSecureExportJob();
                 job.setExecutionId(executionId);
-                job.setJobName(config.getJobName() != null ? config.getJobName() : "JSON Secure Export");
+                job.setJobName((config != null && config.getJobName() != null && !config.getJobName().trim().isEmpty()) ? config.getJobName().trim() : executionId);
                 job.setCreatedAt(System.currentTimeMillis());
             }
             job.setStatus(status);
             job.setErrorMessage(errorMessage);
-            job.setFileEncryptionKey(config.getFileEncryptionKey());
+            if (config != null && config.getFileEncryptionKey() != null) {
+                job.setFileEncryptionKey(config.getFileEncryptionKey());
+            }
+            if (progress != null) {
+                if (job.getFileEncryptionKey() == null && progress.fileEncryptionKey != null) {
+                    job.setFileEncryptionKey(progress.fileEncryptionKey);
+                }
+                job.setTotalFiles(progress.totalFiles.get());
+                job.setProcessedFiles(progress.processedFiles.get());
+                job.setTotalRecords(progress.totalRecords.get());
+                if (progress.fileProgress != null) {
+                    job.setProgressDetails(objectMapper.writeValueAsString(progress.fileProgress));
+                }
+            }
             if ("COMPLETED".equals(status) || "FAILED".equals(status)) {
                 job.setCompletedAt(System.currentTimeMillis());
             }
-            job.setConfigDetails(objectMapper.writeValueAsString(config));
-            jobRepository.save(job);
+            if (config != null) {
+                job.setConfigDetails(objectMapper.writeValueAsString(config));
+            }
+            jobRepository.saveAndFlush(job);
         } catch (Exception e) {
             log.error("Failed to save JsonSecureExportJob record", e);
         }
@@ -745,6 +762,9 @@ public class JsonSecureExportService {
             return progress.toMap();
         }
 
+        if (jobRepository == null) {
+            return Map.of("status", "NOT_FOUND");
+        }
         JsonSecureExportJob job = jobRepository.findByExecutionId(executionId);
         if (job == null) {
             return Map.of("status", "NOT_FOUND");
@@ -757,19 +777,65 @@ public class JsonSecureExportService {
         map.put("fileEncryptionKey", job.getFileEncryptionKey());
         map.put("startTime", job.getCreatedAt());
         map.put("completedTime", job.getCompletedAt() != null ? job.getCompletedAt() : 0);
+        map.put("endTime", job.getCompletedAt() != null ? job.getCompletedAt() : 0);
+        map.put("totalFiles", job.getTotalFiles() != null ? job.getTotalFiles() : 0);
+        map.put("processedFiles", job.getProcessedFiles() != null ? job.getProcessedFiles() : 0);
+        map.put("totalTables", job.getTotalFiles() != null ? job.getTotalFiles() : 0);
+        map.put("processedTables", job.getProcessedFiles() != null ? job.getProcessedFiles() : 0);
+        map.put("totalRecords", job.getTotalRecords() != null ? job.getTotalRecords() : 0L);
+
+        List<Map<String, Object>> fileProgress = new ArrayList<>();
+        List<String> completedFiles = new ArrayList<>();
+        if (job.getProgressDetails() != null && !job.getProgressDetails().isBlank()) {
+            try {
+                fileProgress = objectMapper.readValue(job.getProgressDetails(), List.class);
+                for (Map<String, Object> fp : fileProgress) {
+                    if ("COMPLETED".equals(fp.get("status")) && fp.get("tableName") != null) {
+                        completedFiles.add(fp.get("tableName").toString());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse progress details for json export: {}", executionId, e);
+            }
+        }
+        map.put("tableProgress", fileProgress);
+        map.put("completedTables", completedFiles);
+        long start = job.getCreatedAt() != null ? job.getCreatedAt() : 0;
+        long end = job.getCompletedAt() != null ? job.getCompletedAt() : System.currentTimeMillis();
+        map.put("elapsedSeconds", (end - start) / 1000);
         return map;
     }
 
     public List<Map<String, Object>> getAllExecutions() {
         List<Map<String, Object>> list = new ArrayList<>();
-        for (JsonSecureExportJob job : jobRepository.findAllByOrderByCreatedAtDesc()) {
+        Set<String> seenIds = new HashSet<>();
+
+        // From memory
+        for (Map.Entry<String, JsonSecureExportProgress> entry : progressMap.entrySet()) {
             Map<String, Object> map = new HashMap<>();
-            map.put("id", job.getExecutionId());
-            map.put("jobName", job.getJobName());
-            map.put("status", job.getStatus());
-            map.put("startTime", job.getCreatedAt());
-            map.put("completedTime", job.getCompletedAt());
+            map.put("id", entry.getKey());
+            map.put("jobName", entry.getKey());
+            map.put("status", entry.getValue().status);
+            map.put("startTime", entry.getValue().startTime);
+            map.put("completedTime", entry.getValue().completedTime);
             list.add(map);
+            seenIds.add(entry.getKey());
+        }
+
+        // From DB
+        if (jobRepository != null) {
+            for (JsonSecureExportJob job : jobRepository.findAllByOrderByCreatedAtDesc()) {
+                if (!seenIds.contains(job.getExecutionId())) {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", job.getExecutionId());
+                    map.put("jobName", job.getJobName());
+                    map.put("status", job.getStatus());
+                    map.put("startTime", job.getCreatedAt());
+                    map.put("completedTime", job.getCompletedAt());
+                    list.add(map);
+                    seenIds.add(job.getExecutionId());
+                }
+            }
         }
         return list;
     }

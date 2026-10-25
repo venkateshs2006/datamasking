@@ -166,9 +166,11 @@
                         <!-- Local storage options -->
                         <div id="local-storage-container" class="space-y-4">
                             <div>
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Folder Path</label>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Storage Location</label>
                                 <div class="flex gap-2">
-                                    <input type="text" id="localPath" class="input-field font-mono text-sm" placeholder="e.g., secure-export" value="secure-export" oninput="validateStep1()">
+                                    <select id="localPath" class="input-field cursor-pointer bg-white" onchange="scanSourceFiles(); validateStep1();">
+                                        <option value="">Loading local storage connections...</option>
+                                    </select>
                                     <button type="button" onclick="scanSourceFiles()" class="btn btn-secondary text-xs px-4 whitespace-nowrap">
                                         <i class="fas fa-search mr-1.5"></i> Scan Files
                                     </button>
@@ -525,17 +527,34 @@
         }
 
         async function initStep1() {
-            // Load COS connections for source dropdown
             try {
-                const resCos = await fetch('/api/cos-connections');
-                if (resCos.ok) {
-                    const cosConns = await resCos.json();
+                const res = await fetch('/api/cos-connections');
+                if (res.ok) {
+                    const allConns = await res.json();
+                    const cosConns = allConns.filter(c => (c.storageType || '').toLowerCase() !== 'local');
+                    const localConns = allConns.filter(c => (c.storageType || '').toLowerCase() === 'local');
+
                     const cosSelect = document.getElementById('cosConnectionId');
-                    cosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
-                    cosConns.forEach(c => cosSelect.add(new Option(c.cosName || c.connectionName + ' (' + (c.bucketName || 'Bucket') + ')', c.id)));
+                    if (cosSelect) {
+                        cosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
+                        cosConns.forEach(c => cosSelect.add(new Option(c.cosName || c.connectionName + ' (' + (c.bucketName || 'Bucket') + ')', c.id)));
+                    }
+
+                    const localSelect = document.getElementById('localPath');
+                    if (localSelect) {
+                        localSelect.innerHTML = '<option value="">Select a Local Storage...</option>';
+                        localConns.forEach(c => {
+                            const opt = new Option((c.cosName || c.name || 'Local') + ' - ' + (c.storageLocation || ''), c.id);
+                            opt.dataset.path = c.storageLocation || '';
+                            localSelect.add(opt);
+                        });
+                        if (localConns.length > 0) {
+                            localSelect.selectedIndex = 1;
+                        }
+                    }
                 }
             } catch (e) {
-                console.warn('Error loading COS connections', e);
+                console.warn('Error loading storage connections', e);
             }
             scanSourceFiles();
         }
@@ -556,9 +575,16 @@
 
             const payload = { type: type, fileType: 'sql' };
             if (type === 'local') {
-                payload.path = document.getElementById('localPath').value.trim() || 'secure-export';
+                const localSelect = document.getElementById('localPath');
+                if (localSelect && localSelect.value) {
+                    const opt = localSelect.options[localSelect.selectedIndex];
+                    payload.id = localSelect.value;
+                    payload.cosId = localSelect.value;
+                    payload.path = opt ? (opt.dataset.path || opt.value) : '';
+                }
             } else {
                 payload.cosId = document.getElementById('cosConnectionId').value;
+                payload.id = payload.cosId;
             }
 
             try {
@@ -1246,9 +1272,14 @@
                 fileName: selectedFileName
             };
             if (srcType === 'local') {
-                storageConfig.path = document.getElementById('localPath').value.trim() || 'secure-export';
+                const localSelect = document.getElementById('localPath');
+                const opt = localSelect ? localSelect.options[localSelect.selectedIndex] : null;
+                storageConfig.id = localSelect ? localSelect.value : null;
+                storageConfig.cosId = localSelect ? localSelect.value : null;
+                storageConfig.path = opt ? (opt.dataset.path || opt.value) : 'secure-export';
             } else {
                 storageConfig.id = document.getElementById('cosConnectionId').value;
+                storageConfig.cosId = storageConfig.id;
             }
 
             let payload = {};

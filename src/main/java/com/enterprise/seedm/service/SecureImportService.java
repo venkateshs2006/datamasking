@@ -56,7 +56,16 @@ public class SecureImportService {
     private static final Pattern INSERT_INTO_PATTERN = Pattern.compile("^\\s*INSERT\\s+INTO\\s+(?:([a-zA-Z0-9_]+)\\.)?([a-zA-Z0-9_]+)", Pattern.CASE_INSENSITIVE);
 
     public SecureImportService(ObjectMapper objectMapper) {
+        this(objectMapper, null, null, null, null);
+    }
+
+    @Autowired
+    public SecureImportService(ObjectMapper objectMapper, SecureImportJobRepository jobRepository, DbConnectionService dbConnectionService, CosConnectionService cosConnectionService, IbmCosService ibmCosService) {
         this.objectMapper = objectMapper;
+        this.jobRepository = jobRepository;
+        this.dbConnectionService = dbConnectionService;
+        this.cosConnectionService = cosConnectionService;
+        this.ibmCosService = ibmCosService;
     }
 
     /**
@@ -97,7 +106,16 @@ public class SecureImportService {
             }
         } else {
             // Local storage
-            String localPathStr = storage.getPath();
+            String localPathStr = null;
+            if (storage.getId() != null && cosConnectionService != null) {
+                CosConnection cos = cosConnectionService.getConnection(storage.getId());
+                if (cos != null && cos.getStorageLocation() != null && !cos.getStorageLocation().isBlank()) {
+                    localPathStr = cos.getStorageLocation().trim();
+                }
+            }
+            if (localPathStr == null || localPathStr.trim().isEmpty()) {
+                localPathStr = storage.getPath();
+            }
             if (localPathStr == null || localPathStr.trim().isEmpty()) {
                 localPathStr = storage.getName();
             }
@@ -538,6 +556,13 @@ public class SecureImportService {
                 dirPath = Paths.get(pathStr.trim());
             }
 
+            if (dirPath == null && cosId != null && cosConnectionService != null) {
+                CosConnection conn = cosConnectionService.getConnection(cosId);
+                if (conn != null && conn.getStorageLocation() != null) {
+                    dirPath = Paths.get(conn.getStorageLocation());
+                }
+            }
+
             if (dirPath == null) {
                 dirPath = Paths.get("secure-export");
             }
@@ -619,16 +644,40 @@ public class SecureImportService {
             return progress.toMap();
         }
 
+        if (jobRepository == null) {
+            return Map.of("status", "NOT_FOUND");
+        }
         SecureImportJob job = jobRepository.findByExecutionId(executionId);
         if (job == null) {
             return Map.of("status", "NOT_FOUND");
         }
         Map<String, Object> map = new HashMap<>();
         map.put("executionId", job.getExecutionId());
+        map.put("jobName", job.getJobName());
         map.put("status", job.getStatus());
         map.put("errorMessage", job.getErrorMessage());
         map.put("startTime", job.getCreatedAt());
         map.put("endTime", job.getCompletedAt());
+        map.put("totalTables", job.getTotalTables() != null ? job.getTotalTables() : 0);
+        map.put("processedTables", job.getProcessedTables() != null ? job.getProcessedTables() : 0);
+        map.put("totalRecords", job.getTotalRecords() != null ? job.getTotalRecords() : 0L);
+
+        List<Map<String, Object>> tableProgress = new ArrayList<>();
+        List<String> completedTables = new ArrayList<>();
+        if (job.getProgressDetails() != null && !job.getProgressDetails().isBlank()) {
+            try {
+                tableProgress = objectMapper.readValue(job.getProgressDetails(), List.class);
+                for (Map<String, Object> tp : tableProgress) {
+                    if ("COMPLETED".equals(tp.get("status")) && tp.get("tableName") != null) {
+                        completedTables.add(tp.get("tableName").toString());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse progress details for import job: {}", executionId, e);
+            }
+        }
+        map.put("tableProgress", tableProgress);
+        map.put("completedTables", completedTables);
         return map;
     }
 
@@ -647,32 +696,53 @@ public class SecureImportService {
         }
 
         // From DB
-        for (SecureImportJob job : jobRepository.findAll()) {
-            if (!seenIds.contains(job.getExecutionId())) {
-                Map<String, Object> execMap = new HashMap<>();
-                execMap.put("id", job.getExecutionId());
-                execMap.put("status", job.getStatus());
-                execMap.put("startTime", job.getCreatedAt());
-                executions.add(execMap);
-                seenIds.add(job.getExecutionId());
+        if (jobRepository != null) {
+            for (SecureImportJob job : jobRepository.findAllByOrderByCreatedAtDesc()) {
+                if (!seenIds.contains(job.getExecutionId())) {
+                    Map<String, Object> execMap = new HashMap<>();
+                    execMap.put("id", job.getExecutionId());
+                    execMap.put("status", job.getStatus());
+                    execMap.put("startTime", job.getCreatedAt());
+                    executions.add(execMap);
+                    seenIds.add(job.getExecutionId());
+                }
             }
         }
         return executions;
     }
 
     private void saveJob(String executionId, SecureImportConfig config, String status, String errorMessage) {
-        SecureImportJob job = new SecureImportJob();
-        job.setExecutionId(executionId);
-        job.setJobName(config.getJobName() != null ? config.getJobName() : "Secure Import Job");
-        job.setStatus(status);
-        job.setErrorMessage(errorMessage);
-        job.setCreatedAt(System.currentTimeMillis());
+        if (jobRepository == null) return;
         try {
-            job.setConfigDetails(objectMapper.writeValueAsString(config));
-        } catch (IOException e) {
-            log.error("Failed to serialize secure import config details", e);
+            SecureImportProgress progress = progressMap.get(executionId);
+            SecureImportJob job = jobRepository.findByExecutionId(executionId);
+            if (job == null) {
+                job = new SecureImportJob();
+                job.setExecutionId(executionId);
+                job.setJobName((config != null && config.getJobName() != null && !config.getJobName().trim().isEmpty()) ? config.getJobName().trim() : executionId);
+                job.setCreatedAt(System.currentTimeMillis());
+            }
+            job.setStatus(status);
+            job.setErrorMessage(errorMessage);
+            if (progress != null) {
+                job.setTotalTables(progress.totalTables.get());
+                job.setProcessedTables(progress.processedTables.get());
+                job.setTotalRecords((long) progress.totalRecords.get());
+                if (progress.tableProgress != null) {
+                    job.setProgressDetails(objectMapper.writeValueAsString(progress.tableProgress));
+                }
+            }
+            if (config != null) {
+                try {
+                    job.setConfigDetails(objectMapper.writeValueAsString(config));
+                } catch (IOException e) {
+                    log.error("Failed to serialize secure import config details", e);
+                }
+            }
+            jobRepository.saveAndFlush(job);
+        } catch (Exception e) {
+            log.error("Failed to save SecureImportJob record", e);
         }
-        jobRepository.save(job);
     }
 
     private void updateProgress(String executionId, String status, int processed, int total, String errorMessage) {
@@ -687,14 +757,31 @@ public class SecureImportService {
             }
         }
 
-        SecureImportJob job = jobRepository.findByExecutionId(executionId);
-        if (job != null) {
+        if (jobRepository == null) return;
+        try {
+            SecureImportJob job = jobRepository.findByExecutionId(executionId);
+            if (job == null) {
+                job = new SecureImportJob();
+                job.setExecutionId(executionId);
+                job.setJobName(executionId);
+                job.setCreatedAt(System.currentTimeMillis());
+            }
             job.setStatus(status);
+            job.setTotalTables(total);
+            job.setProcessedTables(processed);
+            if (progress != null) {
+                job.setTotalRecords((long) progress.totalRecords.get());
+                if (progress.tableProgress != null) {
+                    job.setProgressDetails(objectMapper.writeValueAsString(progress.tableProgress));
+                }
+            }
             job.setErrorMessage(errorMessage);
             if ("FAILED".equals(status) || "COMPLETED".equals(status)) {
                 job.setCompletedAt(System.currentTimeMillis());
             }
-            jobRepository.save(job);
+            jobRepository.saveAndFlush(job);
+        } catch (Exception e) {
+            log.error("Failed to update SecureImportJob progress in DB", e);
         }
     }
 

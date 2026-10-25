@@ -290,6 +290,97 @@ public class MigrationController {
                 return;
             }
 
+            String normalizedType = jobRequest.getJobType() != null ? jobRequest.getJobType().toLowerCase().replace("_", "-") : "";
+
+            if (normalizedType.equals("mongo-secure-export") || normalizedType.equals("mongo-export")) {
+                MongoSecureExportConfig config = objectMapper.convertValue(configDetailsMap, MongoSecureExportConfig.class);
+                if (config == null) config = new MongoSecureExportConfig();
+                config.setJobName(jobRequest.getMigrationName());
+                if (config.getFileEncryptionKey() == null && jobRequest.getFileEncryptionKey() != null) {
+                    config.setFileEncryptionKey(jobRequest.getFileEncryptionKey());
+                }
+                String executionId = "mongo-export-" + mongoSecureExportSequence.getAndIncrement();
+                final MongoSecureExportConfig finalConfig = config;
+                taskExecutor.execute(() -> {
+                    try {
+                        mongoSecureExportService.processMongoExport(executionId, finalConfig);
+                    } catch (Exception e) {
+                        log.error("Mongo Secure Export failed in background task", e);
+                    }
+                });
+                response.sendRedirect("/index.html?executionId=" + executionId);
+                return;
+            }
+
+            if (normalizedType.equals("json-secure-export") || normalizedType.equals("json-export")) {
+                JsonSecureExportConfig config = objectMapper.convertValue(configDetailsMap, JsonSecureExportConfig.class);
+                if (config == null) config = new JsonSecureExportConfig();
+                config.setJobName(jobRequest.getMigrationName());
+                if (config.getFileEncryptionKey() == null && jobRequest.getFileEncryptionKey() != null) {
+                    config.setFileEncryptionKey(jobRequest.getFileEncryptionKey());
+                }
+                String executionId = "json-export-" + jsonSecureExportSequence.getAndIncrement();
+                final JsonSecureExportConfig finalConfig = config;
+                taskExecutor.execute(() -> {
+                    try {
+                        jsonSecureExportService.processJsonExport(executionId, finalConfig);
+                    } catch (Exception e) {
+                        log.error("JSON Secure Export failed in background task", e);
+                    }
+                });
+                response.sendRedirect("/index.html?executionId=" + executionId);
+                return;
+            }
+
+            if (normalizedType.equals("json") || normalizedType.equals("json-migration")) {
+                JsonMigrationConfig config = objectMapper.convertValue(configDetailsMap, JsonMigrationConfig.class);
+                String executionId = "json-" + jsonSequence.getAndIncrement();
+                taskExecutor.execute(() -> {
+                    try {
+                        jsonMigrationService.processMigrationAsync(executionId, config);
+                    } catch (Exception e) {
+                        log.error("JSON Migration failed in background task", e);
+                    }
+                });
+                response.sendRedirect("/index.html?executionId=" + executionId);
+                return;
+            }
+
+            if (normalizedType.equals("mongo") || normalizedType.equals("mongodb") || normalizedType.equals("mongo-migration")) {
+                Job mongoJob = migrationJobFactory.createMongoMigrationJob(jobRequest);
+                JobParameters jobParameters = new JobParametersBuilder()
+                        .addString("jobName", "DBMigrationJob")
+                        .addString("name", "DBMigrationJob")
+                        .addLong("startTime", System.currentTimeMillis())
+                        .addString("jobType", "MONGO")
+                        .toJobParameters();
+                jobExecution = null;
+                taskExecutor.execute(() -> {
+                    try {
+                        jobExecution = jobLauncher.run(mongoJob, jobParameters);
+                    } catch (Exception e) {
+                        log.error("Mongo Migration failed in background task", e);
+                    }
+                });
+                if (jobExecution == null) {
+                    Thread.sleep(500);
+                    if (jobExecution == null) {
+                        jobExecution = jobExplorer.findRunningJobExecutions("DBMigrationJob").stream()
+                                .max(Comparator.comparing(JobExecution::getId))
+                                .orElse(null);
+                    }
+                    if (jobExecution == null) {
+                        JobInstance lastInstance = jobExplorer.getLastJobInstance("DBMigrationJob");
+                        if (lastInstance != null) {
+                            jobExecution = jobExplorer.getLastJobExecution(lastInstance);
+                        }
+                    }
+                }
+                String executionId = jobExecution != null ? jobExecution.getId().toString() : "error";
+                response.sendRedirect("/index.html?executionId=" + executionId);
+                return;
+            }
+
 
             if (configDetailsMap.containsKey("source")) {
                 Map<String, Object> sourceMap = (Map<String, Object>) configDetailsMap.get("source");
@@ -689,7 +780,7 @@ public class MigrationController {
 
         try {
             // Get last few instances from Spring Batch
-            List<JobInstance> instances = jobExplorer.getJobInstances(jobName, 0, 20);
+            List<JobInstance> instances = jobExplorer.getJobInstances(jobName, 0, 100);
 
             for (JobInstance instance : instances) {
                 List<JobExecution> executions = jobExplorer.getJobExecutions(instance);
@@ -697,13 +788,20 @@ public class MigrationController {
                     Map<String, Object> execMap = new HashMap<>();
                     execMap.put("id", execution.getId().toString()); // Convert to String to match other types
                     execMap.put("status", execution.getStatus().toString());
-                    execMap.put("startTime", execution.getStartTime() != null ? execution.getStartTime() : 0);
+                    Long startMillis = 0L;
+                    if (execution.getStartTime() != null) {
+                        startMillis = execution.getStartTime().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+                    }
+                    execMap.put("startTime", startMillis);
                     result.add(execMap);
                 }
             }
 
             // Add executions
             result.addAll(jsonMigrationService.getAllExecutions());
+            if (mongoMigrationService != null) {
+                result.addAll(mongoMigrationService.getAllExecutions());
+            }
             result.addAll(secureExportService.getAllExecutions());
             result.addAll(secureImportService.getAllExecutions());
             result.addAll(mongoSecureExportService.getAllExecutions());
@@ -711,11 +809,25 @@ public class MigrationController {
             result.addAll(jsonSecureExportService.getAllExecutions());
             result.addAll(jsonSecureImportService.getAllExecutions());
 
-            // Sort descending by ID (using string comparison for mixed types)
+            // Sort descending by startTime (most recent first)
             result.sort((m1, m2) -> {
-                String id1 = m1.get("id").toString();
-                String id2 = m2.get("id").toString();
-
+                Long t1 = 0L;
+                if (m1.get("startTime") instanceof Number) {
+                    t1 = ((Number) m1.get("startTime")).longValue();
+                } else if (m1.get("startTime") instanceof java.time.LocalDateTime) {
+                    t1 = ((java.time.LocalDateTime) m1.get("startTime")).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+                }
+                Long t2 = 0L;
+                if (m2.get("startTime") instanceof Number) {
+                    t2 = ((Number) m2.get("startTime")).longValue();
+                } else if (m2.get("startTime") instanceof java.time.LocalDateTime) {
+                    t2 = ((java.time.LocalDateTime) m2.get("startTime")).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+                }
+                if (!t1.equals(t2)) {
+                    return Long.compare(t2, t1);
+                }
+                String id1 = m1.get("id") != null ? m1.get("id").toString() : "";
+                String id2 = m2.get("id") != null ? m2.get("id").toString() : "";
                 try {
                     long l1 = Long.parseLong(id1);
                     long l2 = Long.parseLong(id2);
@@ -760,6 +872,8 @@ public class MigrationController {
             result = mongoSecureExportService.getProgress(executionId);
         } else if (executionId.startsWith("mongo-import-") || executionId.startsWith("mongo-secure-import-")) {
             result = mongoSecureImportService.getProgress(executionId);
+        } else if (executionId.startsWith("mongo-") || executionId.startsWith("MONGO-")) {
+            result = mongoMigrationService != null ? mongoMigrationService.getProgress(executionId) : Map.of("status", "NOT_FOUND");
         } else {
             try {
                 Long id = Long.parseLong(executionId);

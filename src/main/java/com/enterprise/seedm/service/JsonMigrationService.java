@@ -1,6 +1,8 @@
 package com.enterprise.seedm.service;
 
 import com.enterprise.seedm.model.JsonMigrationConfig;
+import com.enterprise.seedm.model.JsonMigrationJob;
+import com.enterprise.seedm.repository.JsonMigrationJobRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,6 +18,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,22 +29,28 @@ public class JsonMigrationService {
     private final ObjectMapper objectMapper;
     private final Faker faker;
     private final DataMaskingService dataMaskingService;
+    private final JsonMigrationJobRepository jobRepository;
 
     // In-memory store for async job progress
     private final Map<String, JsonMigrationProgress> progressMap = new ConcurrentHashMap<>();
 
     public JsonMigrationService(FormatPreservingEncryptionService fpeService, Faker faker) {
-        this(fpeService, faker, null);
+        this(fpeService, faker, null, null);
+    }
+
+    public JsonMigrationService(FormatPreservingEncryptionService fpeService, Faker faker, @org.springframework.context.annotation.Lazy DataMaskingService dataMaskingService) {
+        this(fpeService, faker, dataMaskingService, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
-    public JsonMigrationService(FormatPreservingEncryptionService fpeService, Faker faker, @org.springframework.context.annotation.Lazy DataMaskingService dataMaskingService) {
+    public JsonMigrationService(FormatPreservingEncryptionService fpeService, Faker faker, @org.springframework.context.annotation.Lazy DataMaskingService dataMaskingService, JsonMigrationJobRepository jobRepository) {
         this.fpeService = fpeService;
         this.objectMapper = new ObjectMapper()
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
             .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         this.faker = faker;
         this.dataMaskingService = dataMaskingService;
+        this.jobRepository = jobRepository;
     }
 
     public String processMigrationAsync(String executionId, JsonMigrationConfig config) {
@@ -61,6 +70,8 @@ public class JsonMigrationService {
         JsonMigrationProgress progress = progressMap.computeIfAbsent(executionId, k -> new JsonMigrationProgress());
         progress.setStatus("RUNNING");
         progress.setStartTime(System.currentTimeMillis());
+
+        saveJobRecord(executionId, config, "RUNNING", null);
 
         try {
             if (!Files.exists(destDir)) {
@@ -90,11 +101,22 @@ public class JsonMigrationService {
             }
             
             progress.setTotalFiles(filesToProcess.size());
+            progress.tableProgress.clear();
+            for (Path p : filesToProcess) {
+                Map<String, Object> entry = new ConcurrentHashMap<>();
+                entry.put("tableName", p.getFileName().toString());
+                entry.put("readCount", 0);
+                entry.put("writeCount", 0);
+                entry.put("status", "PENDING");
+                progress.tableProgress.add(entry);
+            }
+            updateProgress(executionId, "RUNNING", 0, filesToProcess.size(), null);
 
             // Process each file
             for (Path file : filesToProcess) {
                 processFile(file, sourceDir, destDir, config, executionId);
                 progress.incrementProcessedFiles();
+                updateProgress(executionId, "RUNNING", progress.getProcessedFiles(), progress.getTotalFiles(), null);
             }
 
             updateProgress(executionId, "COMPLETED", progress.getProcessedFiles(), progress.getTotalFiles(), null);
@@ -107,8 +129,11 @@ public class JsonMigrationService {
 
     private void processFile(Path sourceFile, Path sourceBaseDir, Path destBaseDir, JsonMigrationConfig config, String executionId) {
         log.info("Processing file: {}", sourceFile);
+        JsonMigrationProgress progress = progressMap.get(executionId);
+        String fileName = sourceFile.getFileName().toString();
         try {
             JsonNode rootNode = objectMapper.readTree(sourceFile.toFile());
+            long count = rootNode.isArray() ? rootNode.size() : 1;
             maskNode(rootNode, "", config);
             
             Path relativePath = sourceBaseDir.relativize(sourceFile);
@@ -116,9 +141,33 @@ public class JsonMigrationService {
             
             Files.createDirectories(destFile.getParent());
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(destFile.toFile(), rootNode);
+
+            if (progress != null) {
+                progress.totalRecords.addAndGet(count);
+                if (!progress.completedTables.contains(fileName)) {
+                    progress.completedTables.add(fileName);
+                }
+                for (Map<String, Object> tp : progress.tableProgress) {
+                    if (fileName.equals(tp.get("tableName"))) {
+                        tp.put("readCount", count);
+                        tp.put("writeCount", count);
+                        tp.put("status", "COMPLETED");
+                        break;
+                    }
+                }
+            }
             
         } catch (IOException e) {
             log.error("Error processing file {}", sourceFile, e);
+            if (progress != null) {
+                for (Map<String, Object> tp : progress.tableProgress) {
+                    if (fileName.equals(tp.get("tableName"))) {
+                        tp.put("status", "FAILED");
+                        tp.put("error", e.getMessage());
+                        break;
+                    }
+                }
+            }
             updateProgress(executionId, "FAILED", progressMap.get(executionId).getProcessedFiles(), progressMap.get(executionId).getTotalFiles(), "Error processing file " + sourceFile.getFileName() + ": " + e.getMessage());
         }
     }
@@ -685,22 +734,119 @@ public class JsonMigrationService {
 
     public Map<String, Object> getProgress(String executionId) {
         JsonMigrationProgress progress = progressMap.get(executionId);
-        if (progress == null) {
+        if (progress != null) {
+            return progress.toMap();
+        }
+
+        if (jobRepository == null) {
             return Map.of("status", "NOT_FOUND");
         }
-        return progress.toMap();
+        JsonMigrationJob job = jobRepository.findByExecutionId(executionId);
+        if (job == null) {
+            return Map.of("status", "NOT_FOUND");
+        }
+        Map<String, Object> map = new HashMap<>();
+        map.put("executionId", job.getExecutionId());
+        map.put("jobName", job.getJobName());
+        map.put("status", job.getStatus());
+        map.put("errorMessage", job.getErrorMessage());
+        map.put("startTime", job.getCreatedAt());
+        map.put("endTime", job.getCompletedAt());
+        map.put("totalFiles", job.getTotalFiles() != null ? job.getTotalFiles() : 0);
+        map.put("processedFiles", job.getProcessedFiles() != null ? job.getProcessedFiles() : 0);
+        map.put("totalTables", job.getTotalFiles() != null ? job.getTotalFiles() : 0);
+        map.put("processedTables", job.getProcessedFiles() != null ? job.getProcessedFiles() : 0);
+        map.put("totalRecords", job.getTotalRecords() != null ? job.getTotalRecords() : 0L);
+
+        List<Map<String, Object>> fileProgress = new ArrayList<>();
+        List<String> completedFiles = new ArrayList<>();
+        if (job.getProgressDetails() != null && !job.getProgressDetails().isBlank()) {
+            try {
+                fileProgress = objectMapper.readValue(job.getProgressDetails(), List.class);
+                for (Map<String, Object> fp : fileProgress) {
+                    if ("COMPLETED".equals(fp.get("status")) && fp.get("tableName") != null) {
+                        completedFiles.add(fp.get("tableName").toString());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse progress details for json migration: {}", executionId, e);
+            }
+        }
+        map.put("tableProgress", fileProgress);
+        map.put("completedTables", completedFiles);
+        long start = job.getCreatedAt() != null ? job.getCreatedAt() : 0;
+        long end = job.getCompletedAt() != null ? job.getCompletedAt() : System.currentTimeMillis();
+        map.put("elapsedSeconds", (end - start) / 1000);
+        return map;
     }
 
     public List<Map<String, Object>> getAllExecutions() {
         List<Map<String, Object>> executions = new ArrayList<>();
+        Set<String> seenIds = new HashSet<>();
+
+        // From memory
         for (Map.Entry<String, JsonMigrationProgress> entry : progressMap.entrySet()) {
             Map<String, Object> execMap = new HashMap<>();
             execMap.put("id", entry.getKey());
+            execMap.put("jobName", entry.getKey());
             execMap.put("status", entry.getValue().getStatus());
             execMap.put("startTime", entry.getValue().getStartTime());
             executions.add(execMap);
+            seenIds.add(entry.getKey());
+        }
+
+        // From DB
+        if (jobRepository != null) {
+            for (JsonMigrationJob job : jobRepository.findAllByOrderByCreatedAtDesc()) {
+                if (!seenIds.contains(job.getExecutionId())) {
+                    Map<String, Object> execMap = new HashMap<>();
+                    execMap.put("id", job.getExecutionId());
+                    execMap.put("jobName", job.getJobName());
+                    execMap.put("status", job.getStatus());
+                    execMap.put("startTime", job.getCreatedAt());
+                    executions.add(execMap);
+                    seenIds.add(job.getExecutionId());
+                }
+            }
         }
         return executions;
+    }
+
+    private void saveJobRecord(String executionId, JsonMigrationConfig config, String status, String errorMessage) {
+        if (jobRepository == null) return;
+        try {
+            JsonMigrationProgress progress = progressMap.get(executionId);
+            JsonMigrationJob job = jobRepository.findByExecutionId(executionId);
+            if (job == null) {
+                job = new JsonMigrationJob();
+                job.setExecutionId(executionId);
+                String name = executionId;
+                if (config != null && config.getSource() != null && config.getSource().getSourceDir() != null) {
+                    name = "JSON: " + Paths.get(config.getSource().getSourceDir()).getFileName().toString();
+                }
+                job.setJobName(name);
+                job.setCreatedAt(System.currentTimeMillis());
+            }
+            job.setStatus(status);
+            job.setErrorMessage(errorMessage);
+            if (progress != null) {
+                job.setTotalFiles(progress.getTotalFiles());
+                job.setProcessedFiles(progress.getProcessedFiles());
+                job.setTotalRecords(progress.totalRecords.get());
+                if (progress.tableProgress != null) {
+                    job.setProgressDetails(objectMapper.writeValueAsString(progress.tableProgress));
+                }
+            }
+            if ("COMPLETED".equals(status) || "FAILED".equals(status)) {
+                job.setCompletedAt(System.currentTimeMillis());
+            }
+            if (config != null) {
+                job.setConfigDetails(objectMapper.writeValueAsString(config));
+            }
+            jobRepository.saveAndFlush(job);
+        } catch (Exception e) {
+            log.error("Failed to save JsonMigrationJob record", e);
+        }
     }
 
     private void updateProgress(String executionId, String status, int processed, int total, String errorMessage) {
@@ -712,6 +858,31 @@ public class JsonMigrationService {
         if ("FAILED".equals(status) || "COMPLETED".equals(status)) {
             progress.setEndTime(System.currentTimeMillis());
         }
+
+        if (jobRepository == null) return;
+        try {
+            JsonMigrationJob job = jobRepository.findByExecutionId(executionId);
+            if (job == null) {
+                job = new JsonMigrationJob();
+                job.setExecutionId(executionId);
+                job.setJobName(executionId);
+                job.setCreatedAt(System.currentTimeMillis());
+            }
+            job.setStatus(status);
+            job.setTotalFiles(total);
+            job.setProcessedFiles(processed);
+            job.setTotalRecords(progress.totalRecords.get());
+            if (progress.tableProgress != null) {
+                job.setProgressDetails(objectMapper.writeValueAsString(progress.tableProgress));
+            }
+            job.setErrorMessage(errorMessage);
+            if ("FAILED".equals(status) || "COMPLETED".equals(status)) {
+                job.setCompletedAt(System.currentTimeMillis());
+            }
+            jobRepository.saveAndFlush(job);
+        } catch (Exception e) {
+            log.error("Failed to update JsonMigrationJob progress in DB", e);
+        }
     }
 
     // Inner class for progress tracking
@@ -719,6 +890,9 @@ public class JsonMigrationService {
         private String status = "PENDING";
         private AtomicInteger totalFiles = new AtomicInteger(0);
         private AtomicInteger processedFiles = new AtomicInteger(0);
+        private AtomicLong totalRecords = new AtomicLong(0);
+        private List<Map<String, Object>> tableProgress = Collections.synchronizedList(new ArrayList<>());
+        private List<String> completedTables = Collections.synchronizedList(new ArrayList<>());
         private String errorMessage;
         private Long startTime;
         private Long endTime;
@@ -742,9 +916,17 @@ public class JsonMigrationService {
             map.put("status", status);
             map.put("totalFiles", totalFiles.get());
             map.put("processedFiles", processedFiles.get());
+            map.put("totalTables", totalFiles.get());
+            map.put("processedTables", processedFiles.get());
+            map.put("totalRecords", totalRecords.get());
+            map.put("tableProgress", new ArrayList<>(tableProgress));
+            map.put("completedTables", new ArrayList<>(completedTables));
             map.put("errorMessage", errorMessage);
             map.put("startTime", startTime);
             map.put("endTime", endTime);
+            long start = startTime != null ? startTime : 0;
+            long end = endTime != null ? endTime : System.currentTimeMillis();
+            map.put("elapsedSeconds", (end - start) / 1000);
             return map;
         }
     }

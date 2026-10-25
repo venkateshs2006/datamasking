@@ -10,6 +10,7 @@ public class MongoSecureExportConfig {
     private String jobName;
     private SourceConfig source;
     private DestinationConfig dest;
+    private DestinationConfig storage;
     private RulesConfig rules;
     private String fileEncryptionKey;
 
@@ -25,6 +26,7 @@ public class MongoSecureExportConfig {
 
     @Data
     public static class DestinationConfig {
+        private Long id; // Connection ID (Local or COS)
         private String type; // "local" or "cos"
         private String destDir;
         private Long cosId;

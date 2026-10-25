@@ -149,9 +149,11 @@
                         <!-- Local storage options -->
                         <div id="local-storage-container" class="space-y-4">
                             <div>
-                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Folder Path</label>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Storage Location</label>
                                 <div class="flex gap-2">
-                                    <input type="text" id="localPath" class="input-field font-mono text-sm" placeholder="e.g., secure-export" value="secure-export" oninput="validateStep1()">
+                                    <select id="localPath" class="input-field cursor-pointer bg-white" onchange="scanSourceFiles(); validateStep1();">
+                                        <option value="">Loading local storage connections...</option>
+                                    </select>
                                     <button type="button" onclick="scanSourceFiles()" class="btn btn-secondary text-xs px-4 whitespace-nowrap">
                                         <i class="fas fa-search mr-1.5"></i> Scan Files
                                     </button>
@@ -367,39 +369,55 @@
 
         async function initStep1() {
             try {
-                // Fetch COS connections
-                const resCos = await fetch('/api/cos-connections');
-                if (resCos.ok) {
-                    cosConnections = await resCos.json();
+                const res = await fetch('/api/cos-connections');
+                if (res.ok) {
+                    const allConns = await res.json();
+                    cosConnections = allConns;
+                    const cosConns = allConns.filter(c => (c.storageType || '').toLowerCase() !== 'local');
+                    const localConns = allConns.filter(c => (c.storageType || '').toLowerCase() === 'local');
+
                     const cosSelect = document.getElementById('cosConnectionId');
                     const destCosSelect = document.getElementById('destCosSelect');
-                    cosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
-                    destCosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
-                    cosConnections.forEach(c => {
-                        const opt = document.createElement('option');
-                        opt.value = c.id;
-                        opt.textContent = `${c.cosName || c.name || 'COS'} - ${c.bucketName || 'Bucket'} (${c.department || c.departmentId || ''})`;
-                        opt.dataset.department = c.department || c.departmentId || '';
-                        destCosSelect.appendChild(opt);
+                    if (cosSelect) cosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
+                    if (destCosSelect) destCosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
+
+                    cosConns.forEach(c => {
+                        const optDest = document.createElement('option');
+                        optDest.value = c.id;
+                        optDest.textContent = `${c.cosName || c.name || 'COS'} - ${c.bucketName || 'Bucket'} (${c.department || c.departmentId || ''})`;
+                        optDest.dataset.department = c.department || c.departmentId || '';
+                        if (destCosSelect) destCosSelect.appendChild(optDest);
 
                         const optSrc = document.createElement('option');
                         optSrc.value = c.id;
                         optSrc.textContent = `${c.cosName || c.name || 'COS'} - ${c.bucketName || 'Bucket'}`;
-                        cosSelect.appendChild(optSrc);
+                        if (cosSelect) cosSelect.appendChild(optSrc);
                     });
-                }
-                // Fetch Local destination connections
-                const resLocal = await fetch('/api/cos-connections?envType=destination&storageType=Local');
-                if (resLocal.ok) {
-                    const localConns = await resLocal.json();
-                    const localSelect = document.getElementById('destLocalSelect');
-                    localSelect.innerHTML = '<option value="">Select a registered destination directory...</option>';
-                    localConns.forEach(c => {
-                        const opt = new Option(`${c.cosName} (${c.storageLocation || 'N/A'})`, c.id);
-                        opt.dataset.path = c.storageLocation || '';
-                        opt.dataset.department = c.department || '';
-                        localSelect.add(opt);
-                    });
+
+                    const localSelect = document.getElementById('localPath');
+                    if (localSelect) {
+                        localSelect.innerHTML = '<option value="">Select a Local Storage...</option>';
+                        localConns.forEach(c => {
+                            const opt = new Option(`${c.cosName || c.name || 'Local'} - ${c.storageLocation || ''}`, c.id);
+                            opt.dataset.path = c.storageLocation || '';
+                            opt.dataset.department = c.department || c.departmentId || '';
+                            localSelect.add(opt);
+                        });
+                        if (localConns.length > 0) {
+                            localSelect.selectedIndex = 1;
+                        }
+                    }
+
+                    const destLocalSelect = document.getElementById('destLocalSelect');
+                    if (destLocalSelect) {
+                        destLocalSelect.innerHTML = '<option value="">Select a registered destination directory...</option>';
+                        localConns.forEach(c => {
+                            const opt = new Option(`${c.cosName || c.name || 'Local'} (${c.storageLocation || 'N/A'})`, c.id);
+                            opt.dataset.path = c.storageLocation || '';
+                            opt.dataset.department = c.department || c.departmentId || '';
+                            destLocalSelect.add(opt);
+                        });
+                    }
                 }
             } catch (e) {
                 console.warn('Error loading storage connections', e);
@@ -489,7 +507,15 @@
 
             const payload = { type: type };
             if (type === 'local') {
-                payload.path = document.getElementById('localPath').value.trim() || 'secure-export';
+                const localSelect = document.getElementById('localPath');
+                if (!localSelect || !localSelect.value) {
+                    container.innerHTML = '<div class="text-xs text-gray-400 text-center py-4 italic">Select a local storage connection to scan.</div>';
+                    return;
+                }
+                payload.id = Number(localSelect.value);
+                payload.cosId = Number(localSelect.value);
+                const opt = localSelect.options[localSelect.selectedIndex];
+                payload.path = opt ? (opt.dataset.path || opt.value) : '';
             } else {
                 const cosId = document.getElementById('cosConnectionId').value;
                 if (!cosId) {
@@ -626,7 +652,9 @@
             document.getElementById('reviewSourceFile').innerText = selectedFileName || 'None';
             const srcType = document.querySelector('input[name="storageType"]:checked').value;
             if (srcType === 'local') {
-                document.getElementById('reviewStorageType').innerText = `Folder: ${document.getElementById('localPath').value}`;
+                const localSelect = document.getElementById('localPath');
+                const locText = localSelect && localSelect.options[localSelect.selectedIndex] ? localSelect.options[localSelect.selectedIndex].text : '';
+                document.getElementById('reviewStorageType').innerText = `Local: ${locText}`;
             } else {
                 const cosSelect = document.getElementById('cosConnectionId');
                 document.getElementById('reviewStorageType').innerText = `COS: ${cosSelect.options[cosSelect.selectedIndex]?.text || 'Bucket'}`;
@@ -634,7 +662,9 @@
 
             const destType = document.querySelector('input[name="destStorageType"]:checked').value;
             if (destType === 'local') {
-                document.getElementById('reviewDestPath').innerText = `Local: ${document.getElementById('destDirPath').value}`;
+                const destSelect = document.getElementById('destLocalSelect');
+                const destText = destSelect && destSelect.options[destSelect.selectedIndex] ? destSelect.options[destSelect.selectedIndex].text : '';
+                document.getElementById('reviewDestPath').innerText = `Local: ${destText}`;
             } else {
                 const destCos = document.getElementById('destCosSelect');
                 document.getElementById('reviewDestPath').innerText = `COS: ${destCos.options[destCos.selectedIndex]?.text || 'Bucket'}`;
@@ -668,6 +698,9 @@
             const destType = document.querySelector('input[name="destStorageType"]:checked').value;
             const isOverwrite = document.getElementById('overwriteChk').checked;
 
+            const localSrcSelect = document.getElementById('localPath');
+            const localDestSelect = document.getElementById('destLocalSelect');
+
             const payload = {
                 migrationName: migrationName,
                 department: department,
@@ -676,12 +709,14 @@
                     jobName: migrationName,
                     storage: {
                         type: srcType,
-                        path: srcType === 'local' ? document.getElementById('localPath').value.trim() : null,
-                        id: srcType === 'cos' ? Number(document.getElementById('cosConnectionId').value) : null,
+                        path: srcType === 'local' && localSrcSelect ? (localSrcSelect.options[localSrcSelect.selectedIndex]?.dataset?.path || '') : null,
+                        id: srcType === 'local' && localSrcSelect ? Number(localSrcSelect.value) : (srcType === 'cos' ? Number(document.getElementById('cosConnectionId').value) : null),
+                        cosId: srcType === 'local' && localSrcSelect ? Number(localSrcSelect.value) : (srcType === 'cos' ? Number(document.getElementById('cosConnectionId').value) : null),
                         fileName: selectedFileName
                     },
                     dest: {
                         type: destType,
+                        id: destType === 'local' && localDestSelect ? Number(localDestSelect.value) : null,
                         path: destType === 'local' ? document.getElementById('destDirPath').value.trim() : null,
                         cosId: destType === 'cos' ? Number(document.getElementById('destCosSelect').value) : null,
                         overwrite: isOverwrite

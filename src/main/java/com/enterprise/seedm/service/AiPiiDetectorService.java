@@ -106,6 +106,45 @@ public class AiPiiDetectorService {
     );
 
     /**
+     * Run direct Heuristic PII detection without AI/LLM network calls
+     */
+    public AiPiiDetectionResponse detectPiiWithHeuristicsOnly(AiPiiDetectionRequest request) {
+        log.info("Running direct Heuristic PII Detection on tables: {}", request.getTables());
+        AiPiiDetectionResponse response = new AiPiiDetectionResponse();
+
+        if (request.getTables() == null || request.getTables().isEmpty()) {
+            return response;
+        }
+
+        Map<String, List<String>> tableColumnsMap = new HashMap<>();
+        for (String table : request.getTables()) {
+            List<String> columns = null;
+            if (request.getTableColumns() != null && request.getTableColumns().containsKey(table)) {
+                columns = request.getTableColumns().get(table);
+            }
+
+            if (columns == null || columns.isEmpty()) {
+                try {
+                    columns = tableDiscoveryService.getTableColumns(table);
+                } catch (Exception e) {
+                    log.warn("Could not retrieve columns dynamically for table {}: {}", table, e.getMessage());
+                    continue;
+                }
+            }
+
+            if (columns != null && !columns.isEmpty()) {
+                tableColumnsMap.put(table, columns);
+            }
+        }
+
+        response = detectPiiWithHeuristics(tableColumnsMap);
+        response.setEngineUsed("In-Memory Heuristic Engine");
+        response.setStatusMessage("PII columns classified via pattern recognition.");
+        log.info("Direct Heuristic detection completed. Found {} PII columns.", response.getTotalPiiColumnsFound());
+        return response;
+    }
+
+    /**
      * Run AI PII detection on requested tables and columns (uses Qwen AI if configured, with heuristic fallback)
      */
     public AiPiiDetectionResponse detectPii(AiPiiDetectionRequest request) {
