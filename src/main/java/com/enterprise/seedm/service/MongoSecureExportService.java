@@ -168,13 +168,12 @@ public class MongoSecureExportService {
 
                 Path destDir = resolveDestDirectory(config);
                 Files.createDirectories(destDir);
-                Path tempBsonPath = destDir.resolve("secure-mongo-export.bson");
 
-                try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(tempBsonPath), 128 * 1024);
-                     DataOutputStream dataOut = new DataOutputStream(out)) {
+                String encryptKey = (fileEncryptionKey != null && !fileEncryptionKey.trim().isEmpty()) ? fileEncryptionKey : saltKey;
+                long maxFileSizeBytes = com.enterprise.seedm.util.BackupFileUtils.getMaxFileSizeBytes();
+                List<Path> finalExportFiles;
 
-                    dataOut.write(MAGIC_HEADER);
-
+                try (MongoBsonRotator rotator = new MongoBsonRotator(destDir, "secure-mongo-export", encryptKey, maxFileSizeBytes)) {
                     for (String collName : collectionNames) {
                         for (Map<String, Object> cp : progress.collectionProgress) {
                             if (collName.equals(cp.get("tableName"))) {
@@ -183,7 +182,7 @@ public class MongoSecureExportService {
                             }
                         }
 
-                        int docCount = exportCollection(dataOut, database.getCollection(collName), collName, config, saltKey, progress);
+                        int docCount = exportCollection(rotator, database.getCollection(collName), collName, config, saltKey, progress);
                         processedCount++;
                         progress.processedCollections.set(processedCount);
                         progress.completedCollections.add(collName);
@@ -198,22 +197,8 @@ public class MongoSecureExportService {
                         }
                     }
 
-                    dataOut.writeByte(MARKER_EOF);
-                    dataOut.flush();
-                }
-
-                // Encrypt output BSON file
-                Path finalFileToExport = tempBsonPath;
-                String encryptKey = (fileEncryptionKey != null && !fileEncryptionKey.trim().isEmpty()) ? fileEncryptionKey : saltKey;
-                if (encryptKey != null && !encryptKey.trim().isEmpty()) {
-                    Path encFilePath = destDir.resolve("secure-mongo-export.bson.enc");
-                    encryptFileWithSalt(tempBsonPath, encFilePath, encryptKey);
-                    try {
-                        Files.deleteIfExists(tempBsonPath);
-                    } catch (Exception ex) {
-                        log.warn("Could not delete temporary BSON file: {}", ex.getMessage());
-                    }
-                    finalFileToExport = encFilePath;
+                    rotator.close();
+                    finalExportFiles = rotator.getExportedFiles();
                 }
 
                 // Upload to COS bucket if destination is Cloud Object Storage
@@ -221,20 +206,22 @@ public class MongoSecureExportService {
                     try {
                         CosConnection cosConn = cosConnectionService.getConnection(config.getDest().getCosId());
                         if (cosConn != null && !"Local".equalsIgnoreCase(cosConn.getStorageType()) && ibmCosService != null) {
-                            if (Files.exists(finalFileToExport)) {
-                                ibmCosService.uploadFile(cosConn, finalFileToExport.getFileName().toString(), finalFileToExport);
-                                log.info("Uploaded Mongo secure export to COS bucket {}: {}", ibmCosService.getEffectiveBucketName(cosConn), finalFileToExport.getFileName());
+                            for (Path exportFile : finalExportFiles) {
+                                if (Files.exists(exportFile)) {
+                                    ibmCosService.uploadFile(cosConn, exportFile.getFileName().toString(), exportFile);
+                                    log.info("Uploaded Mongo secure export part to COS bucket {}: {}", ibmCosService.getEffectiveBucketName(cosConn), exportFile.getFileName());
+                                }
                             }
                         }
                     } catch (Exception e) {
-                        log.error("Failed to upload Mongo secure export to COS bucket", e);
+                        log.error("Failed to upload Mongo secure export parts to COS bucket", e);
                     }
                 }
 
                 progress.status = "COMPLETED";
                 progress.completedTime = System.currentTimeMillis();
                 saveJobRecord(executionId, config, "COMPLETED", null);
-                log.info("Mongo Secure Export completed successfully. Output in: {}", destDir);
+                log.info("Mongo Secure Export completed successfully with {} backup file(s). Output in: {}", finalExportFiles.size(), destDir);
                 return "COMPLETED";
             }
         } catch (Exception e) {
@@ -247,12 +234,157 @@ public class MongoSecureExportService {
         }
     }
 
-    private int exportCollection(DataOutputStream dataOut, MongoCollection<Document> collection, String collectionName,
-                                 MongoSecureExportConfig config, String saltKey, MongoSecureExportProgress progress) throws IOException {
-        byte[] collBytes = collectionName.getBytes(StandardCharsets.UTF_8);
-        dataOut.writeByte(MARKER_COLLECTION_START);
-        dataOut.writeShort(collBytes.length);
-        dataOut.write(collBytes);
+    public static class MongoBsonRotator implements AutoCloseable {
+        private final Path destDir;
+        private final String baseName;
+        private final String encryptKey;
+        private final long maxSizeBytes;
+        private final List<Path> exportedFiles = new ArrayList<>();
+
+        private int partNumber = 1;
+        private long currentFileBytes = 0;
+        private Path currentTempPath;
+        private DataOutputStream currentDataOut;
+        private String currentOpenCollection = null;
+
+        public MongoBsonRotator(Path destDir, String baseName, String encryptKey, long maxSizeBytes) throws IOException {
+            this.destDir = destDir;
+            this.baseName = baseName;
+            this.encryptKey = encryptKey;
+            this.maxSizeBytes = maxSizeBytes;
+            openPart(1, false);
+        }
+
+        private void openPart(int partNum, boolean isRotated) throws IOException {
+            this.partNumber = partNum;
+            String tempFileName = isRotated ? (baseName + "-part" + partNum + ".bson") : (baseName + ".bson");
+            this.currentTempPath = destDir.resolve(tempFileName);
+            this.currentDataOut = new DataOutputStream(new BufferedOutputStream(Files.newOutputStream(currentTempPath), 128 * 1024));
+            this.currentDataOut.write(MAGIC_HEADER);
+            this.currentFileBytes = MAGIC_HEADER.length;
+        }
+
+        public void startCollection(String collName) throws IOException {
+            if (currentOpenCollection != null) {
+                endCollection();
+            }
+            currentOpenCollection = collName;
+            byte[] collBytes = collName.getBytes(StandardCharsets.UTF_8);
+            currentDataOut.writeByte(MARKER_COLLECTION_START);
+            currentDataOut.writeShort(collBytes.length);
+            currentDataOut.write(collBytes);
+            currentFileBytes += 1 + 2 + collBytes.length;
+        }
+
+        public void writeDoc(byte[] bsonBytes) throws Exception {
+            int docRecordSize = 1 + 4 + bsonBytes.length;
+            if (currentFileBytes > MAGIC_HEADER.length && (currentFileBytes + docRecordSize >= maxSizeBytes)) {
+                rotate();
+            }
+            currentDataOut.writeByte(MARKER_DOC_RECORD);
+            currentDataOut.writeInt(bsonBytes.length);
+            currentDataOut.write(bsonBytes);
+            currentFileBytes += docRecordSize;
+        }
+
+        public void endCollection() throws IOException {
+            if (currentOpenCollection != null) {
+                currentDataOut.writeByte(MARKER_COLLECTION_END);
+                currentFileBytes += 1;
+                currentOpenCollection = null;
+            }
+        }
+
+        private void rotate() throws Exception {
+            if (currentOpenCollection != null) {
+                currentDataOut.writeByte(MARKER_COLLECTION_END);
+            }
+            currentDataOut.writeByte(MARKER_EOF);
+            currentDataOut.flush();
+            currentDataOut.close();
+
+            Path targetFile;
+            if (partNumber == 1) {
+                targetFile = destDir.resolve(baseName + "-part1.bson.enc");
+            } else {
+                targetFile = destDir.resolve(baseName + "-part" + partNumber + ".bson.enc");
+            }
+
+            if (encryptKey != null && !encryptKey.trim().isEmpty()) {
+                com.enterprise.seedm.util.BackupFileUtils.encryptFileWithSalt(currentTempPath, targetFile, encryptKey);
+                try {
+                    Files.deleteIfExists(currentTempPath);
+                } catch (Exception ex) {
+                    log.warn("Could not delete temp BSON file: {}", ex.getMessage());
+                }
+                exportedFiles.add(targetFile);
+            } else {
+                Path plainTarget = destDir.resolve(baseName + "-part" + partNumber + ".bson");
+                if (!currentTempPath.equals(plainTarget)) {
+                    Files.move(currentTempPath, plainTarget, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    exportedFiles.add(plainTarget);
+                } else {
+                    exportedFiles.add(currentTempPath);
+                }
+            }
+
+            openPart(partNumber + 1, true);
+
+            if (currentOpenCollection != null) {
+                byte[] collBytes = currentOpenCollection.getBytes(StandardCharsets.UTF_8);
+                currentDataOut.writeByte(MARKER_COLLECTION_START);
+                currentDataOut.writeShort(collBytes.length);
+                currentDataOut.write(collBytes);
+                currentFileBytes += 1 + 2 + collBytes.length;
+            }
+        }
+
+        @Override
+        public void close() throws Exception {
+            if (currentDataOut != null) {
+                endCollection();
+                currentDataOut.writeByte(MARKER_EOF);
+                currentDataOut.flush();
+                currentDataOut.close();
+
+                Path targetFile;
+                if (partNumber == 1 && exportedFiles.isEmpty()) {
+                    targetFile = destDir.resolve(baseName + ".bson.enc");
+                } else {
+                    targetFile = destDir.resolve(baseName + "-part" + partNumber + ".bson.enc");
+                }
+
+                if (encryptKey != null && !encryptKey.trim().isEmpty()) {
+                    com.enterprise.seedm.util.BackupFileUtils.encryptFileWithSalt(currentTempPath, targetFile, encryptKey);
+                    try {
+                        Files.deleteIfExists(currentTempPath);
+                    } catch (Exception ex) {
+                        log.warn("Could not delete temp BSON file: {}", ex.getMessage());
+                    }
+                    exportedFiles.add(targetFile);
+                } else {
+                    Path plainTarget = (partNumber == 1 && exportedFiles.isEmpty())
+                            ? destDir.resolve(baseName + ".bson")
+                            : destDir.resolve(baseName + "-part" + partNumber + ".bson");
+                    if (!currentTempPath.equals(plainTarget)) {
+                        Files.move(currentTempPath, plainTarget, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        exportedFiles.add(plainTarget);
+                    } else {
+                        exportedFiles.add(currentTempPath);
+                    }
+                }
+                currentDataOut = null;
+            }
+        }
+
+        public List<Path> getExportedFiles() {
+            return exportedFiles;
+        }
+    }
+
+    private int exportCollection(MongoBsonRotator rotator, MongoCollection<Document> collection, String collectionName,
+                                 MongoSecureExportConfig config, String saltKey, MongoSecureExportProgress progress) throws Exception {
+        rotator.startCollection(collectionName);
 
         int count = 0;
         for (Document originalDoc : collection.find()) {
@@ -263,13 +395,10 @@ public class MongoSecureExportService {
 
             Document maskedDoc = maskDocument(originalDoc, collectionName, config, saltKey);
             byte[] bsonBytes = encodeDocumentToBson(maskedDoc);
-
-            dataOut.writeByte(MARKER_DOC_RECORD);
-            dataOut.writeInt(bsonBytes.length);
-            dataOut.write(bsonBytes);
+            rotator.writeDoc(bsonBytes);
         }
 
-        dataOut.writeByte(MARKER_COLLECTION_END);
+        rotator.endCollection();
         return count;
     }
 
@@ -434,34 +563,7 @@ public class MongoSecureExportService {
     }
 
     public void encryptFileWithSalt(Path sourceFile, Path targetEncryptedFile, String saltKey) throws Exception {
-        if (!Files.exists(sourceFile)) {
-            log.warn("Source file does not exist for encryption: {}", sourceFile);
-            return;
-        }
-
-        MessageDigest sha = MessageDigest.getInstance("SHA-256");
-        byte[] keyBytes = sha.digest(saltKey.trim().getBytes(StandardCharsets.UTF_8));
-        SecretKeySpec secretKey = new SecretKeySpec(keyBytes, "AES");
-
-        byte[] iv = new byte[16];
-        new SecureRandom().nextBytes(iv);
-        IvParameterSpec ivSpec = new IvParameterSpec(iv);
-
-        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec);
-
-        try (InputStream in = Files.newInputStream(sourceFile);
-             OutputStream out = Files.newOutputStream(targetEncryptedFile)) {
-            out.write(iv);
-            try (CipherOutputStream cipherOut = new CipherOutputStream(out, cipher)) {
-                byte[] buffer = new byte[65536];
-                int bytesRead;
-                while ((bytesRead = in.read(buffer)) != -1) {
-                    cipherOut.write(buffer, 0, bytesRead);
-                }
-                cipherOut.flush();
-            }
-        }
+        com.enterprise.seedm.util.BackupFileUtils.encryptFileWithSalt(sourceFile, targetEncryptedFile, saltKey);
     }
 
     private MongoClient createClient(MongoSecureExportConfig config) {

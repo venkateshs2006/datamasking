@@ -168,9 +168,12 @@ public class SecureExportService {
 
             Path destDir = Paths.get(destDirStr);
             Files.createDirectories(destDir);
-            Path filePath = destDir.resolve("secure-export.sql");
 
-            try (BufferedWriter writer = new BufferedWriter(Files.newBufferedWriter(filePath, StandardCharsets.UTF_8), 128 * 1024)) {
+            String encryptKey = (fileEncryptionKey != null && !fileEncryptionKey.trim().isEmpty()) ? fileEncryptionKey : saltKey;
+            long maxFileSizeBytes = com.enterprise.seedm.util.BackupFileUtils.getMaxFileSizeBytes();
+            List<Path> finalExportFiles;
+
+            try (SqlBackupRotator writer = new SqlBackupRotator(destDir, "secure-export", encryptKey, maxFileSizeBytes)) {
                 for (int i = 0; i < tableNames.size(); i++) {
                     String tableName = tableNames.get(i);
                     for (Map<String, Object> tp : progress.tableProgress) {
@@ -197,21 +200,9 @@ public class SecureExportService {
                 writeViews(writer, connection, dialect, schema);
                 writeTriggers(writer, connection, dialect, schema);
                 writeSequences(writer, connection, dialect, schema);
-            }
 
-            // Encrypt the export file using fileEncryptionKey (or fallback to saltKey)
-            Path finalExportFile = filePath;
-            String encryptKey = (fileEncryptionKey != null && !fileEncryptionKey.trim().isEmpty()) ? fileEncryptionKey : saltKey;
-            if (encryptKey != null && !encryptKey.trim().isEmpty()) {
-                Path encFilePath = destDir.resolve("secure-export.sql.enc");
-                encryptFileWithSalt(filePath, encFilePath, encryptKey);
-                try {
-                    Files.deleteIfExists(filePath);
-                } catch (Exception ex) {
-                    log.warn("Could not remove unencrypted temp SQL file: {}", ex.getMessage());
-                }
-                finalExportFile = encFilePath;
-                log.info("Export file encrypted successfully: {}", encFilePath);
+                writer.close();
+                finalExportFiles = writer.getExportedFiles();
             }
 
             // Upload to COS bucket if destination is Cloud Object Storage
@@ -226,18 +217,20 @@ public class SecureExportService {
                 try {
                     CosConnection cosConn = cosConnectionService.getConnection(cosId);
                     if (cosConn != null && !"Local".equalsIgnoreCase(cosConn.getStorageType())) {
-                        if (Files.exists(finalExportFile)) {
-                            ibmCosService.uploadFile(cosConn, finalExportFile.getFileName().toString(), finalExportFile);
-                            log.info("Successfully uploaded secure SQL export to COS bucket {}: {}", ibmCosService.getEffectiveBucketName(cosConn), finalExportFile.getFileName());
+                        for (Path exportFile : finalExportFiles) {
+                            if (Files.exists(exportFile)) {
+                                ibmCosService.uploadFile(cosConn, exportFile.getFileName().toString(), exportFile);
+                                log.info("Successfully uploaded secure SQL export part to COS bucket {}: {}", ibmCosService.getEffectiveBucketName(cosConn), exportFile.getFileName());
+                            }
                         }
                     }
                 } catch (Exception e) {
-                    log.error("Failed to upload secure export to COS bucket", e);
+                    log.error("Failed to upload secure export parts to COS bucket", e);
                 }
             }
 
             updateProgress(executionId, "COMPLETED", processedTables, totalTables, null);
-            log.info("Secure export completed for execution ID: {}", executionId);
+            log.info("Secure export completed for execution ID: {} with {} backup file(s)", executionId, finalExportFiles.size());
         } catch (Exception e) {
             log.error("Secure export failed for execution ID: {}", executionId, e);
             updateProgress(executionId, "FAILED", processedTables, tableNames.size(), e.getMessage());
@@ -246,35 +239,125 @@ public class SecureExportService {
         return executionId;
     }
 
-    public void encryptFileWithSalt(Path sourceFile, Path targetEncryptedFile, String saltKey) throws Exception {
-        if (!Files.exists(sourceFile)) {
-            log.warn("Source file does not exist for encryption: {}", sourceFile);
-            return;
+    public static class SqlBackupRotator implements AutoCloseable {
+        private final Path destDir;
+        private final String baseName;
+        private final String encryptKey;
+        private final long maxSizeBytes;
+        private final List<Path> exportedFiles = new ArrayList<>();
+
+        private int partNumber = 1;
+        private long currentFileBytes = 0;
+        private Path currentTempFile;
+        private BufferedWriter currentWriter;
+
+        public SqlBackupRotator(Path destDir, String baseName, String encryptKey, long maxSizeBytes) throws IOException {
+            this.destDir = destDir;
+            this.baseName = baseName;
+            this.encryptKey = encryptKey;
+            this.maxSizeBytes = maxSizeBytes;
+            openPart(1, false);
         }
 
-        MessageDigest sha = MessageDigest.getInstance("SHA-256");
-        byte[] keyBytes = sha.digest(saltKey.trim().getBytes(StandardCharsets.UTF_8));
-        SecretKeySpec secretKey = new SecretKeySpec(keyBytes, "AES");
+        private void openPart(int partNum, boolean isRotated) throws IOException {
+            this.partNumber = partNum;
+            String tempFileName = isRotated ? (baseName + "-part" + partNum + ".sql") : (baseName + ".sql");
+            this.currentTempFile = destDir.resolve(tempFileName);
+            this.currentWriter = new BufferedWriter(Files.newBufferedWriter(currentTempFile, StandardCharsets.UTF_8), 128 * 1024);
+            this.currentFileBytes = 0;
+        }
 
-        byte[] iv = new byte[16];
-        new SecureRandom().nextBytes(iv);
-        IvParameterSpec ivSpec = new IvParameterSpec(iv);
+        public void write(String s) throws IOException {
+            currentWriter.write(s);
+            currentFileBytes += s.getBytes(StandardCharsets.UTF_8).length;
+        }
 
-        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec);
+        public void newLine() throws IOException {
+            currentWriter.newLine();
+            currentFileBytes += 1;
+        }
 
-        try (InputStream in = Files.newInputStream(sourceFile);
-             OutputStream out = Files.newOutputStream(targetEncryptedFile)) {
-            out.write(iv);
-            try (CipherOutputStream cipherOut = new CipherOutputStream(out, cipher)) {
-                byte[] buffer = new byte[65536];
-                int bytesRead;
-                while ((bytesRead = in.read(buffer)) != -1) {
-                    cipherOut.write(buffer, 0, bytesRead);
-                }
-                cipherOut.flush();
+        public void checkRotate(long estimatedNextBytes) throws Exception {
+            if (currentFileBytes > 0 && (currentFileBytes + estimatedNextBytes >= maxSizeBytes)) {
+                rotate();
             }
         }
+
+        private void rotate() throws Exception {
+            currentWriter.flush();
+            currentWriter.close();
+
+            Path targetFile;
+            if (partNumber == 1) {
+                targetFile = destDir.resolve(baseName + "-part1.sql.enc");
+            } else {
+                targetFile = destDir.resolve(baseName + "-part" + partNumber + ".sql.enc");
+            }
+
+            if (encryptKey != null && !encryptKey.trim().isEmpty()) {
+                com.enterprise.seedm.util.BackupFileUtils.encryptFileWithSalt(currentTempFile, targetFile, encryptKey);
+                try {
+                    Files.deleteIfExists(currentTempFile);
+                } catch (Exception ex) {
+                    log.warn("Could not remove temp SQL file: {}", ex.getMessage());
+                }
+                exportedFiles.add(targetFile);
+            } else {
+                Path plainTarget = destDir.resolve(baseName + "-part" + partNumber + ".sql");
+                if (!currentTempFile.equals(plainTarget)) {
+                    Files.move(currentTempFile, plainTarget, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    exportedFiles.add(plainTarget);
+                } else {
+                    exportedFiles.add(currentTempFile);
+                }
+            }
+
+            openPart(partNumber + 1, true);
+        }
+
+        @Override
+        public void close() throws Exception {
+            if (currentWriter != null) {
+                currentWriter.flush();
+                currentWriter.close();
+
+                Path targetFile;
+                if (partNumber == 1 && exportedFiles.isEmpty()) {
+                    targetFile = destDir.resolve(baseName + ".sql.enc");
+                } else {
+                    targetFile = destDir.resolve(baseName + "-part" + partNumber + ".sql.enc");
+                }
+
+                if (encryptKey != null && !encryptKey.trim().isEmpty()) {
+                    com.enterprise.seedm.util.BackupFileUtils.encryptFileWithSalt(currentTempFile, targetFile, encryptKey);
+                    try {
+                        Files.deleteIfExists(currentTempFile);
+                    } catch (Exception ex) {
+                        log.warn("Could not remove temp SQL file: {}", ex.getMessage());
+                    }
+                    exportedFiles.add(targetFile);
+                } else {
+                    Path plainTarget = (partNumber == 1 && exportedFiles.isEmpty())
+                            ? destDir.resolve(baseName + ".sql")
+                            : destDir.resolve(baseName + "-part" + partNumber + ".sql");
+                    if (!currentTempFile.equals(plainTarget)) {
+                        Files.move(currentTempFile, plainTarget, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        exportedFiles.add(plainTarget);
+                    } else {
+                        exportedFiles.add(currentTempFile);
+                    }
+                }
+                currentWriter = null;
+            }
+        }
+
+        public List<Path> getExportedFiles() {
+            return exportedFiles;
+        }
+    }
+
+    public void encryptFileWithSalt(Path sourceFile, Path targetEncryptedFile, String saltKey) throws Exception {
+        com.enterprise.seedm.util.BackupFileUtils.encryptFileWithSalt(sourceFile, targetEncryptedFile, saltKey);
     }
 
     private List<ColumnInfo> getTableColumns(DatabaseMetaData metaData, String tableName, String schema) throws SQLException {
@@ -306,12 +389,14 @@ public class SecureExportService {
         return columns;
     }
 
-    private int processTable(BufferedWriter writer, Connection connection, DatabaseMetaData metaData, String tableName, String schema, SecureExportConfig config, String saltKey, SecureExportProgress progress) throws SQLException, IOException {
+    private int processTable(SqlBackupRotator writer, Connection connection, DatabaseMetaData metaData, String tableName, String schema, SecureExportConfig config, String saltKey, SecureExportProgress progress) throws Exception {
         List<ColumnInfo> columns = getTableColumns(metaData, tableName, schema);
 
+        String createSql = getCreateTableStatement(metaData, tableName, schema, columns);
+        writer.checkRotate(createSql.length() + tableName.length() + 30);
         writer.write("-- CREATE TABLE " + tableName);
         writer.newLine();
-        writer.write(getCreateTableStatement(metaData, tableName, schema, columns));
+        writer.write(createSql);
         writer.newLine();
         writer.newLine();
 
@@ -320,7 +405,7 @@ public class SecureExportService {
         return count;
     }
 
-    private int writeInsertStatements(BufferedWriter writer, Connection connection, String tableName, String schema, List<ColumnInfo> columns, SecureExportConfig config, String saltKey, SecureExportProgress progress) throws SQLException, IOException {
+    private int writeInsertStatements(SqlBackupRotator writer, Connection connection, String tableName, String schema, List<ColumnInfo> columns, SecureExportConfig config, String saltKey, SecureExportProgress progress) throws Exception {
         int rowCount = 0;
         String queryTable = (schema != null && !schema.isEmpty() && !"public".equalsIgnoreCase(schema)) ? (schema + "." + tableName) : tableName;
 
@@ -349,7 +434,9 @@ public class SecureExportService {
                         }
                     }
                     insertSql.append(") ").append(values).append(");");
-                    writer.write(insertSql.toString());
+                    String stmtStr = insertSql.toString();
+                    writer.checkRotate(stmtStr.length() + 2);
+                    writer.write(stmtStr);
                     writer.newLine();
                 }
             }
@@ -453,7 +540,7 @@ public class SecureExportService {
         return tableNames;
     }
 
-    private void writeForeignKeyConstraints(BufferedWriter writer, DatabaseMetaData metaData, List<String> tableNames, String schema) throws IOException {
+    private void writeForeignKeyConstraints(SqlBackupRotator writer, DatabaseMetaData metaData, List<String> tableNames, String schema) throws IOException {
         try {
             writer.newLine();
             writer.write("-- FOREIGN KEY CONSTRAINTS");
@@ -471,7 +558,9 @@ public class SecureExportService {
                             constraintName = "fk_" + fkTableName + "_" + fkColumnName;
                         }
 
-                        writer.write("ALTER TABLE " + fkTableName + " ADD CONSTRAINT " + constraintName + " FOREIGN KEY (" + fkColumnName + ") REFERENCES " + pkTableName + "(" + pkColumnName + ");");
+                        String alterSql = "ALTER TABLE " + fkTableName + " ADD CONSTRAINT " + constraintName + " FOREIGN KEY (" + fkColumnName + ") REFERENCES " + pkTableName + "(" + pkColumnName + ");";
+                        writer.checkRotate(alterSql.length() + 2);
+                        writer.write(alterSql);
                         writer.newLine();
                     }
                 }
@@ -481,7 +570,7 @@ public class SecureExportService {
         }
     }
 
-    private void writeViews(BufferedWriter writer, Connection connection, DbDialect dialect, String schema) throws IOException {
+    private void writeViews(SqlBackupRotator writer, Connection connection, DbDialect dialect, String schema) throws IOException {
         try {
             writer.newLine();
             writer.write("-- VIEWS");
@@ -510,6 +599,7 @@ public class SecureExportService {
                             if (!viewSql.endsWith(";")) {
                                 viewSql += ";";
                             }
+                            writer.checkRotate(viewSql.length() + 2);
                             writer.write(viewSql);
                             writer.newLine();
                         }
@@ -521,7 +611,7 @@ public class SecureExportService {
         }
     }
 
-    private void writeTriggers(BufferedWriter writer, Connection connection, DbDialect dialect, String schema) throws IOException {
+    private void writeTriggers(SqlBackupRotator writer, Connection connection, DbDialect dialect, String schema) throws IOException {
         try {
             writer.newLine();
             writer.write("-- TRIGGERS");
@@ -546,6 +636,7 @@ public class SecureExportService {
                         String triggerName = resultSet.getString(1);
                         String actionStatement = resultSet.getString(2);
                         if (triggerName != null && actionStatement != null) {
+                            writer.checkRotate(actionStatement.length() + triggerName.length() + 20);
                             writer.write("-- TRIGGER: " + triggerName);
                             writer.newLine();
                             writer.write(actionStatement);
@@ -559,7 +650,7 @@ public class SecureExportService {
         }
     }
 
-    private void writeSequences(BufferedWriter writer, Connection connection, DbDialect dialect, String schema) throws IOException {
+    private void writeSequences(SqlBackupRotator writer, Connection connection, DbDialect dialect, String schema) throws IOException {
         try {
             writer.newLine();
             writer.write("-- SEQUENCES");
@@ -583,7 +674,9 @@ public class SecureExportService {
                     while (resultSet.next()) {
                         String sequenceName = resultSet.getString(1);
                         if (sequenceName != null) {
-                            writer.write("CREATE SEQUENCE IF NOT EXISTS " + sequenceName + ";");
+                            String seqSql = "CREATE SEQUENCE IF NOT EXISTS " + sequenceName + ";";
+                            writer.checkRotate(seqSql.length() + 2);
+                            writer.write(seqSql);
                             writer.newLine();
                         }
                     }

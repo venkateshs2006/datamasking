@@ -308,13 +308,11 @@ public class JsonSecureExportService {
                 progress.fileProgress.add(entry);
             }
 
-            Path tempBundlePath = destDir.resolve("secure-json-export.json");
+            String encryptKey = (fileEncryptionKey != null && !fileEncryptionKey.trim().isEmpty()) ? fileEncryptionKey : saltKey;
+            long maxFileSizeBytes = com.enterprise.seedm.util.BackupFileUtils.getMaxFileSizeBytes();
+            List<Path> finalExportFiles;
 
-            try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(tempBundlePath), 128 * 1024);
-                 DataOutputStream dataOut = new DataOutputStream(out)) {
-
-                dataOut.write(MAGIC_HEADER);
-
+            try (JsonBundleRotator rotator = new JsonBundleRotator(destDir, "secure-json-export", encryptKey, maxFileSizeBytes)) {
                 for (String relFileName : targetFiles) {
                     for (Map<String, Object> fp : progress.fileProgress) {
                         if (relFileName.equals(fp.get("tableName"))) {
@@ -324,7 +322,7 @@ public class JsonSecureExportService {
                     }
 
                     Path actualSourceFile = Files.isDirectory(sourceDir) ? sourceDir.resolve(relFileName) : sourceDir;
-                    int nodeCount = exportJsonFile(dataOut, actualSourceFile, relFileName, config, saltKey, progress);
+                    int nodeCount = exportJsonFile(rotator, actualSourceFile, relFileName, config, saltKey, progress);
 
                     processedCount++;
                     progress.processedFiles.set(processedCount);
@@ -340,23 +338,8 @@ public class JsonSecureExportService {
                     }
                 }
 
-                dataOut.writeByte(MARKER_EOF);
-                dataOut.flush();
-            }
-
-            // Encrypt output bundle file
-            Path finalExportFile = tempBundlePath;
-            String encryptKey = (fileEncryptionKey != null && !fileEncryptionKey.trim().isEmpty()) ? fileEncryptionKey : saltKey;
-            if (encryptKey != null && !encryptKey.trim().isEmpty()) {
-                Path encFilePath = destDir.resolve("secure-json-export.json.enc");
-                encryptFileWithSalt(tempBundlePath, encFilePath, encryptKey);
-                try {
-                    Files.deleteIfExists(tempBundlePath);
-                } catch (Exception ex) {
-                    log.warn("Could not remove unencrypted temp JSON bundle: {}", ex.getMessage());
-                }
-                finalExportFile = encFilePath;
-                log.info("JSON Secure Export encrypted successfully: {}", encFilePath);
+                rotator.close();
+                finalExportFiles = rotator.getExportedFiles();
             }
 
             // Upload to destination COS bucket if destination is COS
@@ -367,13 +350,15 @@ public class JsonSecureExportService {
                     try {
                         CosConnection dstCos = cosConnectionService.getConnection(dstCosId);
                         if (dstCos != null && !"Local".equalsIgnoreCase(dstCos.getStorageType())) {
-                            if (Files.exists(finalExportFile)) {
-                                ibmCosService.uploadFile(dstCos, finalExportFile.getFileName().toString(), finalExportFile);
-                                log.info("Uploaded secure JSON export to COS bucket {}: {}", ibmCosService.getEffectiveBucketName(dstCos), finalExportFile.getFileName());
+                            for (Path exportFile : finalExportFiles) {
+                                if (Files.exists(exportFile)) {
+                                    ibmCosService.uploadFile(dstCos, exportFile.getFileName().toString(), exportFile);
+                                    log.info("Uploaded secure JSON export part to COS bucket {}: {}", ibmCosService.getEffectiveBucketName(dstCos), exportFile.getFileName());
+                                }
                             }
                         }
                     } catch (Exception e) {
-                        log.error("Failed to upload secure JSON export to COS bucket", e);
+                        log.error("Failed to upload secure JSON export parts to COS bucket", e);
                     }
                 }
             }
@@ -381,7 +366,7 @@ public class JsonSecureExportService {
             progress.status = "COMPLETED";
             progress.completedTime = System.currentTimeMillis();
             saveJobRecord(executionId, config, "COMPLETED", null);
-            log.info("JSON secure export completed for execution ID: {}", executionId);
+            log.info("JSON secure export completed successfully with {} backup file(s) for execution ID: {}", finalExportFiles.size(), executionId);
 
         } catch (Exception e) {
             log.error("JSON secure export failed for execution ID: {}", executionId, e);
@@ -394,13 +379,131 @@ public class JsonSecureExportService {
         return executionId;
     }
 
-    private int exportJsonFile(DataOutputStream dataOut, Path sourceFile, String relFileName,
-                               JsonSecureExportConfig config, String saltKey, JsonSecureExportProgress progress) throws IOException {
-        byte[] nameBytes = relFileName.getBytes(StandardCharsets.UTF_8);
-        dataOut.writeByte(MARKER_FILE_START);
-        dataOut.writeShort(nameBytes.length);
-        dataOut.write(nameBytes);
+    public static class JsonBundleRotator implements AutoCloseable {
+        private final Path destDir;
+        private final String baseName;
+        private final String encryptKey;
+        private final long maxSizeBytes;
+        private final List<Path> exportedFiles = new ArrayList<>();
 
+        private int partNumber = 1;
+        private long currentFileBytes = 0;
+        private Path currentTempPath;
+        private DataOutputStream currentDataOut;
+
+        public JsonBundleRotator(Path destDir, String baseName, String encryptKey, long maxSizeBytes) throws IOException {
+            this.destDir = destDir;
+            this.baseName = baseName;
+            this.encryptKey = encryptKey;
+            this.maxSizeBytes = maxSizeBytes;
+            openPart(1, false);
+        }
+
+        private void openPart(int partNum, boolean isRotated) throws IOException {
+            this.partNumber = partNum;
+            String tempFileName = isRotated ? (baseName + "-part" + partNum + ".json") : (baseName + ".json");
+            this.currentTempPath = destDir.resolve(tempFileName);
+            this.currentDataOut = new DataOutputStream(new BufferedOutputStream(Files.newOutputStream(currentTempPath), 128 * 1024));
+            this.currentDataOut.write(MAGIC_HEADER);
+            this.currentFileBytes = MAGIC_HEADER.length;
+        }
+
+        public void writeJsonFile(String relFileName, byte[] jsonBytes) throws Exception {
+            byte[] nameBytes = relFileName.getBytes(StandardCharsets.UTF_8);
+            int recordSize = 1 + 2 + nameBytes.length + 1 + 4 + jsonBytes.length + 1;
+            if (currentFileBytes > MAGIC_HEADER.length && (currentFileBytes + recordSize >= maxSizeBytes)) {
+                rotate();
+            }
+
+            currentDataOut.writeByte(MARKER_FILE_START);
+            currentDataOut.writeShort(nameBytes.length);
+            currentDataOut.write(nameBytes);
+
+            currentDataOut.writeByte(MARKER_FILE_CONTENT);
+            currentDataOut.writeInt(jsonBytes.length);
+            currentDataOut.write(jsonBytes);
+
+            currentDataOut.writeByte(MARKER_FILE_END);
+            currentFileBytes += recordSize;
+        }
+
+        private void rotate() throws Exception {
+            currentDataOut.writeByte(MARKER_EOF);
+            currentDataOut.flush();
+            currentDataOut.close();
+
+            Path targetFile;
+            if (partNumber == 1) {
+                targetFile = destDir.resolve(baseName + "-part1.json.enc");
+            } else {
+                targetFile = destDir.resolve(baseName + "-part" + partNumber + ".json.enc");
+            }
+
+            if (encryptKey != null && !encryptKey.trim().isEmpty()) {
+                com.enterprise.seedm.util.BackupFileUtils.encryptFileWithSalt(currentTempPath, targetFile, encryptKey);
+                try {
+                    Files.deleteIfExists(currentTempPath);
+                } catch (Exception ex) {
+                    log.warn("Could not delete temp JSON bundle: {}", ex.getMessage());
+                }
+                exportedFiles.add(targetFile);
+            } else {
+                Path plainTarget = destDir.resolve(baseName + "-part" + partNumber + ".json");
+                if (!currentTempPath.equals(plainTarget)) {
+                    Files.move(currentTempPath, plainTarget, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    exportedFiles.add(plainTarget);
+                } else {
+                    exportedFiles.add(currentTempPath);
+                }
+            }
+
+            openPart(partNumber + 1, true);
+        }
+
+        @Override
+        public void close() throws Exception {
+            if (currentDataOut != null) {
+                currentDataOut.writeByte(MARKER_EOF);
+                currentDataOut.flush();
+                currentDataOut.close();
+
+                Path targetFile;
+                if (partNumber == 1 && exportedFiles.isEmpty()) {
+                    targetFile = destDir.resolve(baseName + ".json.enc");
+                } else {
+                    targetFile = destDir.resolve(baseName + "-part" + partNumber + ".json.enc");
+                }
+
+                if (encryptKey != null && !encryptKey.trim().isEmpty()) {
+                    com.enterprise.seedm.util.BackupFileUtils.encryptFileWithSalt(currentTempPath, targetFile, encryptKey);
+                    try {
+                        Files.deleteIfExists(currentTempPath);
+                    } catch (Exception ex) {
+                        log.warn("Could not delete temp JSON bundle: {}", ex.getMessage());
+                    }
+                    exportedFiles.add(targetFile);
+                } else {
+                    Path plainTarget = (partNumber == 1 && exportedFiles.isEmpty())
+                            ? destDir.resolve(baseName + ".json")
+                            : destDir.resolve(baseName + "-part" + partNumber + ".json");
+                    if (!currentTempPath.equals(plainTarget)) {
+                        Files.move(currentTempPath, plainTarget, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        exportedFiles.add(plainTarget);
+                    } else {
+                        exportedFiles.add(currentTempPath);
+                    }
+                }
+                currentDataOut = null;
+            }
+        }
+
+        public List<Path> getExportedFiles() {
+            return exportedFiles;
+        }
+    }
+
+    private int exportJsonFile(JsonBundleRotator rotator, Path sourceFile, String relFileName,
+                               JsonSecureExportConfig config, String saltKey, JsonSecureExportProgress progress) throws Exception {
         JsonNode rootNode = objectMapper.readTree(sourceFile.toFile());
 
         int count = maskJsonTree(rootNode, "", relFileName, config, saltKey);
@@ -409,12 +512,7 @@ public class JsonSecureExportService {
         }
 
         byte[] jsonBytes = objectMapper.writeValueAsBytes(rootNode);
-
-        dataOut.writeByte(MARKER_FILE_CONTENT);
-        dataOut.writeInt(jsonBytes.length);
-        dataOut.write(jsonBytes);
-
-        dataOut.writeByte(MARKER_FILE_END);
+        rotator.writeJsonFile(relFileName, jsonBytes);
         return count;
     }
 
@@ -671,34 +769,7 @@ public class JsonSecureExportService {
     }
 
     public void encryptFileWithSalt(Path sourceFile, Path targetEncryptedFile, String saltKey) throws Exception {
-        if (!Files.exists(sourceFile)) {
-            log.warn("Source file does not exist for encryption: {}", sourceFile);
-            return;
-        }
-
-        MessageDigest sha = MessageDigest.getInstance("SHA-256");
-        byte[] keyBytes = sha.digest(saltKey.trim().getBytes(StandardCharsets.UTF_8));
-        SecretKeySpec secretKey = new SecretKeySpec(keyBytes, "AES");
-
-        byte[] iv = new byte[16];
-        new SecureRandom().nextBytes(iv);
-        IvParameterSpec ivSpec = new IvParameterSpec(iv);
-
-        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec);
-
-        try (InputStream in = Files.newInputStream(sourceFile);
-             OutputStream out = Files.newOutputStream(targetEncryptedFile)) {
-            out.write(iv);
-            try (CipherOutputStream cipherOut = new CipherOutputStream(out, cipher)) {
-                byte[] buffer = new byte[65536];
-                int bytesRead;
-                while ((bytesRead = in.read(buffer)) != -1) {
-                    cipherOut.write(buffer, 0, bytesRead);
-                }
-                cipherOut.flush();
-            }
-        }
+        com.enterprise.seedm.util.BackupFileUtils.encryptFileWithSalt(sourceFile, targetEncryptedFile, saltKey);
     }
 
     private Path resolveStoragePath(JsonSecureExportConfig.StorageConfig storage) {

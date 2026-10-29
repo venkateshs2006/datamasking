@@ -24,6 +24,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -115,19 +116,21 @@ public class JsonSecureImportService {
                     }
                 } else if (Files.isDirectory(dirPath)) {
                     try (Stream<Path> stream = Files.list(dirPath)) {
-                        stream.filter(Files::isRegularFile)
-                                .filter(p -> p.toString().toLowerCase().endsWith(".json.enc"))
-                                .forEach(p -> {
-                                    Map<String, Object> fInfo = new HashMap<>();
-                                    fInfo.put("name", p.getFileName().toString());
-                                    try {
-                                        fInfo.put("sizeBytes", Files.size(p));
-                                    } catch (IOException e) {
-                                        fInfo.put("sizeBytes", 0);
-                                    }
-                                    fInfo.put("encrypted", true);
-                                    filesList.add(fInfo);
-                                });
+                        List<Path> filePaths = stream.filter(Files::isRegularFile)
+                                .filter(p -> p.toString().toLowerCase().endsWith(".json.enc") || p.toString().toLowerCase().endsWith(".json"))
+                                .collect(Collectors.toList());
+                        List<Path> sorted = com.enterprise.seedm.util.BackupFileUtils.sortBackupFiles(filePaths);
+                        sorted.forEach(p -> {
+                            Map<String, Object> fInfo = new HashMap<>();
+                            fInfo.put("name", p.getFileName().toString());
+                            try {
+                                fInfo.put("sizeBytes", Files.size(p));
+                            } catch (IOException e) {
+                                fInfo.put("sizeBytes", 0);
+                            }
+                            fInfo.put("encrypted", p.getFileName().toString().endsWith(".enc"));
+                            filesList.add(fInfo);
+                        });
                     }
                 }
             }
@@ -146,12 +149,17 @@ public class JsonSecureImportService {
     }
 
     public void validateSecretKey(JsonSecureImportConfig config, String secretKey) {
-        Path sourceFile = resolveSourceFile(config);
-        if (!Files.exists(sourceFile)) {
-            throw new IllegalArgumentException("Encrypted JSON backup file not found: " + sourceFile);
+        List<Path> sourceFiles = resolveSourceFiles(config);
+        if (sourceFiles.isEmpty()) {
+            throw new IllegalArgumentException("No JSON backup files found to validate secret key");
         }
 
-        if (!sourceFile.toString().endsWith(".enc")) {
+        Path encFile = sourceFiles.stream()
+                .filter(p -> p.getFileName().toString().endsWith(".enc"))
+                .findFirst()
+                .orElse(null);
+
+        if (encFile == null) {
             return; // Plain unencrypted bundle
         }
 
@@ -159,35 +167,16 @@ public class JsonSecureImportService {
             throw new IllegalArgumentException("Secret key is required for encrypted file");
         }
 
-        try (InputStream in = Files.newInputStream(sourceFile)) {
-            byte[] iv = new byte[16];
-            int bytesRead = in.read(iv);
-            if (bytesRead < 16) {
-                throw new IllegalArgumentException("File is too small to be a valid encrypted archive");
+        try (InputStream in = com.enterprise.seedm.util.BackupFileUtils.createDecryptedInputStream(encFile, secretKey)) {
+            byte[] header = new byte[MAGIC_HEADER.length];
+            int read = in.read(header);
+            if (read < MAGIC_HEADER.length || !Arrays.equals(header, MAGIC_HEADER)) {
+                throw new IllegalArgumentException("Invalid secret key. Header verification failed.");
             }
-
-            MessageDigest sha = MessageDigest.getInstance("SHA-256");
-            byte[] keyBytes = sha.digest(secretKey.trim().getBytes(StandardCharsets.UTF_8));
-            SecretKeySpec secretKeySpec = new SecretKeySpec(keyBytes, "AES");
-            IvParameterSpec ivSpec = new IvParameterSpec(iv);
-
-            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-            cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, ivSpec);
-
-            byte[] encryptedBuffer = new byte[64];
-            int readEnc = in.read(encryptedBuffer);
-            if (readEnc > 0) {
-                byte[] decrypted = cipher.update(encryptedBuffer, 0, readEnc);
-                if (decrypted != null && decrypted.length >= MAGIC_HEADER.length) {
-                    for (int i = 0; i < MAGIC_HEADER.length; i++) {
-                        if (decrypted[i] != MAGIC_HEADER[i]) {
-                            throw new IllegalArgumentException("Invalid secret key. Header verification failed.");
-                        }
-                    }
-                }
-            }
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
-            log.warn("Secret key validation failed for file {}: {}", sourceFile, e.getMessage());
+            log.warn("Secret key validation failed for file {}: {}", encFile, e.getMessage());
             throw new IllegalArgumentException("Invalid secret key. Decryption verification failed: " + e.getMessage());
         }
     }
@@ -202,41 +191,29 @@ public class JsonSecureImportService {
         try {
             saveJobRecord(executionId, config, "RUNNING", null);
 
-            Path sourceFile = resolveSourceFile(config);
-            if (!Files.exists(sourceFile)) {
-                throw new IllegalArgumentException("JSON import file not found: " + sourceFile);
+            List<Path> sourceFiles = resolveSourceFiles(config);
+            if (sourceFiles.isEmpty()) {
+                throw new IllegalArgumentException("JSON import files not found");
             }
 
             Path destDir = resolveDestPath(config.getDest());
             Files.createDirectories(destDir);
 
-            boolean isEncrypted = sourceFile.toString().endsWith(".enc");
-            try (InputStream rawIn = new BufferedInputStream(Files.newInputStream(sourceFile), 128 * 1024)) {
+            log.info("Starting JSON import for execution ID: {} with {} backup file(s): {}", executionId, sourceFiles.size(),
+                    sourceFiles.stream().map(p -> p.getFileName().toString()).collect(Collectors.toList()));
 
-                InputStream streamToRead = rawIn;
+            for (int fIdx = 0; fIdx < sourceFiles.size(); fIdx++) {
+                Path sourceFile = sourceFiles.get(fIdx);
+                log.info("Processing JSON backup file ({}/{}): {}", fIdx + 1, sourceFiles.size(), sourceFile.getFileName());
 
-                if (isEncrypted) {
-                    byte[] iv = new byte[16];
-                    int read = rawIn.read(iv);
-                    if (read < 16) {
-                        throw new IllegalArgumentException("Encrypted file too short for IV");
-                    }
-                    MessageDigest sha = MessageDigest.getInstance("SHA-256");
-                    byte[] keyBytes = sha.digest(secretKey.trim().getBytes(StandardCharsets.UTF_8));
-                    SecretKeySpec secretKeySpec = new SecretKeySpec(keyBytes, "AES");
-                    IvParameterSpec ivSpec = new IvParameterSpec(iv);
+                try (InputStream rawIn = com.enterprise.seedm.util.BackupFileUtils.createDecryptedInputStream(sourceFile, secretKey);
+                     DataInputStream dataIn = new DataInputStream(new BufferedInputStream(rawIn, 128 * 1024))) {
 
-                    Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-                    cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, ivSpec);
-                    streamToRead = new CipherInputStream(rawIn, cipher);
-                }
-
-                try (DataInputStream dataIn = new DataInputStream(new BufferedInputStream(streamToRead, 128 * 1024))) {
                     // Check magic header
                     byte[] header = new byte[MAGIC_HEADER.length];
                     dataIn.readFully(header);
                     if (!Arrays.equals(header, MAGIC_HEADER)) {
-                        throw new IllegalArgumentException("Invalid file format: MAGIC header mismatch");
+                        throw new IllegalArgumentException("Invalid file format: MAGIC header mismatch in file: " + sourceFile.getFileName());
                     }
 
                     boolean reading = true;
@@ -297,12 +274,12 @@ public class JsonSecureImportService {
                         progress.processedFiles.set(processedFiles);
                     }
                 }
-
-                progress.status = "COMPLETED";
-                progress.completedTime = System.currentTimeMillis();
-                saveJobRecord(executionId, config, "COMPLETED", null);
-                log.info("JSON secure import completed for execution ID: {}", executionId);
             }
+
+            progress.status = "COMPLETED";
+            progress.completedTime = System.currentTimeMillis();
+            saveJobRecord(executionId, config, "COMPLETED", null);
+            log.info("JSON secure import completed for execution ID: {}", executionId);
         } catch (Exception e) {
             log.error("JSON secure import failed for execution ID: {}", executionId, e);
             progress.status = "FAILED";
@@ -403,20 +380,30 @@ public class JsonSecureImportService {
         return Paths.get("data-imported");
     }
 
-    private Path resolveSourceFile(JsonSecureImportConfig config) {
-        if (config.getStorage() != null && "cos".equalsIgnoreCase(config.getStorage().getType())) {
+    public List<Path> resolveSourceFiles(JsonSecureImportConfig config) {
+        if (config != null && config.getStorage() != null && "cos".equalsIgnoreCase(config.getStorage().getType())) {
             Long cosId = config.getStorage().getId() != null ? config.getStorage().getId() : config.getStorage().getCosId();
             if (cosId != null && cosConnectionService != null && ibmCosService != null) {
                 CosConnection cos = cosConnectionService.getConnection(cosId);
                 if (cos != null && !"Local".equalsIgnoreCase(cos.getStorageType())) {
-                    String fileName = config.getStorage().getFileName() != null && !config.getStorage().getFileName().trim().isEmpty()
+                    String baseFileName = config.getStorage().getFileName() != null && !config.getStorage().getFileName().trim().isEmpty()
                             ? config.getStorage().getFileName().trim() : "secure-json-export.json.enc";
                     try {
                         Path tempDir = Files.createTempDirectory("cos-json-import-staging");
-                        Path stagingFile = tempDir.resolve(fileName);
-                        ibmCosService.downloadFile(cos, fileName, stagingFile);
-                        log.info("Downloaded COS JSON package to staging file: {}", stagingFile);
-                        return stagingFile;
+                        List<Map<String, Object>> objects = ibmCosService.listObjects(cos, null);
+                        List<Path> stagedFiles = new ArrayList<>();
+                        for (Map<String, Object> obj : objects) {
+                            String name = (String) obj.get("name");
+                            if (name != null && (name.equals(baseFileName) ||
+                                    (name.startsWith("secure-json-export") && (name.endsWith(".json.enc") || name.endsWith(".json"))))) {
+                                Path stagingFile = tempDir.resolve(Paths.get(name).getFileName().toString());
+                                ibmCosService.downloadFile(cos, name, stagingFile);
+                                stagedFiles.add(stagingFile);
+                            }
+                        }
+                        if (!stagedFiles.isEmpty()) {
+                            return com.enterprise.seedm.util.BackupFileUtils.sortBackupFiles(stagedFiles);
+                        }
                     } catch (Exception e) {
                         log.error("Failed to download JSON package from COS bucket", e);
                     }
@@ -424,20 +411,54 @@ public class JsonSecureImportService {
             }
         }
 
-        Path basePath = resolveStoragePath(config.getStorage());
-        if (config.getStorage() != null && config.getStorage().getFileName() != null && !config.getStorage().getFileName().trim().isEmpty()) {
+        Path basePath = resolveStoragePath(config != null ? config.getStorage() : null);
+
+        if (config != null && config.getStorage() != null && config.getStorage().getFileName() != null && !config.getStorage().getFileName().trim().isEmpty()) {
             String fileName = config.getStorage().getFileName().trim();
-            if (Files.isDirectory(basePath)) {
-                return basePath.resolve(fileName);
+            Path specificFile = Files.isDirectory(basePath) ? basePath.resolve(fileName) : Paths.get(fileName);
+            if (Files.isRegularFile(specificFile)) {
+                List<Path> parts = com.enterprise.seedm.util.BackupFileUtils.findBackupFiles(specificFile, "secure-json-export", ".json.enc", ".json");
+                if (parts != null && !parts.isEmpty()) {
+                    return parts;
+                }
+                return List.of(specificFile);
             }
-            return Paths.get(fileName);
         }
+
         if (Files.isRegularFile(basePath)) {
-            return basePath;
+            List<Path> parts = com.enterprise.seedm.util.BackupFileUtils.findBackupFiles(basePath, "secure-json-export", ".json.enc", ".json");
+            if (parts != null && !parts.isEmpty()) {
+                return parts;
+            }
+            return List.of(basePath);
         }
+
+        if (Files.isDirectory(basePath)) {
+            List<Path> files = com.enterprise.seedm.util.BackupFileUtils.findBackupFiles(basePath, "secure-json-export", ".json.enc", ".json");
+            if (!files.isEmpty()) {
+                return files;
+            }
+
+            try (Stream<Path> stream = Files.list(basePath)) {
+                List<Path> anyJson = stream.filter(Files::isRegularFile)
+                        .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".json.enc") || p.getFileName().toString().toLowerCase().endsWith(".json"))
+                        .collect(Collectors.toList());
+                if (!anyJson.isEmpty()) {
+                    return com.enterprise.seedm.util.BackupFileUtils.sortBackupFiles(anyJson);
+                }
+            } catch (IOException e) {
+                log.warn("Error listing directory for JSON backup files: {}", basePath, e);
+            }
+        }
+
         Path defaultEnc = basePath.resolve("secure-json-export.json.enc");
-        if (Files.exists(defaultEnc)) return defaultEnc;
-        return basePath.resolve("secure-json-export.json");
+        if (Files.exists(defaultEnc)) return List.of(defaultEnc);
+        return List.of(basePath.resolve("secure-json-export.json"));
+    }
+
+    public Path resolveSourceFile(JsonSecureImportConfig config) {
+        List<Path> files = resolveSourceFiles(config);
+        return files.get(0);
     }
 
     private void saveJobRecord(String executionId, JsonSecureImportConfig config, String status, String errorMessage) {

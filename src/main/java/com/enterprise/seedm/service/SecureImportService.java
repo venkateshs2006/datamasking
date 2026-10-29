@@ -52,6 +52,7 @@ public class SecureImportService {
     // In-memory store for real-time progress tracking
     private final Map<String, SecureImportProgress> progressMap = new ConcurrentHashMap<>();
 
+    private static final String DEFAULT_IMPORT_DIR = "secure-export";
     private static final Pattern CREATE_TABLE_PATTERN = Pattern.compile("^\\s*CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(?:([a-zA-Z0-9_]+)\\.)?([a-zA-Z0-9_]+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern INSERT_INTO_PATTERN = Pattern.compile("^\\s*INSERT\\s+INTO\\s+(?:([a-zA-Z0-9_]+)\\.)?([a-zA-Z0-9_]+)", Pattern.CASE_INSENSITIVE);
 
@@ -71,12 +72,8 @@ public class SecureImportService {
     /**
      * Resolve the source export file path based on storage configuration.
      */
-    public Path resolveSourceFile(SecureImportConfig config) throws Exception {
-        if (config == null || config.getStorage() == null) {
-            throw new IllegalArgumentException("Storage configuration is missing");
-        }
-
-        SecureImportConfig.StorageConfig storage = config.getStorage();
+    public List<Path> resolveSourceFiles(SecureImportConfig config) throws IOException {
+        SecureImportConfig.StorageConfig storage = (config != null && config.getStorage() != null) ? config.getStorage() : new SecureImportConfig.StorageConfig();
         String storageType = storage.getType() != null ? storage.getType().toLowerCase() : "local";
         Path candidatePath = null;
 
@@ -85,13 +82,21 @@ public class SecureImportService {
                 CosConnection cos = cosConnectionService.getConnection(storage.getId());
                 if (cos != null) {
                     if (!"Local".equalsIgnoreCase(cos.getStorageType()) && ibmCosService != null) {
-                        String fileName = storage.getFileName() != null && !storage.getFileName().trim().isEmpty()
-                                ? storage.getFileName().trim() : "secure-export.sql.enc";
+                        List<Map<String, Object>> objects = ibmCosService.listObjects(cos, null);
                         Path tempDir = Files.createTempDirectory("cos-sql-import-staging");
-                        Path stagingFile = tempDir.resolve(fileName);
-                        ibmCosService.downloadFile(cos, fileName, stagingFile);
-                        log.info("Downloaded COS SQL package to temporary staging: {}", stagingFile);
-                        return stagingFile;
+                        List<Path> stagedFiles = new ArrayList<>();
+                        for (Map<String, Object> obj : objects) {
+                            String name = (String) obj.get("name");
+                            if (name != null && (name.toLowerCase().endsWith(".sql.enc") || name.toLowerCase().endsWith(".sql"))) {
+                                Path stagingFile = tempDir.resolve(name);
+                                ibmCosService.downloadFile(cos, name, stagingFile);
+                                stagedFiles.add(stagingFile);
+                            }
+                        }
+                        if (!stagedFiles.isEmpty()) {
+                            log.info("Downloaded {} SQL backup package(s) from COS to temporary staging", stagedFiles.size());
+                            return com.enterprise.seedm.util.BackupFileUtils.sortBackupFiles(stagedFiles);
+                        }
                     }
                     if (cos.getStorageLocation() != null && !cos.getStorageLocation().trim().isEmpty()) {
                         candidatePath = Paths.get(cos.getStorageLocation());
@@ -102,7 +107,7 @@ public class SecureImportService {
                 candidatePath = Paths.get(storage.getPath());
             }
             if (candidatePath == null) {
-                candidatePath = Paths.get("secure-export");
+                candidatePath = Paths.get(DEFAULT_IMPORT_DIR);
             }
         } else {
             // Local storage
@@ -120,66 +125,75 @@ public class SecureImportService {
                 localPathStr = storage.getName();
             }
             if (localPathStr == null || localPathStr.trim().isEmpty()) {
-                localPathStr = "secure-export";
+                localPathStr = DEFAULT_IMPORT_DIR;
             }
             candidatePath = Paths.get(localPathStr);
         }
 
+        // If a specific file name was provided, check if it points to a file with sibling parts or a direct file
+        if (storage.getFileName() != null && !storage.getFileName().trim().isEmpty()) {
+            String fname = storage.getFileName().trim();
+            Path specificFile = Files.isDirectory(candidatePath) ? candidatePath.resolve(fname) : Paths.get(fname);
+            if (Files.isRegularFile(specificFile)) {
+                List<Path> parts = com.enterprise.seedm.util.BackupFileUtils.findBackupFiles(specificFile, "secure-export", ".sql.enc", ".sql");
+                if (parts != null && !parts.isEmpty()) {
+                    return parts;
+                }
+                return List.of(specificFile);
+            }
+        }
+
         if (Files.isRegularFile(candidatePath)) {
-            return candidatePath;
+            List<Path> parts = com.enterprise.seedm.util.BackupFileUtils.findBackupFiles(candidatePath, "secure-export", ".sql.enc", ".sql");
+            if (parts != null && !parts.isEmpty()) {
+                return parts;
+            }
+            return List.of(candidatePath);
         }
 
         if (Files.isDirectory(candidatePath)) {
-            // Check for specific file name if specified
-            if (storage.getFileName() != null && !storage.getFileName().trim().isEmpty()) {
-                Path specificFile = candidatePath.resolve(storage.getFileName().trim());
-                if (Files.isRegularFile(specificFile)) {
-                    return specificFile;
-                }
+            List<Path> files = com.enterprise.seedm.util.BackupFileUtils.findBackupFiles(candidatePath, "secure-export", ".sql.enc", ".sql");
+            if (!files.isEmpty()) {
+                return files;
             }
 
-            // Check standard files
-            Path encFile = candidatePath.resolve("secure-export.sql.enc");
-            if (Files.isRegularFile(encFile)) {
-                return encFile;
-            }
-            Path bsonFile = candidatePath.resolve("secure-export.bson.enc");
-            if (Files.isRegularFile(bsonFile)) {
-                return bsonFile;
-            }
-            Path jsonFile = candidatePath.resolve("secure-export.json.enc");
-            if (Files.isRegularFile(jsonFile)) {
-                return jsonFile;
-            }
-            Path sqlFile = candidatePath.resolve("secure-export.sql");
-            if (Files.isRegularFile(sqlFile)) {
-                return sqlFile;
-            }
-
-            // Scan directory for any supported export file
-            try (Stream<Path> stream = Files.walk(candidatePath, 1)) {
-                Optional<Path> found = stream.filter(Files::isRegularFile)
-                        .filter(p -> isSupportedImportFile(p.getFileName().toString(), "all"))
-                        .findFirst();
-                if (found.isPresent()) {
-                    return found.get();
+            // Also check for any supported SQL files
+            try (Stream<Path> stream = Files.list(candidatePath)) {
+                List<Path> anySql = stream.filter(Files::isRegularFile)
+                        .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".sql.enc") || p.getFileName().toString().toLowerCase().endsWith(".sql"))
+                        .collect(Collectors.toList());
+                if (!anySql.isEmpty()) {
+                    return com.enterprise.seedm.util.BackupFileUtils.sortBackupFiles(anySql);
                 }
             } catch (IOException e) {
-                log.warn("Error walking directory: {}", candidatePath, e);
+                log.warn("Error listing directory: {}", candidatePath, e);
             }
         }
 
-        throw new FileNotFoundException("Could not locate export file in path: " + candidatePath.toAbsolutePath());
+        throw new FileNotFoundException("Could not locate export file(s) in path: " + candidatePath.toAbsolutePath());
+    }
+
+    public Path resolveSourceFile(SecureImportConfig config) throws IOException {
+        List<Path> files = resolveSourceFiles(config);
+        return files.get(0);
     }
 
     /**
      * Validate secret key by attempting to decrypt the header of the encrypted file.
      */
     public void validateSecretKey(SecureImportConfig config, String secretKey) throws Exception {
-        Path sourceFile = resolveSourceFile(config);
+        List<Path> sourceFiles = resolveSourceFiles(config);
+        if (sourceFiles.isEmpty()) {
+            throw new FileNotFoundException("No export files found to validate secret key");
+        }
 
-        if (!sourceFile.toString().endsWith(".enc")) {
-            // Plain SQL file does not require decryption key
+        Path encFile = sourceFiles.stream()
+                .filter(p -> p.getFileName().toString().endsWith(".enc"))
+                .findFirst()
+                .orElse(null);
+
+        if (encFile == null) {
+            // Plain SQL files do not require decryption key
             return;
         }
 
@@ -187,39 +201,25 @@ public class SecureImportService {
             throw new IllegalArgumentException("Secret key is required to decrypt the secure export file (.sql.enc)");
         }
 
-        try (InputStream in = Files.newInputStream(sourceFile)) {
-            byte[] iv = new byte[16];
-            int read = in.read(iv);
-            if (read < 16) {
-                throw new IllegalArgumentException("Invalid encrypted file: file size too small for initialization vector");
+        try (InputStream inStream = com.enterprise.seedm.util.BackupFileUtils.createDecryptedInputStream(encFile, secretKey);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(inStream, StandardCharsets.UTF_8))) {
+            
+            // Read first 5 lines to verify decryption validity
+            StringBuilder headerSample = new StringBuilder();
+            for (int i = 0; i < 5; i++) {
+                String line = reader.readLine();
+                if (line == null) break;
+                headerSample.append(line).append("\n");
             }
 
-            MessageDigest sha = MessageDigest.getInstance("SHA-256");
-            byte[] keyBytes = sha.digest(secretKey.trim().getBytes(StandardCharsets.UTF_8));
-            SecretKeySpec secretKeySpec = new SecretKeySpec(keyBytes, "AES");
-            IvParameterSpec ivSpec = new IvParameterSpec(iv);
-
-            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-            cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, ivSpec);
-
-            try (CipherInputStream cipherIn = new CipherInputStream(in, cipher);
-                 BufferedReader reader = new BufferedReader(new InputStreamReader(cipherIn, StandardCharsets.UTF_8))) {
-                
-                // Read first 5 lines to verify decryption validity
-                StringBuilder headerSample = new StringBuilder();
-                for (int i = 0; i < 5; i++) {
-                    String line = reader.readLine();
-                    if (line == null) break;
-                    headerSample.append(line).append("\n");
-                }
-
-                String sampleStr = headerSample.toString();
-                if (sampleStr.isEmpty() || !isValidSqlContent(sampleStr)) {
-                    throw new IllegalArgumentException("Invalid secret key. Decrypted content did not match expected SQL structure.");
-                }
+            String sampleStr = headerSample.toString();
+            if (sampleStr.isEmpty() || !isValidSqlContent(sampleStr)) {
+                throw new IllegalArgumentException("Invalid secret key. Decrypted content did not match expected SQL structure.");
             }
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
-            log.warn("Secret key validation failed for file {}: {}", sourceFile, e.getMessage());
+            log.warn("Secret key validation failed for file {}: {}", encFile, e.getMessage());
             throw new IllegalArgumentException("Invalid secret key. Decryption failed: " + e.getMessage(), e);
         }
     }
@@ -252,10 +252,10 @@ public class SecureImportService {
         Map<String, AtomicInteger> tableRecordCounts = new HashMap<>();
 
         try {
-            Path sourceFile = resolveSourceFile(config);
-            log.info("Importing from source file: {}", sourceFile.toAbsolutePath());
+            List<Path> sourceFiles = resolveSourceFiles(config);
+            log.info("Importing from {} backup file(s): {}", sourceFiles.size(),
+                    sourceFiles.stream().map(p -> p.getFileName().toString()).collect(Collectors.toList()));
 
-            // First pass or stream processing: Read statements
             // Resolve target connection details
             String destUrl = null;
             String destUser = null;
@@ -285,7 +285,7 @@ public class SecureImportService {
                 throw new IllegalArgumentException("Destination database connection details not found");
             }
 
-            // Execute migration against destination database
+            // Execute migration against destination database across all files in order
             try (Connection connection = DriverManager.getConnection(destUrl, destUser, destPass)) {
                 connection.setAutoCommit(false);
 
@@ -300,32 +300,18 @@ public class SecureImportService {
                     log.warn("Could not set search_path to {}: {}", destSchema, ex.getMessage());
                 }
 
-                // Prepare input stream (encrypted vs plain)
-                boolean isEncrypted = sourceFile.toString().endsWith(".enc");
-                try (InputStream rawIn = Files.newInputStream(sourceFile)) {
-                    InputStream inStream = rawIn;
+                String currentTable = null;
+                List<String> insertBatch = new ArrayList<>(1000);
 
-                    if (isEncrypted) {
-                        byte[] iv = new byte[16];
-                        int read = rawIn.read(iv);
-                        if (read < 16) {
-                            throw new IllegalArgumentException("Encrypted file too short for IV");
-                        }
-                        MessageDigest sha = MessageDigest.getInstance("SHA-256");
-                        byte[] keyBytes = sha.digest(secretKey.trim().getBytes(StandardCharsets.UTF_8));
-                        SecretKeySpec secretKeySpec = new SecretKeySpec(keyBytes, "AES");
-                        IvParameterSpec ivSpec = new IvParameterSpec(iv);
+                for (int fIdx = 0; fIdx < sourceFiles.size(); fIdx++) {
+                    Path sourceFile = sourceFiles.get(fIdx);
+                    log.info("Processing SQL backup file ({}/{}): {}", fIdx + 1, sourceFiles.size(), sourceFile.getFileName());
 
-                        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-                        cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, ivSpec);
-                        inStream = new CipherInputStream(rawIn, cipher);
-                    }
+                    try (InputStream inStream = com.enterprise.seedm.util.BackupFileUtils.createDecryptedInputStream(sourceFile, secretKey);
+                         BufferedReader reader = new BufferedReader(new InputStreamReader(inStream, StandardCharsets.UTF_8), 128 * 1024)) {
 
-                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(inStream, StandardCharsets.UTF_8), 128 * 1024)) {
                         String line;
                         StringBuilder currentStatement = new StringBuilder();
-                        String currentTable = null;
-                        List<String> insertBatch = new ArrayList<>(1000);
 
                         while ((line = reader.readLine()) != null) {
                             String trimmed = line.trim();
@@ -393,13 +379,14 @@ public class SecureImportService {
                         }
 
                         flushBatch(connection, insertBatch);
-
-                        if (currentTable != null) {
-                            markTableComplete(progress, currentTable);
-                            processedTables++;
-                            progress.processedTables.set(processedTables);
-                        }
+                        connection.commit();
                     }
+                }
+
+                if (currentTable != null) {
+                    markTableComplete(progress, currentTable);
+                    processedTables++;
+                    progress.processedTables.set(processedTables);
                 }
             }
 
@@ -411,7 +398,7 @@ public class SecureImportService {
             }
 
             updateProgress(executionId, "COMPLETED", progress.processedTables.get(), total, null);
-            log.info("Secure import completed successfully for execution ID: {}", executionId);
+            log.info("Secure import completed successfully for execution ID: {} from {} file(s)", executionId, sourceFiles.size());
 
         } catch (Exception e) {
             log.error("Secure import failed for execution ID: {}", executionId, e);

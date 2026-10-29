@@ -34,6 +34,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -160,12 +161,17 @@ public class MongoSecureImportService {
     }
 
     public void validateSecretKey(MongoSecureImportConfig config, String secretKey) {
-        Path sourceFile = resolveSourceFile(config);
-        if (!Files.exists(sourceFile)) {
-            throw new IllegalArgumentException("Encrypted MongoDB backup file not found: " + sourceFile);
+        List<Path> sourceFiles = resolveSourceFiles(config);
+        if (sourceFiles.isEmpty()) {
+            throw new IllegalArgumentException("No MongoDB backup files found to validate secret key");
         }
 
-        if (!sourceFile.toString().endsWith(".enc")) {
+        Path encFile = sourceFiles.stream()
+                .filter(p -> p.getFileName().toString().endsWith(".enc"))
+                .findFirst()
+                .orElse(null);
+
+        if (encFile == null) {
             return; // Plain file
         }
 
@@ -173,35 +179,16 @@ public class MongoSecureImportService {
             throw new IllegalArgumentException("Secret key is required for encrypted file");
         }
 
-        try (InputStream in = Files.newInputStream(sourceFile)) {
-            byte[] iv = new byte[16];
-            int bytesRead = in.read(iv);
-            if (bytesRead < 16) {
-                throw new IllegalArgumentException("File is too small to be a valid encrypted archive");
+        try (InputStream in = com.enterprise.seedm.util.BackupFileUtils.createDecryptedInputStream(encFile, secretKey)) {
+            byte[] header = new byte[MAGIC_HEADER.length];
+            int read = in.read(header);
+            if (read < MAGIC_HEADER.length || !Arrays.equals(header, MAGIC_HEADER)) {
+                throw new IllegalArgumentException("Invalid secret key. Header verification failed.");
             }
-
-            MessageDigest sha = MessageDigest.getInstance("SHA-256");
-            byte[] keyBytes = sha.digest(secretKey.trim().getBytes(StandardCharsets.UTF_8));
-            SecretKeySpec secretKeySpec = new SecretKeySpec(keyBytes, "AES");
-            IvParameterSpec ivSpec = new IvParameterSpec(iv);
-
-            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-            cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, ivSpec);
-
-            byte[] encryptedBuffer = new byte[64];
-            int readEnc = in.read(encryptedBuffer);
-            if (readEnc > 0) {
-                byte[] decrypted = cipher.update(encryptedBuffer, 0, readEnc);
-                if (decrypted != null && decrypted.length >= MAGIC_HEADER.length) {
-                    for (int i = 0; i < MAGIC_HEADER.length; i++) {
-                        if (decrypted[i] != MAGIC_HEADER[i]) {
-                            throw new IllegalArgumentException("Invalid secret key. Header verification failed.");
-                        }
-                    }
-                }
-            }
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
-            log.warn("Secret key validation failed for file {}: {}", sourceFile, e.getMessage());
+            log.warn("Secret key validation failed for file {}: {}", encFile, e.getMessage());
             throw new IllegalArgumentException("Invalid secret key. Decryption verification failed: " + e.getMessage());
         }
     }
@@ -216,117 +203,108 @@ public class MongoSecureImportService {
         try {
             saveJobRecord(executionId, config, "RUNNING", null);
 
-            Path sourceFile = resolveSourceFile(config);
-            if (!Files.exists(sourceFile)) {
-                throw new IllegalArgumentException("MongoDB import file not found: " + sourceFile);
+            List<Path> sourceFiles = resolveSourceFiles(config);
+            if (sourceFiles.isEmpty()) {
+                throw new IllegalArgumentException("MongoDB import files not found");
             }
 
             String dbName = resolveMongoDatabase(config);
-
             if (dbName == null) {
                 throw new IllegalArgumentException("Target MongoDB database name is missing");
             }
 
-            boolean isEncrypted = sourceFile.toString().endsWith(".enc");
-            try (MongoClient mongoClient = createClient(config);
-                 InputStream rawIn = new BufferedInputStream(Files.newInputStream(sourceFile), 128 * 1024)) {
+            log.info("Starting Mongo import for execution ID: {} with {} backup file(s): {}", executionId, sourceFiles.size(),
+                    sourceFiles.stream().map(p -> p.getFileName().toString()).collect(Collectors.toList()));
 
+            try (MongoClient mongoClient = createClient(config)) {
                 MongoDatabase database = mongoClient.getDatabase(dbName);
-                InputStream streamToRead = rawIn;
+                Set<String> droppedCollections = new HashSet<>();
+                Set<String> allEncounteredCollections = new LinkedHashSet<>();
 
-                if (isEncrypted) {
-                    byte[] iv = new byte[16];
-                    int read = rawIn.read(iv);
-                    if (read < 16) {
-                        throw new IllegalArgumentException("Encrypted file too short for IV");
+                for (int fIdx = 0; fIdx < sourceFiles.size(); fIdx++) {
+                    Path sourceFile = sourceFiles.get(fIdx);
+                    log.info("Processing Mongo backup file ({}/{}): {}", fIdx + 1, sourceFiles.size(), sourceFile.getFileName());
+
+                    try (InputStream rawIn = com.enterprise.seedm.util.BackupFileUtils.createDecryptedInputStream(sourceFile, secretKey);
+                         DataInputStream dataIn = new DataInputStream(new BufferedInputStream(rawIn, 128 * 1024))) {
+
+                        // Check magic header
+                        byte[] header = new byte[MAGIC_HEADER.length];
+                        dataIn.readFully(header);
+                        if (!Arrays.equals(header, MAGIC_HEADER)) {
+                            throw new IllegalArgumentException("Invalid file format: MAGIC header mismatch in file: " + sourceFile.getFileName());
+                        }
+
+                        boolean reading = true;
+                        String currentCollection = null;
+                        List<Document> batch = new ArrayList<>(1000);
+
+                        while (reading) {
+                            int marker = dataIn.read();
+                            if (marker == -1 || marker == (MARKER_EOF & 0xFF)) {
+                                reading = false;
+                                break;
+                            }
+
+                            if (marker == MARKER_COLLECTION_START) {
+                                int nameLen = dataIn.readUnsignedShort();
+                                byte[] nameBytes = new byte[nameLen];
+                                dataIn.readFully(nameBytes);
+                                currentCollection = new String(nameBytes, StandardCharsets.UTF_8);
+
+                                allEncounteredCollections.add(currentCollection);
+                                registerCollectionIfAbsent(progress, currentCollection);
+
+                                if (config.getDest() != null && config.getDest().isDropExisting() && !droppedCollections.contains(currentCollection)) {
+                                    try {
+                                        database.getCollection(currentCollection).drop();
+                                        log.info("Dropped existing target collection: {}", currentCollection);
+                                    } catch (Exception ex) {
+                                        log.warn("Could not drop collection {}: {}", currentCollection, ex.getMessage());
+                                    }
+                                    droppedCollections.add(currentCollection);
+                                }
+                            } else if (marker == MARKER_DOC_RECORD) {
+                                int docLen = dataIn.readInt();
+                                byte[] bsonBytes = new byte[docLen];
+                                dataIn.readFully(bsonBytes);
+
+                                Document doc = decodeBsonToDocument(bsonBytes);
+                                if (doc != null) {
+                                    batch.add(doc);
+                                    progress.totalRecords.incrementAndGet();
+                                    incrementCollectionRecord(progress, currentCollection);
+
+                                    if (batch.size() >= 1000 && currentCollection != null) {
+                                        flushBatch(database.getCollection(currentCollection), batch);
+                                    }
+                                }
+                            } else if (marker == MARKER_COLLECTION_END) {
+                                if (currentCollection != null) {
+                                    if (!batch.isEmpty()) {
+                                        flushBatch(database.getCollection(currentCollection), batch);
+                                    }
+                                    currentCollection = null;
+                                }
+                            }
+                        }
+
+                        if (currentCollection != null && !batch.isEmpty()) {
+                            flushBatch(database.getCollection(currentCollection), batch);
+                        }
                     }
-                    MessageDigest sha = MessageDigest.getInstance("SHA-256");
-                    byte[] keyBytes = sha.digest(secretKey.trim().getBytes(StandardCharsets.UTF_8));
-                    SecretKeySpec secretKeySpec = new SecretKeySpec(keyBytes, "AES");
-                    IvParameterSpec ivSpec = new IvParameterSpec(iv);
-
-                    Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-                    cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, ivSpec);
-                    streamToRead = new CipherInputStream(rawIn, cipher);
                 }
 
-                try (DataInputStream dataIn = new DataInputStream(new BufferedInputStream(streamToRead, 128 * 1024))) {
-                    // Check magic header
-                    byte[] header = new byte[MAGIC_HEADER.length];
-                    dataIn.readFully(header);
-                    if (!Arrays.equals(header, MAGIC_HEADER)) {
-                        throw new IllegalArgumentException("Invalid file format: MAGIC header mismatch");
-                    }
-
-                    boolean reading = true;
-                    String currentCollection = null;
-                    List<Document> batch = new ArrayList<>(1000);
-                    Set<String> droppedCollections = new HashSet<>();
-
-                    while (reading) {
-                        int marker = dataIn.read();
-                        if (marker == -1 || marker == (MARKER_EOF & 0xFF)) {
-                            reading = false;
-                            break;
-                        }
-
-                        if (marker == MARKER_COLLECTION_START) {
-                            int nameLen = dataIn.readUnsignedShort();
-                            byte[] nameBytes = new byte[nameLen];
-                            dataIn.readFully(nameBytes);
-                            currentCollection = new String(nameBytes, StandardCharsets.UTF_8);
-
-                            registerCollectionIfAbsent(progress, currentCollection);
-
-                            if (config.getDest() != null && config.getDest().isDropExisting() && !droppedCollections.contains(currentCollection)) {
-                                try {
-                                    database.getCollection(currentCollection).drop();
-                                    log.info("Dropped existing target collection: {}", currentCollection);
-                                } catch (Exception ex) {
-                                    log.warn("Could not drop collection {}: {}", currentCollection, ex.getMessage());
-                                }
-                                droppedCollections.add(currentCollection);
-                            }
-                        } else if (marker == MARKER_DOC_RECORD) {
-                            int docLen = dataIn.readInt();
-                            byte[] bsonBytes = new byte[docLen];
-                            dataIn.readFully(bsonBytes);
-
-                            Document doc = decodeBsonToDocument(bsonBytes);
-                            if (doc != null) {
-                                batch.add(doc);
-                                progress.totalRecords.incrementAndGet();
-                                incrementCollectionRecord(progress, currentCollection);
-
-                                if (batch.size() >= 1000 && currentCollection != null) {
-                                    flushBatch(database.getCollection(currentCollection), batch);
-                                }
-                            }
-                        } else if (marker == MARKER_COLLECTION_END) {
-                            if (currentCollection != null) {
-                                if (!batch.isEmpty()) {
-                                    flushBatch(database.getCollection(currentCollection), batch);
-                                }
-                                markCollectionComplete(progress, currentCollection);
-                                processedCollections++;
-                                progress.processedCollections.set(processedCollections);
-                                currentCollection = null;
-                            }
-                        }
-                    }
-
-                    if (currentCollection != null && !batch.isEmpty()) {
-                        flushBatch(database.getCollection(currentCollection), batch);
-                        markCollectionComplete(progress, currentCollection);
-                        processedCollections++;
-                        progress.processedCollections.set(processedCollections);
-                    }
+                for (String coll : allEncounteredCollections) {
+                    markCollectionComplete(progress, coll);
+                    processedCollections++;
+                    progress.processedCollections.set(processedCollections);
                 }
 
                 progress.status = "COMPLETED";
                 progress.completedTime = System.currentTimeMillis();
                 saveJobRecord(executionId, config, "COMPLETED", null);
-                log.info("Mongo secure import completed for execution ID: {}", executionId);
+                log.info("Mongo secure import completed for execution ID: {} from {} file(s)", executionId, sourceFiles.size());
             }
         } catch (Exception e) {
             log.error("Mongo secure import failed for execution ID: {}", executionId, e);
@@ -427,20 +405,28 @@ public class MongoSecureImportService {
         return Paths.get(DEFAULT_IMPORT_DIR);
     }
 
-    private Path resolveSourceFile(MongoSecureImportConfig config) {
-        if (config.getStorage() != null && "cos".equalsIgnoreCase(config.getStorage().getType())) {
+    public List<Path> resolveSourceFiles(MongoSecureImportConfig config) {
+        if (config != null && config.getStorage() != null && "cos".equalsIgnoreCase(config.getStorage().getType())) {
             Long cosId = config.getStorage().getId() != null ? config.getStorage().getId() : config.getStorage().getCosId();
             if (cosId != null && cosConnectionService != null && ibmCosService != null) {
                 CosConnection cos = cosConnectionService.getConnection(cosId);
                 if (cos != null && !"Local".equalsIgnoreCase(cos.getStorageType())) {
-                    String fileName = config.getStorage().getFileName() != null && !config.getStorage().getFileName().trim().isEmpty()
-                            ? config.getStorage().getFileName().trim() : "secure-mongo-export.bson.enc";
                     try {
+                        List<Map<String, Object>> objects = ibmCosService.listObjects(cos, null);
                         Path tempDir = Files.createTempDirectory("cos-mongo-import-staging");
-                        Path stagingFile = tempDir.resolve(fileName);
-                        ibmCosService.downloadFile(cos, fileName, stagingFile);
-                        log.info("Downloaded COS Mongo package to staging file: {}", stagingFile);
-                        return stagingFile;
+                        List<Path> stagedFiles = new ArrayList<>();
+                        for (Map<String, Object> obj : objects) {
+                            String name = (String) obj.get("name");
+                            if (name != null && (name.toLowerCase().endsWith(".bson.enc") || name.toLowerCase().endsWith(".bson"))) {
+                                Path stagingFile = tempDir.resolve(name);
+                                ibmCosService.downloadFile(cos, name, stagingFile);
+                                stagedFiles.add(stagingFile);
+                            }
+                        }
+                        if (!stagedFiles.isEmpty()) {
+                            log.info("Downloaded {} Mongo backup package(s) from COS to temporary staging", stagedFiles.size());
+                            return com.enterprise.seedm.util.BackupFileUtils.sortBackupFiles(stagedFiles);
+                        }
                     } catch (Exception e) {
                         log.error("Failed to download Mongo package from COS bucket", e);
                     }
@@ -448,20 +434,54 @@ public class MongoSecureImportService {
             }
         }
 
-        Path basePath = resolveStoragePath(config.getStorage());
-        if (config.getStorage() != null && config.getStorage().getFileName() != null && !config.getStorage().getFileName().trim().isEmpty()) {
+        Path basePath = resolveStoragePath(config != null ? config.getStorage() : null);
+
+        if (config != null && config.getStorage() != null && config.getStorage().getFileName() != null && !config.getStorage().getFileName().trim().isEmpty()) {
             String fileName = config.getStorage().getFileName().trim();
-            if (Files.isDirectory(basePath)) {
-                return basePath.resolve(fileName);
+            Path specificFile = Files.isDirectory(basePath) ? basePath.resolve(fileName) : Paths.get(fileName);
+            if (Files.isRegularFile(specificFile)) {
+                List<Path> parts = com.enterprise.seedm.util.BackupFileUtils.findBackupFiles(specificFile, "secure-mongo-export", ".bson.enc", ".bson");
+                if (parts != null && !parts.isEmpty()) {
+                    return parts;
+                }
+                return List.of(specificFile);
             }
-            return Paths.get(fileName);
         }
+
         if (Files.isRegularFile(basePath)) {
-            return basePath;
+            List<Path> parts = com.enterprise.seedm.util.BackupFileUtils.findBackupFiles(basePath, "secure-mongo-export", ".bson.enc", ".bson");
+            if (parts != null && !parts.isEmpty()) {
+                return parts;
+            }
+            return List.of(basePath);
         }
+
+        if (Files.isDirectory(basePath)) {
+            List<Path> files = com.enterprise.seedm.util.BackupFileUtils.findBackupFiles(basePath, "secure-mongo-export", ".bson.enc", ".bson");
+            if (!files.isEmpty()) {
+                return files;
+            }
+
+            try (Stream<Path> stream = Files.list(basePath)) {
+                List<Path> anyBson = stream.filter(Files::isRegularFile)
+                        .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".bson.enc") || p.getFileName().toString().toLowerCase().endsWith(".bson"))
+                        .collect(Collectors.toList());
+                if (!anyBson.isEmpty()) {
+                    return com.enterprise.seedm.util.BackupFileUtils.sortBackupFiles(anyBson);
+                }
+            } catch (IOException e) {
+                log.warn("Error listing directory for Mongo backup files: {}", basePath, e);
+            }
+        }
+
         Path defaultEnc = basePath.resolve("secure-mongo-export.bson.enc");
-        if (Files.exists(defaultEnc)) return defaultEnc;
-        return basePath.resolve("secure-mongo-export.bson");
+        if (Files.exists(defaultEnc)) return List.of(defaultEnc);
+        return List.of(basePath.resolve("secure-mongo-export.bson"));
+    }
+
+    public Path resolveSourceFile(MongoSecureImportConfig config) {
+        List<Path> files = resolveSourceFiles(config);
+        return files.get(0);
     }
 
     private MongoClient createClient(MongoSecureImportConfig config) {
