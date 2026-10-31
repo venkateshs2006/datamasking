@@ -1,0 +1,1519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNP Paribas - Anonify CSV Bulk Data Dump (Local & COS Storage)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
+
+        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
+        .bnp-logo { height: 48px; display: block; }
+        nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
+        nav ul li { margin-left: 25px; }
+        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
+        nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+        nav ul li a.active { color: var(--bnp-emerald); border-bottom: 2px solid var(--bnp-emerald); padding-bottom: 4px; font-weight: 700; }
+
+        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; z-index: 20; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
+        .tagline { font-weight: 300; letter-spacing: 1px; }
+
+        .step-container { display: none !important; }
+        .step-container.active {
+            display: flex !important;
+            flex-direction: column;
+            animation: fadeIn 0.3s ease-out;
+            flex: 1;
+            min-height: 0;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Stepper Styles */
+        .stepper-item { flex: 1; text-align: center; position: relative; }
+        .stepper-item::after { content: ''; position: absolute; top: 16px; left: 50%; width: 100%; height: 2px; background-color: #e2e8f0; z-index: 1; transition: background-color 0.3s; }
+        .stepper-item:last-child::after { display: none; }
+        .stepper-item.completed::after { background-color: var(--bnp-emerald); }
+        .stepper-circle { width: 34px; height: 34px; border-radius: 50%; background-color: #fff; border: 2px solid #cbd5e1; color: #94a3b8; display: flex; align-items: center; justify-content: center; font-weight: 600; margin: 0 auto; position: relative; z-index: 2; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+
+        .stepper-item.active .stepper-circle { border-color: var(--bnp-emerald); color: var(--bnp-emerald); background-color: #fff; box-shadow: 0 0 0 4px rgba(0, 150, 94, 0.1); }
+        .stepper-item.completed .stepper-circle { background-color: var(--bnp-emerald); border-color: var(--bnp-emerald); color: #fff; }
+        .stepper-label { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stepper-item.active .stepper-label { color: var(--bnp-emerald); font-weight: 700; }
+        .stepper-item.completed .stepper-label { color: #334155; }
+
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #f1f5f9; }
+
+        .input-field { width: 100%; padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.875rem; transition: all 0.2s; background-color: #f8fafc; color: #334155; }
+        .input-field:focus { outline: none; border-color: var(--bnp-emerald); box-shadow: 0 0 0 3px rgba(0, 150, 94, 0.15); background-color: #fff; }
+        .input-field:disabled { background-color: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+        .input-field.error { border-color: #ef4444; background-color: #fef2f2; }
+
+        .btn { padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 600; font-size: 0.875rem; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+        .btn-primary { background-color: var(--bnp-emerald); color: white; border: 1px solid transparent; }
+        .btn-primary:hover:not(:disabled) { background-color: #007a4c; box-shadow: 0 4px 6px rgba(0, 150, 94, 0.2); transform: translateY(-1px); }
+        .btn-secondary { background-color: #fff; color: #475569; border: 1px solid #cbd5e1; }
+        .btn-secondary:hover:not(:disabled) { background-color: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
+        .btn-success { background-color: #10b981; color: white; border: 1px solid transparent; }
+        .btn-success:hover:not(:disabled) { background-color: #059669; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2); transform: translateY(-1px); }
+
+        .list-container { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; overflow: hidden; display: flex; flex-direction: column; }
+        .list-item { padding: 0.6rem 0.875rem; border-radius: 6px; font-size: 0.875rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; transition: all 0.15s; border: 1px solid transparent; }
+        .list-item:hover { background-color: #f8fafc; border-color: #e2e8f0; }
+        .list-item.selected { background-color: rgba(0,150,94,0.05); color: var(--bnp-emerald); font-weight: 600; border-color: rgba(0,150,94,0.2); box-shadow: inset 3px 0 0 var(--bnp-emerald); }
+
+        .modal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); z-index: 1050; backdrop-filter: blur(5px); overflow-y: auto; padding: 20px; }
+        .modal-content { background: white; margin: 2rem auto; border-radius: 16px; width: 100%; max-width: 720px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); border: 1px solid #e2e8f0; }
+
+        .progress-striped {
+            background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+            background-size: 1rem 1rem;
+            animation: progress-stripes 1s linear infinite;
+        }
+        @keyframes progress-stripes { from { background-position: 1rem 0; } to { background-position: 0 0; } }
+    </style>
+</head>
+<body>
+
+    <!-- Header matching workflow.html -->
+    <header>
+        <div class="flex items-center">
+            <a href="/index.html" class="logo-link mr-6">
+                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+            </a>
+            <div class="hidden md:block border-l border-gray-300 pl-6">
+                <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">Anonify</h1>
+                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">CSV Local & Cloud Storage Dump</p>
+            </div>
+        </div>
+        <nav>
+            <ul>
+                <li id="navNewMigration"><a href="/select-db.html" class="active"><i class="fas fa-plus mr-1.5"></i> New Migration</a></li>
+                <li id="navDashboard"><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+                <li id="navJobs"><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
+                <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
+                <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> Users</a></li>
+                <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 flex flex-col bg-transparent">
+        <div class="w-full max-w-6xl mx-auto px-6 py-8 flex flex-col h-full">
+
+            <!-- Title Banner -->
+            <div class="mb-8 shrink-0 text-center">
+                <h2 class="text-3xl font-bold text-gray-900">CSV Bulk Dataset Generation & Dump</h2>
+                <p class="text-sm text-gray-500 mt-2">Generate high-volume structured CSV datasets directly into a local storage folder or an IBM Cloud Object Storage (COS) bucket with schema consistency.</p>
+            </div>
+
+            <!-- Stepper matching workflow.html -->
+            <div class="flex items-start mb-8 px-4 w-[90%] max-w-4xl mx-auto shrink-0">
+                <div class="stepper-item active" id="step1-indicator"><div class="stepper-circle"><i class="fas fa-hdd text-sm"></i></div><div class="stepper-label">Storage</div></div>
+                <div class="stepper-item" id="step2-indicator"><div class="stepper-circle"><i class="fas fa-file-code text-sm"></i></div><div class="stepper-label">Datasets & Counts</div></div>
+                <div class="stepper-item" id="step3-indicator"><div class="stepper-circle"><i class="fas fa-paper-plane text-sm"></i></div><div class="stepper-label">Approval & Setup</div></div>
+                <div class="stepper-item" id="step4-indicator"><div class="stepper-circle"><i class="fas fa-chart-bar text-sm"></i></div><div class="stepper-label">Report</div></div>
+            </div>
+
+            <!-- Main Card Container (Single Active Card Model) -->
+            <div class="card flex-1 flex flex-col overflow-hidden relative shadow-md bg-white rounded-xl">
+
+                <!-- STEP 1: STORAGE DESTINATION (LOCAL vs COS) -->
+                <div id="step1" class="step-container active p-8 flex flex-col flex-1">
+                    <div class="flex items-center justify-between pb-4 border-b border-gray-100 mb-6 shrink-0">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 rounded-lg bg-bnp-emerald/10 flex items-center justify-center text-bnp-emerald mr-4 border border-bnp-emerald/20"><i class="fas fa-hdd text-lg"></i></div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Step 1: Choose Target Storage Connection</h3>
+                                <p class="text-xs text-gray-500">Select whether to output CSV datasets into a Local Filesystem Directory or IBM Cloud Object Storage (COS).</p>
+                            </div>
+                        </div>
+
+                        <!-- Storage Mode Toggle Switch -->
+                        <div class="inline-flex p-1 bg-gray-100 rounded-lg border border-gray-200">
+                            <button type="button" id="btnStorageLocal" onclick="setStorageType('LOCAL')" class="px-3.5 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-gray-900 shadow-sm">
+                                <i class="fas fa-folder mr-1.5 text-bnp-emerald"></i> Local Folder
+                            </button>
+                            <button type="button" id="btnStorageCos" onclick="setStorageType('COS')" class="px-3.5 py-1.5 rounded-md text-xs font-bold transition-all text-gray-500 hover:text-gray-900">
+                                <i class="fas fa-cloud mr-1.5 text-blue-500"></i> Cloud Storage (COS)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- LOCAL STORAGE FIELDS -->
+                    <div id="localStorageFields" class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide block">Local Storage Connection</label>
+                                <a href="/admin-cos.html" class="text-[11px] text-bnp-emerald hover:text-[#007a4c] font-semibold flex items-center gap-1">
+                                    <i class="fas fa-plus-circle text-[10px]"></i> Add in COS Admin
+                                </a>
+                            </div>
+                            <select id="localConnSelect" class="input-field cursor-pointer bg-white font-mono" onchange="onLocalConnSelected()">
+                                <option value="">-- Custom Local Directory --</option>
+                            </select>
+                            <p class="text-[11px] text-gray-400 mt-1.5"><i class="fas fa-info-circle mr-1"></i> Pre-registered local filesystem directory connections.</p>
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Target Directory Path</label>
+                            <input type="text" id="targetLocalDir" class="input-field font-mono" value="./data/bulk_dump" placeholder="e.g. ./data/bulk_dump or /var/data/exports">
+                            <p class="text-[11px] text-gray-400 mt-1.5"><i class="fas fa-folder-open mr-1"></i> Absolute or relative directory path where CSV files will be written.</p>
+                        </div>
+
+                        <!-- No Local Connections Hint -->
+                        <div id="noLocalHint" class="hidden col-span-1 md:col-span-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center justify-between">
+                            <span class="flex items-center gap-1.5"><i class="fas fa-info-circle text-amber-600"></i> No pre-registered local storage connections found. You can enter any directory path above or register shared local storage paths in COS Admin.</span>
+                            <a href="/admin-cos.html" class="font-bold text-bnp-emerald hover:underline shrink-0 ml-3">Open COS Admin &rarr;</a>
+                        </div>
+
+                        <!-- Local Connection Details Card -->
+                        <div id="localConnDetailsCard" class="hidden col-span-1 md:col-span-2 bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-4 shadow-sm">
+                            <div class="flex items-center justify-between pb-2 mb-3 border-b border-emerald-200/60">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-6 h-6 rounded-md bg-bnp-emerald/15 flex items-center justify-center text-bnp-emerald text-xs">
+                                        <i class="fas fa-hdd"></i>
+                                    </div>
+                                    <span class="text-xs font-bold text-gray-800 uppercase tracking-wider">Local Storage Details</span>
+                                </div>
+                                <span class="text-[10px] font-mono px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold uppercase" id="localDetailEnv">DESTINATION</span>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Connection Name</span>
+                                    <span id="localDetailName" class="font-bold text-gray-800 font-mono text-xs">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Storage Directory</span>
+                                    <span id="localDetailPath" class="font-mono text-gray-700 truncate block text-[11px]">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Department</span>
+                                    <span id="localDetailDept" class="font-semibold text-gray-800">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Storage Type</span>
+                                    <span class="font-mono text-emerald-700 font-bold flex items-center gap-1"><i class="fas fa-check-circle text-[10px]"></i> Local Filesystem</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- COS STORAGE FIELDS -->
+                    <div id="cosStorageFields" class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl hidden">
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide block">Cloud Object Storage (COS) Connection</label>
+                                <a href="/admin-cos.html" class="text-[11px] text-bnp-emerald hover:text-[#007a4c] font-semibold flex items-center gap-1">
+                                    <i class="fas fa-plus-circle text-[10px]"></i> Add in COS Admin
+                                </a>
+                            </div>
+                            <select id="cosConnSelect" class="input-field cursor-pointer bg-white font-mono" onchange="onCosConnSelected()">
+                                <option value="">-- Choose COS Connection --</option>
+                            </select>
+                            <p class="text-[11px] text-gray-400 mt-1.5"><i class="fas fa-shield-alt mr-1"></i> Pre-configured IAM / S3 credentials from COS Admin.</p>
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Target Bucket / Prefix Folder</label>
+                            <div class="flex items-center gap-2">
+                                <span id="cosBucketDisplay" class="px-3 py-2 bg-gray-100 rounded-lg text-xs font-mono font-bold text-gray-600 border border-gray-200">bucket</span>
+                                <input type="text" id="targetCosPrefix" class="input-field font-mono flex-1" value="bulk-dump" placeholder="prefix/folder" oninput="const el = document.getElementById('cosDetailPrefix'); if (el) el.textContent = this.value || 'bulk-dump';">
+                            </div>
+                            <p class="text-[11px] text-gray-400 mt-1.5"><i class="fas fa-cloud-upload-alt mr-1"></i> S3 Object key prefix inside the selected COS bucket.</p>
+                        </div>
+
+                        <!-- No COS Connections Hint -->
+                        <div id="noCosHint" class="hidden col-span-1 md:col-span-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center justify-between">
+                            <span class="flex items-center gap-1.5"><i class="fas fa-exclamation-triangle text-amber-600"></i> No Cloud Object Storage (COS) connections found.</span>
+                            <a href="/admin-cos.html" class="font-bold text-bnp-emerald hover:underline shrink-0 ml-3">Configure in COS Admin &rarr;</a>
+                        </div>
+
+                        <!-- COS Connection Details Card -->
+                        <div id="cosConnDetailsCard" class="hidden col-span-1 md:col-span-2 bg-blue-50/60 border border-blue-200/80 rounded-xl p-4 shadow-sm">
+                            <div class="flex items-center justify-between pb-2 mb-3 border-b border-blue-200/60">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-6 h-6 rounded-md bg-blue-600/15 flex items-center justify-center text-blue-600 text-xs">
+                                        <i class="fas fa-cloud"></i>
+                                    </div>
+                                    <span class="text-xs font-bold text-blue-950 uppercase tracking-wider">Cloud Object Storage Connection Details</span>
+                                </div>
+                                <span class="text-[10px] font-mono px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-bold uppercase" id="cosDetailEnv">DESTINATION</span>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Connection Name</span>
+                                    <span id="cosDetailName" class="font-bold text-gray-800 font-mono text-xs">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Target Bucket</span>
+                                    <span id="cosDetailBucket" class="font-mono text-blue-700 font-bold truncate block text-xs">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Endpoint URL</span>
+                                    <span id="cosDetailEndpoint" class="font-mono text-gray-600 truncate block text-[11px]">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Location / Region</span>
+                                    <span id="cosDetailRegion" class="font-mono text-gray-700 font-semibold">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Auth Type</span>
+                                    <span id="cosDetailAuth" class="font-mono text-gray-700 font-semibold uppercase">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Department</span>
+                                    <span id="cosDetailDept" class="font-semibold text-gray-800">-</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Prefix / Key</span>
+                                    <span id="cosDetailPrefix" class="font-mono text-gray-700 text-[11px]">bulk-dump</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Status</span>
+                                    <span class="inline-flex items-center gap-1 text-emerald-700 font-bold"><i class="fas fa-check-circle text-[10px]"></i> Active</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 p-4 bg-emerald-50/60 border border-emerald-200/80 rounded-xl max-w-4xl flex items-start gap-3">
+                        <i class="fas fa-info-circle text-bnp-emerald mt-0.5 text-base"></i>
+                        <div class="text-xs text-emerald-900 leading-relaxed">
+                            <span class="font-bold">Automated Storage Inspection:</span> Click <strong>Continue</strong> below to inspect target storage and configure synthetic CSV datasets and schemas.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 2: DATASETS & TARGET COUNTS -->
+                <div id="step2" class="step-container p-8 flex flex-col flex-1">
+                    <div class="flex items-center justify-between pb-4 border-b border-gray-100 mb-6 shrink-0">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 rounded-lg bg-bnp-emerald/10 flex items-center justify-center text-bnp-emerald mr-4 border border-bnp-emerald/20"><i class="fas fa-file-code text-lg"></i></div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Step 2: CSV Datasets & Record Quantities</h3>
+                                <p class="text-xs text-gray-500">Configure target CSV files and records to be serialized.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="addNewDatasetModal()" class="btn btn-secondary text-xs py-1 px-3">
+                                <i class="fas fa-plus mr-1 text-bnp-emerald"></i> Add Dataset
+                            </button>
+                            <span class="text-xs font-bold text-gray-400 uppercase ml-2 mr-1">Set All:</span>
+                            <button type="button" onclick="setAllCounts(100)" class="px-2.5 py-1 text-xs font-bold rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-mono transition-colors">100</button>
+                            <button type="button" onclick="setAllCounts(500)" class="px-2.5 py-1 text-xs font-bold rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-mono transition-colors">500</button>
+                            <button type="button" onclick="setAllCounts(1000)" class="px-2.5 py-1 text-xs font-bold rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-mono transition-colors">1K</button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto rounded-xl border border-gray-200 mb-6 flex-1 min-h-[220px]">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-gray-50 border-b border-gray-200 text-gray-600 uppercase font-bold tracking-wider">
+                                    <th class="p-3 w-12 text-center">
+                                        <input type="checkbox" id="selectAllDatasets" onchange="toggleSelectAll(this.checked)" checked class="rounded text-bnp-emerald focus:ring-bnp-emerald">
+                                    </th>
+                                    <th class="p-3">File / Dataset Name</th>
+                                    <th class="p-3">Attributes & Fields</th>
+                                    <th class="p-3 text-right">Existing Records</th>
+                                    <th class="p-3 text-right w-44">Target Records</th>
+                                </tr>
+                            </thead>
+                            <tbody id="datasetListTbody" class="divide-y divide-gray-100 font-mono">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row justify-between items-center bg-gray-50 p-4 rounded-xl border border-gray-200 gap-4 shrink-0">
+                        <div class="text-xs text-gray-600">
+                            Selected Files: <strong id="selectedDatasetCount" class="text-gray-900 font-mono">0</strong> |
+                            Total CSV Records: <strong id="totalTargetRecords" class="text-bnp-emerald font-mono font-bold text-sm">0</strong>
+                        </div>
+                        <div class="text-xs text-gray-500 font-mono" id="targetStorageSummaryBadge">
+                            <i class="fas fa-folder text-bnp-emerald mr-1"></i> Target: Local Filesystem Storage
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 3: GOVERNANCE APPROVAL & RUN SETUP -->
+                <div id="step3" class="step-container p-8 flex flex-col flex-1">
+                    <div class="flex items-center justify-between pb-4 border-b border-gray-100 mb-6 shrink-0">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 rounded-lg bg-bnp-emerald/10 flex items-center justify-center text-bnp-emerald mr-4 border border-bnp-emerald/20"><i class="fas fa-clipboard-check text-lg"></i></div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Step 3: Governance Approval & Run Setup</h3>
+                                <p class="text-xs text-gray-500">Submit bulk CSV dataset generation job for compliance authorization. Once approved, you can execute the seeding setup.</p>
+                            </div>
+                        </div>
+                        <div id="jobStatusBadge" class="hidden text-xs font-bold px-3 py-1 rounded-full uppercase font-mono"></div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 max-w-4xl shrink-0">
+                        <div>
+                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Job Name</label>
+                            <input type="text" id="migrationJobName" class="input-field" placeholder="e.g. CSV Synthetic Datasets Generation">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Department</label>
+                            <input type="text" id="userDepartment" class="input-field font-semibold bg-gray-50" readonly value="Loading...">
+                        </div>
+                    </div>
+
+                    <!-- Approval Banner -->
+                    <div id="approvalBanner" class="p-5 rounded-xl border mb-6 hidden max-w-4xl shrink-0">
+                        <div class="flex items-start gap-4">
+                            <div id="approvalBannerIcon" class="text-2xl mt-0.5"></div>
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between">
+                                    <h4 id="approvalBannerTitle" class="text-sm font-bold text-gray-900"></h4>
+                                    <span id="submittedJobId" class="text-xs font-mono font-bold text-gray-500"></span>
+                                </div>
+                                <p id="approvalBannerText" class="text-xs text-gray-600 mt-1 leading-relaxed"></p>
+                            </div>
+                            <button type="button" id="btnQuickApprove" onclick="quickApproveJob()" class="btn btn-primary text-xs px-3 py-1.5 hidden">
+                                <i class="fas fa-check mr-1.5"></i> Quick Approve
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Review summary of selected datasets -->
+                    <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 max-w-4xl shrink-0">
+                        <h4 class="text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider flex items-center gap-1.5">
+                            <i class="fas fa-layer-group text-bnp-emerald"></i> Selected Configuration Summary
+                        </h4>
+                        <div class="text-xs text-gray-600 flex flex-wrap gap-4 font-mono">
+                            <div>Storage: <strong id="summaryStorage" class="text-gray-900">Local Filesystem</strong></div>
+                            <div>Connection: <strong id="summaryConnection" class="text-gray-900">Custom Local Directory</strong></div>
+                            <div>Target Path: <strong id="summaryPath" class="text-gray-900">./data/bulk_dump</strong></div>
+                            <div>Selected Datasets: <strong id="summaryDatasetsCount" class="text-gray-900">0</strong></div>
+                            <div>Total Target Records: <strong id="summaryRecordsCount" class="text-bnp-emerald font-bold">0</strong></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 4: REPORT & RECORD VIEWER -->
+                <div id="step4" class="step-container p-8 flex flex-col flex-1">
+                    <div class="flex items-center justify-between pb-4 border-b border-gray-100 mb-6 shrink-0">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 rounded-lg bg-bnp-emerald/10 flex items-center justify-center text-bnp-emerald mr-4 border border-bnp-emerald/20"><i class="fas fa-check-circle text-lg"></i></div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Step 4: CSV Bulk Dump Execution Report</h3>
+                                <p class="text-xs text-gray-500">CSV dataset files generated and stored successfully.</p>
+                            </div>
+                        </div>
+                        <button type="button" onclick="window.location.href='/jobs.html'" class="btn btn-secondary text-xs">
+                            <i class="fas fa-arrow-left mr-1.5"></i> View Jobs Table
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6 shrink-0">
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                            <div class="text-[10px] font-bold uppercase text-gray-400 mb-1">Status</div>
+                            <div class="text-lg font-bold text-emerald-600 font-mono">COMPLETED</div>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                            <div class="text-[10px] font-bold uppercase text-gray-400 mb-1">Files Generated</div>
+                            <div class="text-lg font-bold text-gray-900 font-mono" id="repTotalFiles">0</div>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                            <div class="text-[10px] font-bold uppercase text-gray-400 mb-1">Total CSV Records</div>
+                            <div class="text-lg font-bold text-bnp-emerald font-mono" id="repTotalRecords">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Sample Records -->
+                    <h4 class="text-xs font-bold uppercase text-gray-500 mb-3 tracking-wider flex items-center gap-1.5 shrink-0">
+                        <i class="fas fa-file-code"></i> Sample Generated Records (First 5 Items per File)
+                    </h4>
+                    <div id="sampleTabs" class="flex flex-wrap gap-2 mb-4 border-b border-gray-200 pb-2 shrink-0"></div>
+                    <div id="sampleJsonContent" class="overflow-x-auto rounded-xl border border-gray-200 bg-slate-900 text-slate-100 font-mono text-xs p-4 min-h-[160px] flex-1">
+                        <div class="text-gray-400 italic">Select a file tab above to inspect records.</div>
+                    </div>
+                </div>
+
+                <!-- Card Footer Navigation Bar -->
+                <div class="mt-auto border-t border-gray-200 px-8 py-4 bg-gray-50 flex justify-between items-center shrink-0 rounded-b-xl z-10 relative">
+                    <button id="btnPrev" type="button" onclick="prevStep()" class="btn btn-secondary text-sm font-bold tracking-wide" style="visibility: hidden;">
+                        <i class="fas fa-chevron-left mr-2 text-xs"></i> BACK
+                    </button>
+                    <div class="flex items-center gap-3">
+                        <button id="btnNext" type="button" onclick="nextStep()" class="btn btn-primary px-8 text-sm font-bold tracking-wide shadow-md hover:shadow-lg">
+                            CONTINUE <i class="fas fa-chevron-right ml-2 text-xs"></i>
+                        </button>
+                        <button id="btnSendApproval" type="button" onclick="submitForApproval()" class="btn btn-primary px-8 text-sm font-bold tracking-wide shadow-md hover:shadow-lg hidden">
+                            <i class="fas fa-paper-plane mr-2"></i> SEND FOR APPROVAL
+                        </button>
+                        <button id="btnRunSetup" type="button" onclick="startBulkDumpRun()" class="btn btn-success px-10 py-3 text-base font-bold tracking-wide shadow-lg hover:shadow-xl hidden animate-pulse bg-bnp-emerald hover:bg-[#007a4c]">
+                            <i class="fas fa-play mr-2"></i> RUN SETUP
+                        </button>
+                        <button id="btnStartNew" type="button" onclick="startNewDump()" class="btn btn-secondary text-sm font-bold tracking-wide hidden">
+                            <i class="fas fa-redo mr-2 text-xs"></i> START NEW DUMP
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </main>
+
+    <!-- STEP 6: PROGRESS MODAL -->
+    <div class="modal" id="progressModal">
+        <div class="modal-content p-6 md:p-8">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-100 mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-bnp-emerald/10 text-bnp-emerald flex items-center justify-center text-lg font-bold">
+                        <i class="fas fa-sync-alt fa-spin"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-gray-900">Step 6: CSV Dataset Generation In Progress...</h3>
+                        <p class="text-xs text-gray-500 font-mono" id="modalExecutionId">Initializing...</p>
+                    </div>
+                </div>
+                <span class="text-xs font-bold px-3 py-1 bg-emerald-50 text-bnp-emerald rounded-full border border-emerald-200 uppercase font-mono" id="modalOverallPercentBadge">0%</span>
+            </div>
+
+            <!-- Overall Progress Bar -->
+            <div class="mb-6">
+                <div class="flex justify-between text-xs font-bold text-gray-700 mb-2">
+                    <span>Overall Record Progress</span>
+                    <span id="modalProgressText" class="font-mono">0 / 0 records</span>
+                </div>
+                <div class="w-full bg-gray-100 rounded-full h-3.5 overflow-hidden border border-gray-200 p-0.5">
+                    <div id="modalProgressBar" class="bg-bnp-emerald progress-striped h-full rounded-full transition-all duration-300 w-0"></div>
+                </div>
+            </div>
+
+            <!-- Current File -->
+            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
+                <div class="flex justify-between items-center text-xs mb-1.5">
+                    <span class="font-bold text-gray-800 flex items-center gap-1.5">
+                        <i class="fas fa-file-code text-bnp-emerald text-[11px]"></i> Current Dataset: <span id="modalCurrentTable" class="font-mono text-bnp-emerald">--</span>
+                    </span>
+                    <span id="modalTableProgressRatio" class="font-mono text-gray-500 text-[11px]">0 / 0</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div id="modalTableProgressBar" class="bg-emerald-500 h-full rounded-full transition-all duration-200 w-0"></div>
+                </div>
+            </div>
+
+            <!-- Checklist -->
+            <div class="mb-6">
+                <div class="text-[11px] font-bold uppercase text-gray-400 mb-2 tracking-wider">Datasets Processing Status</div>
+                <div id="modalTableChecklist" class="space-y-1.5 max-h-36 overflow-y-auto pr-1"></div>
+            </div>
+
+            <!-- Live Logs -->
+            <div class="mb-2">
+                <div class="text-[11px] font-bold uppercase text-gray-400 mb-2 tracking-wider flex items-center justify-between">
+                    <span>Storage Engine Output</span>
+                    <span class="text-[10px] text-gray-400 font-mono">Auto-scroll enabled</span>
+                </div>
+                <div id="modalLogConsole" class="bg-slate-900 text-slate-200 font-mono text-[11px] p-3 rounded-lg h-32 overflow-y-auto leading-relaxed border border-slate-800">
+                    <div class="text-slate-400">[00:00:00] Initializing CSV storage streamer...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer matching workflow.html -->
+    <footer>
+        <div class="footer-content">
+            <p>© BNP Paribas - 2026</p>
+            <p class="tagline">The bank for a changing world</p>
+        </div>
+    </footer>
+
+    <!-- Logic -->
+    <script>
+        const state = {
+            dbType: 'csv',
+            storageType: 'LOCAL', // 'LOCAL' or 'COS'
+            localConnections: [],
+            cosConnections: [],
+            selectedLocalConnId: null,
+            selectedCosId: null,
+            targetPath: './data/bulk_dump',
+            datasets: [],
+            activeJobId: null,
+            activeJobStatus: null,
+            executionId: null,
+            userRole: null,
+            userDept: null,
+            sampleReport: {}
+        };
+
+        let currentStep = 1;
+        const totalSteps = 4;
+
+        const stepIcons = {
+            1: '<i class="fas fa-hdd text-sm"></i>',
+            2: '<i class="fas fa-file-code text-sm"></i>',
+            3: '<i class="fas fa-paper-plane text-sm"></i>',
+            4: '<i class="fas fa-chart-bar text-sm"></i>'
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            updateUI();
+            await fetchCurrentUser();
+            await loadConnections();
+
+            const params = new URLSearchParams(window.location.search);
+            const qJobId = params.get('jobId');
+            const qAutoRun = params.get('autoRun');
+
+            if (qJobId) {
+                state.activeJobId = qJobId;
+                await loadJobDetails(qJobId, qAutoRun === 'true');
+            }
+        });
+
+        function updateUI() {
+            // 1. Show only current step container, hide all others
+            for (let i = 1; i <= totalSteps; i++) {
+                const stepEl = document.getElementById(`step${i}`);
+                if (stepEl) {
+                    if (i === currentStep) {
+                        stepEl.classList.add('active');
+                    } else {
+                        stepEl.classList.remove('active');
+                    }
+                }
+            }
+
+            // 2. Update Stepper Header Indicators
+            for (let i = 1; i <= totalSteps; i++) {
+                const ind = document.getElementById(`step${i}-indicator`);
+                if (!ind) continue;
+                const circle = ind.querySelector('.stepper-circle');
+
+                if (i < currentStep) {
+                    ind.className = 'stepper-item completed';
+                    if (circle) circle.innerHTML = '<i class="fas fa-check text-sm"></i>';
+                } else if (i === currentStep) {
+                    ind.className = 'stepper-item active';
+                    if (circle) circle.innerHTML = stepIcons[i] || `<span class="text-sm font-bold">${i}</span>`;
+                } else {
+                    ind.className = 'stepper-item';
+                    if (circle) circle.innerHTML = stepIcons[i] || `<span class="text-sm font-bold">${i}</span>`;
+                }
+            }
+
+            // 3. Update Footer Navigation & Action Buttons
+            const btnPrev = document.getElementById('btnPrev');
+            const btnNext = document.getElementById('btnNext');
+            const btnSendApproval = document.getElementById('btnSendApproval');
+            const btnRunSetup = document.getElementById('btnRunSetup');
+            const btnStartNew = document.getElementById('btnStartNew');
+
+            if (btnPrev) {
+                btnPrev.style.visibility = (currentStep > 1 && currentStep < 4) ? 'visible' : 'hidden';
+            }
+
+            if (btnNext) btnNext.classList.add('hidden');
+            if (btnSendApproval) btnSendApproval.classList.add('hidden');
+            if (btnRunSetup) btnRunSetup.classList.add('hidden');
+            if (btnStartNew) btnStartNew.classList.add('hidden');
+
+            if (currentStep === 1) {
+                if (btnNext) {
+                    btnNext.innerHTML = `CONTINUE TO DATASETS <i class="fas fa-chevron-right ml-2 text-xs"></i>`;
+                    btnNext.classList.remove('hidden');
+                }
+            } else if (currentStep === 2) {
+                if (btnNext) {
+                    btnNext.innerHTML = `PROCEED TO APPROVAL <i class="fas fa-chevron-right ml-2 text-xs"></i>`;
+                    btnNext.classList.remove('hidden');
+                }
+            } else if (currentStep === 3) {
+                if (state.activeJobStatus === 'APPROVED') {
+                    if (btnRunSetup) btnRunSetup.classList.remove('hidden');
+                } else if (state.activeJobStatus === 'WAITING') {
+                    // Waiting for approval - compliance banner is displayed
+                } else {
+                    if (btnSendApproval) btnSendApproval.classList.remove('hidden');
+                }
+            } else if (currentStep === 4) {
+                if (btnStartNew) btnStartNew.classList.remove('hidden');
+            }
+        }
+
+        async function nextStep() {
+            if (currentStep === 1) {
+                await discoverJsonDatasets();
+            } else if (currentStep === 2) {
+                const selected = state.datasets.filter(d => d.selected && d.targetCount > 0);
+                if (selected.length === 0) {
+                    alert("Please select at least one dataset with a target count greater than 0.");
+                    return;
+                }
+
+                // Update Step 3 summaries
+                const sumStorage = document.getElementById('summaryStorage');
+                if (sumStorage) sumStorage.textContent = state.storageType === 'COS' ? 'IBM Cloud Object Storage (COS)' : 'Local Filesystem';
+                const sumConn = document.getElementById('summaryConnection');
+                if (sumConn) {
+                    if (state.storageType === 'COS') {
+                        const conn = state.cosConnections.find(c => c.id === state.selectedCosId);
+                        sumConn.textContent = conn ? `${conn.cosName || conn.name || 'COS #' + conn.id} (Bucket: ${conn.bucketName || 'default'})` : 'None selected';
+                    } else {
+                        const conn = state.localConnections.find(c => c.id === state.selectedLocalConnId);
+                        sumConn.textContent = conn ? conn.name : 'Custom Local Directory';
+                    }
+                }
+                const sumPath = document.getElementById('summaryPath');
+                if (sumPath) sumPath.textContent = state.targetPath;
+                const sumDatasets = document.getElementById('summaryDatasetsCount');
+                if (sumDatasets) sumDatasets.textContent = selected.length;
+                const totalRecords = selected.reduce((sum, d) => sum + (d.targetCount || 0), 0);
+                const sumRecords = document.getElementById('summaryRecordsCount');
+                if (sumRecords) sumRecords.textContent = totalRecords.toLocaleString();
+
+                const storageLabel = state.storageType === 'COS' ? 'COS' : 'Local';
+                const jobNameInput = document.getElementById('migrationJobName');
+                if (jobNameInput && !jobNameInput.value.trim()) {
+                    jobNameInput.value = `CSV ${storageLabel} Bulk Seeding (${state.targetPath})`;
+                }
+
+                currentStep = 3;
+                updateUI();
+            } else if (currentStep === 3) {
+                if (state.activeJobStatus === 'APPROVED') {
+                    startBulkDumpRun();
+                } else {
+                    submitForApproval();
+                }
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                updateUI();
+            }
+        }
+
+        function startNewDump() {
+            state.activeJobId = null;
+            state.activeJobStatus = null;
+            state.executionId = null;
+            state.sampleReport = {};
+            const banner = document.getElementById('approvalBanner');
+            if (banner) banner.classList.add('hidden');
+            const badge = document.getElementById('jobStatusBadge');
+            if (badge) badge.classList.add('hidden');
+            currentStep = 1;
+            updateUI();
+        }
+
+        async function fetchCurrentUser() {
+            try {
+                const res = await fetch('/api/auth/check');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (!data.authenticated) {
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                    state.userRole = (data.role || 'USER').toUpperCase();
+                    state.userDept = data.department || (data.departments && data.departments[0] ? data.departments[0].name : 'Operations');
+                    const deptEl = document.getElementById('userDepartment');
+                    if (deptEl) deptEl.value = state.userDept;
+
+                    if (state.userRole === 'ADMIN' || state.userRole === 'MANAGER') {
+                        const dbLink = document.getElementById('adminDbLink');
+                        const cosLink = document.getElementById('adminCosLink');
+                        if (dbLink) dbLink.style.display = 'block';
+                        if (cosLink) cosLink.style.display = 'block';
+                    }
+                    if (state.userRole === 'ADMIN') {
+                        const userLink = document.getElementById('userManagementLink');
+                        if (userLink) userLink.style.display = 'block';
+                    }
+                }
+            } catch (e) {
+                const deptEl = document.getElementById('userDepartment');
+                if (deptEl) deptEl.value = 'Operations';
+            }
+        }
+
+        async function loadConnections() {
+            const localSel = document.getElementById('localConnSelect');
+            const cosSel = document.getElementById('cosConnSelect');
+
+            try {
+                // 1. Fetch storage connections from /api/cos-connections
+                let allCosConns = [];
+                try {
+                    const resCos = await fetch('/api/cos-connections');
+                    if (resCos.ok) {
+                        allCosConns = await resCos.json();
+                    } else if (resCos.status === 401) {
+                        console.warn("Session unauthorized while fetching COS connections");
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch /api/cos-connections", e);
+                }
+
+                // 2. Also fetch legacy db connections with csv dbType if any
+                let dbJsonConns = [];
+                try {
+                    const resDb = await fetch('/api/connections');
+                    if (resDb.ok) {
+                        const allDb = await resDb.json();
+                        dbJsonConns = allDb.filter(c => (c.dbType || '').toLowerCase().includes('csv'));
+                    }
+                } catch (e) {
+                    console.warn("Failed to fetch /api/connections", e);
+                }
+
+                // 3. Process Cloud Object Storage (COS) connections
+                state.cosConnections = allCosConns.filter(c => {
+                    const st = (c.storageType || '').toUpperCase();
+                    return st === 'COS' || st === '';
+                });
+
+                if (cosSel) {
+                    cosSel.innerHTML = '<option value="">-- Choose COS Connection --</option>';
+                    const noCosHint = document.getElementById('noCosHint');
+                    if (state.cosConnections.length === 0) {
+                        if (noCosHint) noCosHint.classList.remove('hidden');
+                        const opt = document.createElement('option');
+                        opt.value = "";
+                        opt.disabled = true;
+                        opt.textContent = "-- No COS connections configured --";
+                        cosSel.appendChild(opt);
+                    } else {
+                        if (noCosHint) noCosHint.classList.add('hidden');
+                        state.cosConnections.forEach(c => {
+                            const opt = document.createElement('option');
+                            opt.value = c.id;
+                            const name = c.cosName || c.name || `COS #${c.id}`;
+                            const bucket = c.bucketName || 'default';
+                            const dept = c.department ? ` - ${c.department}` : '';
+                            opt.textContent = `${name} (Bucket: ${bucket}${dept})`;
+                            cosSel.appendChild(opt);
+                        });
+                    }
+
+                    if (state.selectedCosId) {
+                        cosSel.value = state.selectedCosId;
+                        onCosConnSelected();
+                    }
+                }
+
+                // 4. Process Local Storage connections (from cos_connections storageType='Local' + legacy db connections)
+                const cosLocal = allCosConns.filter(c => (c.storageType || '').toLowerCase() === 'local');
+                state.localConnections = [
+                    ...cosLocal.map(c => ({
+                        id: c.id,
+                        name: c.cosName || c.name || `Local Storage #${c.id}`,
+                        path: c.storageLocation || c.url || './data/bulk_dump',
+                        department: c.department || '',
+                        envType: c.envType || 'destination',
+                        storageType: 'Local',
+                        raw: c
+                    })),
+                    ...dbJsonConns.map(c => ({
+                        id: c.id,
+                        name: c.name || `CSV Dir #${c.id}`,
+                        path: c.url || './data/bulk_dump',
+                        department: c.department || '',
+                        envType: c.envType || 'destination',
+                        storageType: 'Local (Legacy)',
+                        raw: c
+                    }))
+                ];
+
+                if (localSel) {
+                    localSel.innerHTML = '<option value="">-- Custom Local Directory --</option>';
+                    const noLocalHint = document.getElementById('noLocalHint');
+                    if (state.localConnections.length === 0) {
+                        if (noLocalHint) noLocalHint.classList.remove('hidden');
+                    } else {
+                        if (noLocalHint) noLocalHint.classList.add('hidden');
+                        state.localConnections.forEach(c => {
+                            const opt = document.createElement('option');
+                            opt.value = c.id;
+                            const dept = c.department ? ` - ${c.department}` : '';
+                            opt.textContent = `${c.name} (${c.path}${dept})`;
+                            localSel.appendChild(opt);
+                        });
+                    }
+
+                    if (state.selectedLocalConnId) {
+                        localSel.value = state.selectedLocalConnId;
+                        onLocalConnSelected();
+                    }
+                }
+
+            } catch (err) {
+                console.error("Error loading storage connections:", err);
+            }
+        }
+
+        function setStorageType(type) {
+            state.storageType = type;
+            const btnLocal = document.getElementById('btnStorageLocal');
+            const btnCos = document.getElementById('btnStorageCos');
+            const localFields = document.getElementById('localStorageFields');
+            const cosFields = document.getElementById('cosStorageFields');
+            const badge = document.getElementById('targetStorageSummaryBadge');
+
+            if (type === 'LOCAL') {
+                btnLocal.className = "px-3.5 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-gray-900 shadow-sm";
+                btnCos.className = "px-3.5 py-1.5 rounded-md text-xs font-bold transition-all text-gray-500 hover:text-gray-900";
+                localFields.classList.remove('hidden');
+                cosFields.classList.add('hidden');
+                badge.innerHTML = `<i class="fas fa-folder text-bnp-emerald mr-1"></i> Target: Local Filesystem Storage`;
+            } else {
+                btnCos.className = "px-3.5 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-gray-900 shadow-sm";
+                btnLocal.className = "px-3.5 py-1.5 rounded-md text-xs font-bold transition-all text-gray-500 hover:text-gray-900";
+                cosFields.classList.remove('hidden');
+                localFields.classList.add('hidden');
+                badge.innerHTML = `<i class="fas fa-cloud text-blue-500 mr-1"></i> Target: IBM Cloud Object Storage (COS)`;
+            }
+        }
+
+        function onLocalConnSelected() {
+            const sel = document.getElementById('localConnSelect');
+            const detailsCard = document.getElementById('localConnDetailsCard');
+            if (sel && sel.value) {
+                state.selectedLocalConnId = Number(sel.value);
+                const conn = state.localConnections.find(c => c.id === state.selectedLocalConnId);
+                if (conn) {
+                    if (conn.path) {
+                        document.getElementById('targetLocalDir').value = conn.path;
+                    }
+                    if (conn.department) {
+                        const deptEl = document.getElementById('userDepartment');
+                        if (deptEl) deptEl.value = conn.department;
+                    }
+                    if (detailsCard) {
+                        detailsCard.classList.remove('hidden');
+                        const elName = document.getElementById('localDetailName');
+                        if (elName) elName.textContent = conn.name || 'N/A';
+                        const elPath = document.getElementById('localDetailPath');
+                        if (elPath) elPath.textContent = conn.path || 'N/A';
+                        const elDept = document.getElementById('localDetailDept');
+                        if (elDept) elDept.textContent = conn.department || 'All Departments';
+                        const elEnv = document.getElementById('localDetailEnv');
+                        if (elEnv) elEnv.textContent = (conn.envType || 'destination').toUpperCase();
+                    }
+                }
+            } else {
+                state.selectedLocalConnId = null;
+                if (detailsCard) {
+                    detailsCard.classList.add('hidden');
+                }
+            }
+        }
+
+        function onCosConnSelected() {
+            const sel = document.getElementById('cosConnSelect');
+            const detailsCard = document.getElementById('cosConnDetailsCard');
+            if (sel && sel.value) {
+                state.selectedCosId = Number(sel.value);
+                const conn = state.cosConnections.find(c => c.id === state.selectedCosId);
+                if (conn) {
+                    const bucket = conn.bucketName || 'bucket';
+                    const bucketEl = document.getElementById('cosBucketDisplay');
+                    if (bucketEl) bucketEl.textContent = bucket;
+                    if (conn.department) {
+                        const deptEl = document.getElementById('userDepartment');
+                        if (deptEl) deptEl.value = conn.department;
+                    }
+                    if (detailsCard) {
+                        detailsCard.classList.remove('hidden');
+                        const elName = document.getElementById('cosDetailName');
+                        if (elName) elName.textContent = conn.cosName || conn.name || `COS #${conn.id}`;
+                        const elBucket = document.getElementById('cosDetailBucket');
+                        if (elBucket) elBucket.textContent = bucket;
+                        const elEndpoint = document.getElementById('cosDetailEndpoint');
+                        if (elEndpoint) elEndpoint.textContent = conn.bucketUrl || conn.endpoint || 'IBM Cloud Object Storage';
+                        const elRegion = document.getElementById('cosDetailRegion');
+                        if (elRegion) elRegion.textContent = conn.location || 'default';
+                        const elAuth = document.getElementById('cosDetailAuth');
+                        if (elAuth) elAuth.textContent = conn.authenticationType || 'IAM';
+                        const elDept = document.getElementById('cosDetailDept');
+                        if (elDept) elDept.textContent = conn.department || 'All Departments';
+                        const elEnv = document.getElementById('cosDetailEnv');
+                        if (elEnv) elEnv.textContent = (conn.envType || 'destination').toUpperCase();
+                        const prefixInput = document.getElementById('targetCosPrefix');
+                        const elPrefix = document.getElementById('cosDetailPrefix');
+                        if (elPrefix && prefixInput) elPrefix.textContent = prefixInput.value || 'bulk-dump';
+                    }
+                }
+            } else {
+                state.selectedCosId = null;
+                const bucketEl = document.getElementById('cosBucketDisplay');
+                if (bucketEl) bucketEl.textContent = 'bucket';
+                if (detailsCard) {
+                    detailsCard.classList.add('hidden');
+                }
+            }
+        }
+
+        async function discoverJsonDatasets() {
+            let path = '';
+            let connId = null;
+
+            if (state.storageType === 'LOCAL') {
+                path = document.getElementById('targetLocalDir').value.trim() || './data/bulk_dump';
+                connId = state.selectedLocalConnId;
+            } else {
+                if (!state.selectedCosId) {
+                    alert("Please select a Cloud Object Storage (COS) connection.");
+                    return;
+                }
+                const prefix = document.getElementById('targetCosPrefix').value.trim() || 'bulk-dump';
+                path = prefix;
+                connId = state.selectedCosId;
+            }
+
+            state.targetPath = path;
+
+            const btnNext = document.getElementById('btnNext');
+            const origHtml = btnNext ? btnNext.innerHTML : '';
+            if (btnNext) {
+                btnNext.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Inspecting Storage...`;
+                btnNext.disabled = true;
+            }
+
+            try {
+                const res = await fetch('/api/bulk-dump/tables', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        dbType: 'csv',
+                        connectionId: connId,
+                        dirPath: path
+                    })
+                });
+
+                if (!res.ok) throw new Error(await res.text() || "Failed to inspect storage path");
+
+                const data = await res.json();
+                const list = Array.isArray(data) ? data : (data.tables || []);
+                state.datasets = list.map(d => ({
+                    ...d,
+                    selected: true,
+                    targetCount: d.targetCount || 100
+                }));
+
+                // If default empty, provide standard banking datasets
+                if (state.datasets.length === 0 || (state.datasets.length === 1 && state.datasets[0].tableName === 'dataset.csv')) {
+                    state.datasets = [
+                        { tableName: 'customers.csv', currentCount: 0, targetCount: 100, columnCount: 6, columns: ['id', 'fullName', 'email', 'phone', 'city', 'status'], selected: true },
+                        { tableName: 'transactions.csv', currentCount: 0, targetCount: 100, columnCount: 7, columns: ['id', 'customerId', 'amount', 'currency', 'status', 'createdDate', 'card'], selected: true },
+                        { tableName: 'accounts.csv', currentCount: 0, targetCount: 100, columnCount: 5, columns: ['id', 'accountNumber', 'balance', 'department', 'status'], selected: true }
+                    ];
+                }
+
+                renderDatasetList();
+
+                const storageLabel = state.storageType === 'COS' ? 'COS' : 'Local';
+                const jobNameInput = document.getElementById('migrationJobName');
+                if (jobNameInput) {
+                    jobNameInput.value = `CSV ${storageLabel} Bulk Seeding (${path})`;
+                }
+
+                currentStep = 2;
+                updateUI();
+
+            } catch (e) {
+                alert("Inspection error: " + e.message);
+            } finally {
+                if (btnNext) {
+                    btnNext.innerHTML = origHtml;
+                    btnNext.disabled = false;
+                }
+            }
+        }
+
+        function renderDatasetList() {
+            const tbody = document.getElementById('datasetListTbody');
+            tbody.innerHTML = '';
+
+            state.datasets.forEach((d, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50/80 transition-colors';
+
+                const fieldTags = (d.columns || []).slice(0, 5).map(f =>
+                    `<span class="bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded text-[10px] border border-gray-200 mr-1">${f}</span>`
+                ).join('');
+
+                tr.innerHTML = `
+                    <td class="p-3 text-center">
+                        <input type="checkbox" ${d.selected ? 'checked' : ''} onchange="toggleSelect(${idx}, this.checked)" class="rounded text-bnp-emerald focus:ring-bnp-emerald">
+                    </td>
+                    <td class="p-3 font-bold text-gray-800">
+                        <div class="flex items-center gap-1.5">
+                            <i class="fas fa-file-code text-bnp-emerald text-xs"></i>
+                            <span>${d.tableName}</span>
+                        </div>
+                    </td>
+                    <td class="p-3">
+                        <div class="flex flex-wrap items-center gap-0.5">${fieldTags} ${(d.columns || []).length > 5 ? `<span class="text-[10px] text-gray-400">+${d.columns.length - 5} more</span>` : ''}</div>
+                    </td>
+                    <td class="p-3 text-right text-gray-500 font-mono">
+                        ${(d.currentCount || 0).toLocaleString()}
+                    </td>
+                    <td class="p-3 text-right">
+                        <input type="number" min="0" max="1000000" step="50" value="${d.targetCount}" oninput="updateTargetCount(${idx}, this.value)" class="input-field text-right font-mono py-1 px-2 w-32 border-gray-300 focus:border-bnp-emerald inline-block">
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            updateSummaryStats();
+        }
+
+        function toggleSelect(idx, val) {
+            state.datasets[idx].selected = val;
+            updateSummaryStats();
+        }
+
+        function toggleSelectAll(val) {
+            state.datasets.forEach(d => d.selected = val);
+            renderDatasetList();
+        }
+
+        function updateTargetCount(idx, val) {
+            state.datasets[idx].targetCount = Math.max(0, parseInt(val) || 0);
+            updateSummaryStats();
+        }
+
+        function setAllCounts(count) {
+            state.datasets.forEach(d => d.targetCount = count);
+            renderDatasetList();
+        }
+
+        function addNewDatasetModal() {
+            const name = prompt("Enter new CSV file name (e.g. audit_logs.csv):");
+            if (name && name.trim()) {
+                const cleanName = name.trim().endsWith('.csv') ? name.trim() : name.trim() + '.csv';
+                state.datasets.push({
+                    tableName: cleanName,
+                    currentCount: 0,
+                    targetCount: 100,
+                    columnCount: 5,
+                    columns: ['id', 'action', 'user', 'timestamp', 'status'],
+                    selected: true
+                });
+                renderDatasetList();
+            }
+        }
+
+        function updateSummaryStats() {
+            const selected = state.datasets.filter(d => d.selected);
+            const total = selected.reduce((sum, d) => sum + (d.targetCount || 0), 0);
+
+            const countEl = document.getElementById('selectedDatasetCount');
+            if (countEl) countEl.textContent = selected.length;
+            const recordsEl = document.getElementById('totalTargetRecords');
+            if (recordsEl) recordsEl.textContent = total.toLocaleString();
+        }
+
+        async function submitForApproval() {
+            const selected = state.datasets.filter(d => d.selected && d.targetCount > 0);
+            if (selected.length === 0) {
+                alert("Please select at least one dataset with a target count greater than 0.");
+                return;
+            }
+
+            const jobName = document.getElementById('migrationJobName').value.trim() || `CSV Bulk Dump (${state.targetPath})`;
+            const department = document.getElementById('userDepartment').value.trim() || 'Operations';
+
+            const btn = document.getElementById('btnSendApproval');
+            const origHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Submitting Request...`;
+                btn.disabled = true;
+            }
+
+            const payload = {
+                dbType: 'csv',
+                storageType: state.storageType,
+                connectionId: state.storageType === 'LOCAL' ? state.selectedLocalConnId : null,
+                cosId: state.storageType === 'COS' ? state.selectedCosId : null,
+                dirPath: state.targetPath,
+                jobName: jobName,
+                department: department,
+                tables: selected.map(d => ({
+                    tableName: d.tableName,
+                    currentCount: d.currentCount,
+                    targetCount: d.targetCount,
+                    columnCount: d.columnCount,
+                    columns: d.columns
+                }))
+            };
+
+            try {
+                const res = await fetch('/api/bulk-dump/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ config: payload })
+                });
+
+                const data = await res.json();
+                if (res.ok && data.status === 'SUCCESS') {
+                    state.activeJobId = data.jobId;
+                    state.activeJobStatus = data.jobStatus || 'WAITING';
+                    renderApprovalState(state.activeJobStatus, data.jobId);
+                } else {
+                    alert("Submission failed: " + (data.message || 'Error'));
+                }
+            } catch (e) {
+                alert("Failed to submit job: " + e.message);
+            } finally {
+                if (btn) {
+                    btn.innerHTML = origHtml;
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        function renderApprovalState(status, jobId) {
+            const banner = document.getElementById('approvalBanner');
+            const submittedJobId = document.getElementById('submittedJobId');
+            const badge = document.getElementById('jobStatusBadge');
+            const title = document.getElementById('approvalBannerTitle');
+            const text = document.getElementById('approvalBannerText');
+            const icon = document.getElementById('approvalBannerIcon');
+            const btnQuickApprove = document.getElementById('btnQuickApprove');
+
+            if (!banner || !badge) return;
+
+            banner.classList.remove('hidden');
+            badge.classList.remove('hidden');
+            submittedJobId.textContent = `Job ID: #${jobId}`;
+            badge.textContent = status;
+
+            if (status === 'WAITING') {
+                banner.className = "p-5 rounded-xl border border-amber-200 bg-amber-50/70 mb-6";
+                badge.className = "text-xs font-bold px-3 py-1 rounded-full uppercase font-mono bg-amber-100 text-amber-800 border border-amber-300";
+                title.textContent = "Job Submitted for Governance Review (Waiting)";
+                text.innerHTML = `Your bulk CSV dump request has been queued. A department manager or compliance approver must approve it before running.`;
+                icon.innerHTML = `<i class="fas fa-clock text-amber-600"></i>`;
+
+                if (state.userRole === 'ADMIN' || state.userRole === 'APPROVER' || state.userRole === 'MANAGER') {
+                    if (btnQuickApprove) btnQuickApprove.classList.remove('hidden');
+                } else {
+                    if (btnQuickApprove) btnQuickApprove.classList.add('hidden');
+                }
+
+                pollJobApproval(jobId);
+
+            } else if (status === 'APPROVED') {
+                banner.className = "p-5 rounded-xl border border-emerald-200 bg-emerald-50/70 mb-6";
+                badge.className = "text-xs font-bold px-3 py-1 rounded-full uppercase font-mono bg-emerald-100 text-emerald-800 border border-emerald-300";
+                title.textContent = "Job Approved - Ready for Execution";
+                text.innerHTML = `Job <strong>#${jobId}</strong> has been authorized. You can now run setup to generate and dump the CSV records.`;
+                icon.innerHTML = `<i class="fas fa-check-circle text-emerald-600"></i>`;
+
+                if (btnQuickApprove) btnQuickApprove.classList.add('hidden');
+            }
+
+            updateUI();
+        }
+
+        async function quickApproveJob() {
+            if (!state.activeJobId) return;
+
+            try {
+                const res = await fetch(`/api/bulk-dump/approve/${state.activeJobId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ comments: "Approved for CSV dataset generation" })
+                });
+
+                const data = await res.json();
+                if (res.ok && (data.status === 'SUCCESS' || data.id)) {
+                    state.activeJobStatus = 'APPROVED';
+                    renderApprovalState('APPROVED', state.activeJobId);
+                } else {
+                    alert("Approval failed: " + (data.message || 'Error'));
+                }
+            } catch (e) {
+                alert("Approval error: " + e.message);
+            }
+        }
+
+        function pollJobApproval(jobId) {
+            const timer = setInterval(async () => {
+                if (state.activeJobStatus === 'APPROVED') {
+                    clearInterval(timer);
+                    return;
+                }
+                try {
+                    const res = await fetch(`/api/bulk-dump/job/${jobId}`);
+                    if (res.ok) {
+                        const job = await res.json();
+                        if (job.status === 'APPROVED') {
+                            state.activeJobStatus = 'APPROVED';
+                            renderApprovalState('APPROVED', jobId);
+                            clearInterval(timer);
+                        }
+                    }
+                } catch (ignored) {}
+            }, 3000);
+        }
+
+        async function startBulkDumpRun() {
+            if (!state.activeJobId) return;
+
+            const btn = document.getElementById('btnRunSetup');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Launching Setup...`;
+            }
+
+            try {
+                const res = await fetch(`/api/bulk-dump/start/${state.activeJobId}`, { method: 'POST' });
+                const data = await res.json();
+
+                if (res.ok && data.status === 'SUCCESS') {
+                    state.executionId = data.executionId;
+                    openProgressModal(data.executionId);
+                    pollExecutionProgress(data.executionId);
+                } else {
+                    alert("Failed to start run setup: " + (data.message || 'Error'));
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = `<i class="fas fa-play mr-2"></i> RUN SETUP`;
+                    }
+                }
+            } catch (e) {
+                alert("Execution error: " + e.message);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fas fa-play mr-2"></i> RUN SETUP`;
+                }
+            }
+        }
+
+        function openProgressModal(executionId) {
+            document.getElementById('modalExecutionId').textContent = `Run ID: ${executionId}`;
+            document.getElementById('progressModal').style.display = 'block';
+        }
+
+        function pollExecutionProgress(executionId) {
+            const timer = setInterval(async () => {
+                try {
+                    const res = await fetch(`/api/bulk-dump/status/${executionId}`);
+                    if (!res.ok) return;
+
+                    const prog = await res.json();
+
+                    const pct = prog.overallPercent || 0;
+                    document.getElementById('modalProgressBar').style.width = pct + '%';
+                    document.getElementById('modalOverallPercentBadge').textContent = pct + '%';
+                    document.getElementById('modalProgressText').textContent =
+                        `${(prog.totalInsertedRecords || 0).toLocaleString()} / ${(prog.totalTargetRecords || 0).toLocaleString()} records`;
+
+                    document.getElementById('modalCurrentTable').textContent = prog.currentTable || '--';
+                    document.getElementById('modalTableProgressRatio').textContent =
+                        `${(prog.currentTableInserted || 0).toLocaleString()} / ${(prog.currentTableTarget || 0).toLocaleString()} (${prog.currentTablePercent || 0}%)`;
+                    document.getElementById('modalTableProgressBar').style.width = (prog.currentTablePercent || 0) + '%';
+
+                    renderTableChecklist(prog.tableProgress || []);
+                    renderConsoleLogs(prog.logs || []);
+
+                    if (prog.status === 'COMPLETED') {
+                        clearInterval(timer);
+                        setTimeout(() => {
+                            document.getElementById('progressModal').style.display = 'none';
+                            renderCompletedReport(prog);
+                            currentStep = 4;
+                            updateUI();
+                        }, 1200);
+                    } else if (prog.status === 'FAILED') {
+                        clearInterval(timer);
+                        alert("CSV bulk dump failed: " + prog.message);
+                    }
+
+                } catch (e) {
+                    console.error("Progress poll error", e);
+                }
+            }, 600);
+        }
+
+        function renderTableChecklist(items) {
+            const container = document.getElementById('modalTableChecklist');
+            container.innerHTML = items.map(item => {
+                let badge = '<span class="text-gray-400"><i class="fas fa-clock"></i> Pending</span>';
+                if (item.status === 'RUNNING') {
+                    badge = '<span class="text-amber-600 font-bold"><i class="fas fa-spinner fa-spin"></i> Writing...</span>';
+                } else if (item.status === 'COMPLETED') {
+                    badge = '<span class="text-emerald-600 font-bold"><i class="fas fa-check-circle"></i> Done</span>';
+                } else if (item.status === 'FAILED') {
+                    badge = '<span class="text-red-600 font-bold"><i class="fas fa-times-circle"></i> Failed</span>';
+                }
+
+                return `
+                    <div class="flex items-center justify-between py-1 px-2.5 rounded bg-white border border-gray-100 text-xs">
+                        <span class="font-mono text-gray-700 font-semibold">${item.tableName}</span>
+                        <div class="flex items-center gap-3">
+                            <span class="font-mono text-gray-500 text-[11px]">${(item.insertedCount || 0).toLocaleString()} / ${(item.targetCount || 0).toLocaleString()}</span>
+                            ${badge}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderConsoleLogs(logs) {
+            const consoleEl = document.getElementById('modalLogConsole');
+            consoleEl.innerHTML = logs.map(l => `<div>${l}</div>`).join('');
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function renderCompletedReport(prog) {
+            document.getElementById('repTotalFiles').textContent = prog.totalTables || 0;
+            document.getElementById('repTotalRecords').textContent = (prog.totalInsertedRecords || 0).toLocaleString();
+
+            state.sampleReport = prog.sampleDataReport || {};
+            const fileNames = Object.keys(state.sampleReport);
+
+            const tabsContainer = document.getElementById('sampleTabs');
+            tabsContainer.innerHTML = '';
+
+            fileNames.forEach((name, i) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `px-3.5 py-1.5 rounded-lg text-xs font-bold font-mono transition-all ${i === 0 ? 'bg-bnp-emerald text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`;
+                btn.textContent = name;
+                btn.onclick = () => showSampleRecords(name, btn);
+                tabsContainer.appendChild(btn);
+            });
+
+            if (fileNames.length > 0) {
+                showSampleDocs(fileNames[0], tabsContainer.children[0]);
+            }
+        }
+
+        function showSampleDocs(fileName, activeBtn) {
+            const tabs = document.getElementById('sampleTabs').children;
+            for (let t of tabs) {
+                t.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold font-mono transition-all bg-gray-100 text-gray-700 hover:bg-gray-200';
+            }
+            if (activeBtn) {
+                activeBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold font-mono transition-all bg-bnp-emerald text-white';
+            }
+
+            const records = state.sampleReport[fileName] || [];
+            const container = document.getElementById('sampleJsonContent');
+
+            if (records.length === 0) {
+                container.innerHTML = `<div class="p-4 text-gray-400 italic">No sample records available for ${fileName}.</div>`;
+                return;
+            }
+
+            container.innerHTML = `<pre class="leading-relaxed">${JSON.stringify(records, null, 2)}</pre>`;
+        }
+
+        function showSampleRecords(fileName, activeBtn) {
+            showSampleDocs(fileName, activeBtn);
+        }
+
+        async function loadJobDetails(jobId, autoRun) {
+            try {
+                const res = await fetch(`/api/bulk-dump/job/${jobId}`);
+                if (res.ok) {
+                    const job = await res.json();
+                    state.activeJobStatus = job.status;
+                    const config = job.configDetails || {};
+
+                    state.storageType = (config.storageType || (config.cosId ? 'COS' : 'LOCAL')).toUpperCase();
+                    setStorageType(state.storageType);
+
+                    if (state.storageType === 'LOCAL') {
+                        state.selectedLocalConnId = config.connectionId;
+                        state.targetPath = config.dirPath || './data/bulk_dump';
+                        const dirEl = document.getElementById('targetLocalDir');
+                        if (dirEl) dirEl.value = state.targetPath;
+                        const localSel = document.getElementById('localConnSelect');
+                        if (localSel && config.connectionId) {
+                            localSel.value = config.connectionId;
+                        }
+                        onLocalConnSelected();
+                    } else {
+                        state.selectedCosId = config.cosId;
+                        state.targetPath = config.dirPath || 'bulk-dump';
+                        const prefixEl = document.getElementById('targetCosPrefix');
+                        if (prefixEl) prefixEl.value = state.targetPath;
+                        const cosSel = document.getElementById('cosConnSelect');
+                        if (cosSel && config.cosId) {
+                            cosSel.value = config.cosId;
+                        }
+                        onCosConnSelected();
+                    }
+
+                    const migrationJobNameEl = document.getElementById('migrationJobName');
+                    if (migrationJobNameEl) migrationJobNameEl.value = job.migrationName || 'CSV Bulk Dump';
+                    const userDeptEl = document.getElementById('userDepartment');
+                    if (userDeptEl) userDeptEl.value = job.department || 'Operations';
+
+                    if (config.tables && config.tables.length > 0) {
+                        state.datasets = config.tables.map(t => ({ ...t, selected: true }));
+                        renderDatasetList();
+                        const sumStorage = document.getElementById('summaryStorage');
+                        if (sumStorage) sumStorage.textContent = state.storageType === 'COS' ? 'IBM Cloud Object Storage (COS)' : 'Local Filesystem';
+                        const sumPath = document.getElementById('summaryPath');
+                        if (sumPath) sumPath.textContent = state.targetPath;
+                        const sumDatasets = document.getElementById('summaryDatasetsCount');
+                        if (sumDatasets) sumDatasets.textContent = state.datasets.length;
+                        const totalRecords = state.datasets.reduce((sum, d) => sum + (d.targetCount || 0), 0);
+                        const sumRecords = document.getElementById('summaryRecordsCount');
+                        if (sumRecords) sumRecords.textContent = totalRecords.toLocaleString();
+                    }
+
+                    if (job.status === 'COMPLETED') {
+                        currentStep = 4;
+                        if (job.progress) renderCompletedReport(job.progress);
+                    } else if (job.status === 'WAITING' || job.status === 'APPROVED') {
+                        currentStep = 3;
+                        renderApprovalState(job.status, jobId);
+                    } else {
+                        currentStep = 1;
+                    }
+                    updateUI();
+
+                    if (job.status === 'APPROVED' && autoRun) {
+                        startBulkDumpRun();
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load job details", e);
+            }
+        }
+
+        function logout() {
+            fetch('/api/auth/logout', { method: 'POST' }).then(() => {
+                window.location.href = '/login.html';
+            });
+        }
+    </script>
+</body>
+</html>

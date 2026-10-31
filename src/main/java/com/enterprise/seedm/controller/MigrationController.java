@@ -40,6 +40,9 @@ import com.enterprise.seedm.model.MongoSecureExportConfig;
 import com.enterprise.seedm.model.MongoSecureImportConfig;
 import com.enterprise.seedm.model.JsonSecureExportConfig;
 import com.enterprise.seedm.model.JsonSecureImportConfig;
+import com.enterprise.seedm.model.CsvMigrationConfig;
+import com.enterprise.seedm.model.CsvSecureExportConfig;
+import com.enterprise.seedm.model.CsvSecureImportConfig;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.security.SecureRandom;
@@ -99,6 +102,15 @@ public class MigrationController {
     @Autowired
     private JsonSecureImportService jsonSecureImportService;
 
+    @Autowired(required = false)
+    private CsvMigrationService csvMigrationService;
+
+    @Autowired(required = false)
+    private CsvSecureExportService csvSecureExportService;
+
+    @Autowired(required = false)
+    private CsvSecureImportService csvSecureImportService;
+
     @Autowired
     private JobApprovalService jobApprovalService;
 
@@ -112,6 +124,8 @@ public class MigrationController {
     private final AtomicInteger mongoSecureImportSequence = new AtomicInteger(1);
     private final AtomicInteger jsonSecureExportSequence = new AtomicInteger(1);
     private final AtomicInteger jsonSecureImportSequence = new AtomicInteger(1);
+    private final AtomicInteger csvSecureExportSequence = new AtomicInteger(1);
+    private final AtomicInteger csvSecureImportSequence = new AtomicInteger(1);
 
     @Autowired
     private DbConnectionService dbConnectionService;
@@ -128,6 +142,7 @@ public class MigrationController {
     private SwappableDataSource destinationDataSource;
 
     private static final AtomicLong jsonSequence = new AtomicLong(1);
+    private static final AtomicLong csvSequence = new AtomicLong(1);
     private static final AtomicLong mongoSequence = new AtomicLong(1);
     private static final AtomicLong secureExportSequence = new AtomicLong(1);
     private static final AtomicLong secureImportSequence = new AtomicLong(1);
@@ -340,6 +355,62 @@ public class MigrationController {
                         jsonMigrationService.processMigrationAsync(executionId, config);
                     } catch (Exception e) {
                         log.error("JSON Migration failed in background task", e);
+                    }
+                });
+                response.sendRedirect("/index.html?executionId=" + executionId);
+                return;
+            }
+
+            if (normalizedType.equals("csv-secure-export") || normalizedType.equals("csv-export")) {
+                CsvSecureExportConfig config = objectMapper.convertValue(configDetailsMap, CsvSecureExportConfig.class);
+                if (config == null) config = new CsvSecureExportConfig();
+                config.setJobName(jobRequest.getMigrationName());
+                if (config.getFileEncryptionKey() == null && jobRequest.getFileEncryptionKey() != null) {
+                    config.setFileEncryptionKey(jobRequest.getFileEncryptionKey());
+                }
+                String executionId = "csv-export-" + csvSecureExportSequence.getAndIncrement();
+                final CsvSecureExportConfig finalConfig = config;
+                taskExecutor.execute(() -> {
+                    try {
+                        csvSecureExportService.processCsvExport(executionId, finalConfig);
+                    } catch (Exception e) {
+                        log.error("CSV Secure Export failed in background task", e);
+                    }
+                });
+                response.sendRedirect("/index.html?executionId=" + executionId);
+                return;
+            }
+
+            if (normalizedType.equals("csv") || normalizedType.equals("csv-migration")) {
+                CsvMigrationConfig config = objectMapper.convertValue(configDetailsMap, CsvMigrationConfig.class);
+                String executionId = "csv-" + csvSequence.getAndIncrement();
+                taskExecutor.execute(() -> {
+                    try {
+                        csvMigrationService.processMigrationAsync(executionId, config);
+                    } catch (Exception e) {
+                        log.error("CSV Migration failed in background task", e);
+                    }
+                });
+                response.sendRedirect("/index.html?executionId=" + executionId);
+                return;
+            }
+
+            if (normalizedType.equals("csv-secure-import") || normalizedType.equals("csv-import")) {
+                CsvSecureImportConfig config = objectMapper.convertValue(configDetailsMap, CsvSecureImportConfig.class);
+                if (config == null) config = new CsvSecureImportConfig();
+                config.setJobName(jobRequest.getMigrationName());
+                String secretKey = config.getSecretKey();
+                if (secretKey == null || secretKey.trim().isEmpty()) {
+                    secretKey = jobRequest.getFileEncryptionKey();
+                }
+                String executionId = "csv-import-" + csvSecureImportSequence.getAndIncrement();
+                final CsvSecureImportConfig finalConfig = config;
+                final String finalSecretKey = secretKey;
+                taskExecutor.execute(() -> {
+                    try {
+                        csvSecureImportService.processCsvImport(executionId, finalConfig, finalSecretKey);
+                    } catch (Exception e) {
+                        log.error("CSV Secure Import failed in background task", e);
                     }
                 });
                 response.sendRedirect("/index.html?executionId=" + executionId);
@@ -770,6 +841,120 @@ public class MigrationController {
         }
     }
 
+    @PostMapping("/csv/start/{id}")
+    public ResponseEntity<?> startCsvMigration(@PathVariable Long id) {
+        try {
+            log.info("Starting CSV migration job manually with ID: {}", id);
+            JobRequest jobRequest = jobApprovalService.getJob(id);
+            if (jobRequest == null) {
+                return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "message", "Job not found"));
+            }
+
+            CsvMigrationConfig config = objectMapper.convertValue(jobRequest.getConfigDetails(), CsvMigrationConfig.class);
+            String executionId = "csv-" + csvSequence.getAndIncrement();
+            taskExecutor.execute(() -> {
+                try {
+                    csvMigrationService.processMigrationAsync(executionId, config);
+                } catch (Exception e) {
+                    log.error("CSV Migration failed in background task", e);
+                }
+            });
+
+            log.info("CSV Migration task launched with id: {}", executionId);
+            return ResponseEntity.ok(Map.of("status", "SUCCESS", "executionId", executionId, "message", "CSV Migration started"));
+
+        } catch (Exception e) {
+            log.error("Failed to start CSV migration", e);
+            return ResponseEntity.internalServerError().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/csv/status/{executionId}")
+    public ResponseEntity<?> getCsvStatus(@PathVariable String executionId) {
+        return ResponseEntity.ok(csvMigrationService.getProgress(executionId));
+    }
+
+    @PostMapping("/csv-secure-export/start/{id}")
+    public ResponseEntity<?> startCsvSecureExportMigration(@PathVariable Long id) {
+        try {
+            log.info("Starting CSV Secure Export job with ID: {}", id);
+            JobRequest jobRequest = jobApprovalService.getJob(id);
+            if (jobRequest == null) {
+                return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "message", "Job not found"));
+            }
+
+            Map<String, Object> configDetailsMap = objectMapper.convertValue(jobRequest.getConfigDetails(), Map.class);
+            CsvSecureExportConfig config = objectMapper.convertValue(configDetailsMap, CsvSecureExportConfig.class);
+            if (config == null) {
+                config = new CsvSecureExportConfig();
+            }
+            config.setJobName(jobRequest.getMigrationName());
+            if (config.getFileEncryptionKey() == null && jobRequest.getFileEncryptionKey() != null) {
+                config.setFileEncryptionKey(jobRequest.getFileEncryptionKey());
+            }
+
+            String executionId = "csv-export-" + csvSecureExportSequence.getAndIncrement();
+            final CsvSecureExportConfig finalConfig = config;
+            taskExecutor.execute(() -> {
+                try {
+                    csvSecureExportService.processCsvExport(executionId, finalConfig);
+                } catch (Exception e) {
+                    log.error("CSV Secure Export failed in background task", e);
+                }
+            });
+
+            log.info("CSV Secure Export task launched with id: {}", executionId);
+            return ResponseEntity.ok(Map.of("status", "SUCCESS", "executionId", executionId, "message", "CSV Secure Export started"));
+
+        } catch (Exception e) {
+            log.error("Failed to start CSV Secure Export", e);
+            return ResponseEntity.internalServerError().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/csv-secure-import/start/{id}")
+    public ResponseEntity<?> startCsvSecureImportMigration(@PathVariable Long id, @RequestBody(required = false) Map<String, String> payload) {
+        try {
+            log.info("Starting CSV Secure Import job with ID: {}", id);
+            JobRequest jobRequest = jobApprovalService.getJob(id);
+            if (jobRequest == null) {
+                return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "message", "Job not found"));
+            }
+
+            String secretKey = (payload != null) ? payload.get("secretKey") : null;
+
+            Map<String, Object> configDetailsMap = objectMapper.convertValue(jobRequest.getConfigDetails(), Map.class);
+            CsvSecureImportConfig config = objectMapper.convertValue(configDetailsMap, CsvSecureImportConfig.class);
+            if (config == null) {
+                config = new CsvSecureImportConfig();
+            }
+            config.setJobName(jobRequest.getMigrationName());
+
+            // Validate key
+            csvSecureImportService.validateSecretKey(config, secretKey);
+
+            String executionId = "csv-import-" + csvSecureImportSequence.getAndIncrement();
+            final CsvSecureImportConfig finalConfig = config;
+            taskExecutor.execute(() -> {
+                try {
+                    csvSecureImportService.processCsvImport(executionId, finalConfig, secretKey);
+                } catch (Exception e) {
+                    log.error("CSV Secure Import failed in background task", e);
+                }
+            });
+
+            log.info("CSV Secure Import task launched with id: {}", executionId);
+            return ResponseEntity.ok(Map.of("status", "SUCCESS", "executionId", executionId, "message", "CSV Secure Import started"));
+
+        } catch (IllegalArgumentException e) {
+            log.warn("CSV Secure Import key validation failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to start CSV Secure Import", e);
+            return ResponseEntity.internalServerError().body(Map.of("status", "ERROR", "message", e.getMessage()));
+        }
+    }
+
     /**
      * Get a list of all recent job executions for the dropdown
      */
@@ -808,6 +993,15 @@ public class MigrationController {
             result.addAll(mongoSecureImportService.getAllExecutions());
             result.addAll(jsonSecureExportService.getAllExecutions());
             result.addAll(jsonSecureImportService.getAllExecutions());
+            if (csvMigrationService != null) {
+                result.addAll(csvMigrationService.getAllExecutions());
+            }
+            if (csvSecureExportService != null) {
+                result.addAll(csvSecureExportService.getAllExecutions());
+            }
+            if (csvSecureImportService != null) {
+                result.addAll(csvSecureImportService.getAllExecutions());
+            }
 
             // Sort descending by startTime (most recent first)
             result.sort((m1, m2) -> {
@@ -864,6 +1058,12 @@ public class MigrationController {
             result = jsonSecureImportService.getProgress(executionId);
         } else if (executionId.startsWith("json-")) {
             result = jsonMigrationService.getProgress(executionId);
+        } else if (executionId.startsWith("csv-export-") || executionId.startsWith("csv-secure-export-")) {
+            result = csvSecureExportService.getProgress(executionId);
+        } else if (executionId.startsWith("csv-import-") || executionId.startsWith("csv-secure-import-")) {
+            result = csvSecureImportService.getProgress(executionId);
+        } else if (executionId.startsWith("csv-")) {
+            result = csvMigrationService.getProgress(executionId);
         } else if (executionId.startsWith("secure-export-")) {
             result = secureExportService.getProgress(executionId);
         } else if (executionId.startsWith("secure-import-")) {

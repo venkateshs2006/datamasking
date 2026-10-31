@@ -15,12 +15,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +48,9 @@ public class FileSystemController {
         String dirPath = null;
         Object idObj = request.get("id");
         Object cosIdObj = request.get("cosId");
+        String fileType = (String) request.getOrDefault("fileType", "json");
+        boolean isCsv = "csv".equalsIgnoreCase(fileType);
+        String extension = isCsv ? ".csv" : ".json";
         
         Long id = null;
         if (idObj != null) {
@@ -77,22 +82,26 @@ public class FileSystemController {
             } else if ("COS".equalsIgnoreCase(conn.getStorageType())) {
                 try {
                     List<Map<String, Object>> objects = ibmCosService.listObjects(conn, null);
-                    List<String> jsonFiles = objects.stream()
+                    List<String> matchedFiles = objects.stream()
                             .map(o -> (String) o.get("name"))
-                            .filter(n -> n != null && n.toLowerCase().endsWith(".json"))
+                            .filter(n -> n != null && n.toLowerCase().endsWith(extension))
                             .toList();
 
-                    Set<String> discoveredKeys = new TreeSet<>();
-                    if (!jsonFiles.isEmpty()) {
-                        String firstKey = jsonFiles.get(0);
-                        discoveredKeys = ibmCosService.extractJsonKeys(conn, firstKey);
+                    Set<String> discoveredKeys = new LinkedHashSet<>();
+                    if (!matchedFiles.isEmpty()) {
+                        String firstKey = matchedFiles.get(0);
+                        if (isCsv) {
+                            discoveredKeys = ibmCosService.extractCsvHeaders(conn, firstKey);
+                        } else {
+                            discoveredKeys = ibmCosService.extractJsonKeys(conn, firstKey);
+                        }
                     }
 
                     return ResponseEntity.ok(Map.of(
                             "status", "SUCCESS",
                             "path", "cos://" + ibmCosService.getEffectiveBucketName(conn),
-                            "fileCount", jsonFiles.size(),
-                            "files", jsonFiles,
+                            "fileCount", matchedFiles.size(),
+                            "files", matchedFiles,
                             "sampleKeys", new ArrayList<>(discoveredKeys)
                     ));
                 } catch (Exception e) {
@@ -104,14 +113,14 @@ public class FileSystemController {
             }
         }
 
-        // Legacy support for local JSON directories stored in db_connections
+        // Legacy support for local directories stored in db_connections
         if (id != null) {
             DbConnection conn = dbConnectionService.getConnection(id);
             if (conn != null) {
-                if ("json".equalsIgnoreCase(conn.getDbType())) {
+                if ("json".equalsIgnoreCase(conn.getDbType()) || "csv".equalsIgnoreCase(conn.getDbType())) {
                     dirPath = conn.getUrl();
                 } else {
-                    return ResponseEntity.badRequest().body(Map.of("error", "Connection type is not json. Cannot scan directory for a database connection."));
+                    return ResponseEntity.badRequest().body(Map.of("error", "Connection type is not file-based. Cannot scan directory for a database connection."));
                 }
             }
         }
@@ -129,35 +138,44 @@ public class FileSystemController {
                 return ResponseEntity.badRequest().body(Map.of("error", "Path is not a directory: " + dirPath));
             }
 
-            long jsonFileCount;
+            long matchedFileCount;
             Path sampleFile = null;
 
             try (Stream<Path> walk = Files.walk(path)) {
-                List<Path> jsonFiles = walk.filter(Files::isRegularFile)
-                        .filter(p -> p.toString().toLowerCase().endsWith(".json"))
+                List<Path> matchedFiles = walk.filter(Files::isRegularFile)
+                        .filter(p -> p.toString().toLowerCase().endsWith(extension))
                         .toList();
                 
-                jsonFileCount = jsonFiles.size();
-                if (jsonFileCount > 0) {
-                    sampleFile = jsonFiles.get(0);
+                matchedFileCount = matchedFiles.size();
+                if (matchedFileCount > 0) {
+                    sampleFile = matchedFiles.get(0);
                 }
             }
 
-            Set<String> jsonKeys = new HashSet<>();
+            Set<String> discoveredKeys = new LinkedHashSet<>();
             if (sampleFile != null) {
                 try {
-                    JsonNode rootNode = objectMapper.readTree(sampleFile.toFile());
-                    extractKeys("", rootNode, jsonKeys);
+                    if (isCsv) {
+                        try (BufferedReader br = Files.newBufferedReader(sampleFile)) {
+                            String firstLine = br.readLine();
+                            if (firstLine != null) {
+                                discoveredKeys.addAll(com.enterprise.seedm.util.CsvUtils.parseLine(firstLine));
+                            }
+                        }
+                    } else {
+                        JsonNode rootNode = objectMapper.readTree(sampleFile.toFile());
+                        extractKeys("", rootNode, discoveredKeys);
+                    }
                 } catch (Exception e) {
-                    log.warn("Failed to parse sample JSON file for keys: {}", sampleFile, e);
+                    log.warn("Failed to parse sample file for keys: {}", sampleFile, e);
                 }
             }
 
             return ResponseEntity.ok(Map.of(
                     "status", "SUCCESS",
                     "path", dirPath,
-                    "fileCount", jsonFileCount,
-                    "sampleKeys", new ArrayList<>(jsonKeys)
+                    "fileCount", matchedFileCount,
+                    "sampleKeys", new ArrayList<>(discoveredKeys)
             ));
 
         } catch (Exception e) {

@@ -3,6 +3,8 @@ package com.enterprise.seedm.util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.springframework.util.unit.DataSize;
+
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
@@ -38,18 +40,127 @@ public final class BackupFileUtils {
      */
     public static final long DEFAULT_MAX_FILE_SIZE = 100L * 1024 * 1024;
 
+    private static volatile Long configuredMaxFileSizeBytes = null;
+
     private static final Pattern PART_PATTERN_1 = Pattern.compile("[-_.]part(\\d+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern PART_PATTERN_2 = Pattern.compile("[-_](\\d+)\\.[^.]+", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DATA_SIZE_REGEX = Pattern.compile("^(\\d+)\\s*([a-zA-Z]+)$");
 
     private BackupFileUtils() {
     }
 
     /**
+     * Sets the maximum file size in bytes dynamically (e.g. from application.yml).
+     */
+    public static void setMaxFileSizeBytes(long maxBytes) {
+        if (maxBytes > 0) {
+            configuredMaxFileSizeBytes = maxBytes;
+            log.info("BackupFileUtils: configured max export file size set to {} bytes", maxBytes);
+        }
+    }
+
+    /**
+     * Sets the maximum file size dynamically from a string representation (e.g., "100MB", "50MB").
+     */
+    public static void setMaxFileSize(String sizeStr) {
+        if (sizeStr != null && !sizeStr.trim().isEmpty()) {
+            setMaxFileSizeBytes(parseDataSizeToBytes(sizeStr));
+        }
+    }
+
+    /**
+     * Resets the dynamically configured max file size.
+     */
+    public static void resetMaxFileSizeBytes() {
+        configuredMaxFileSizeBytes = null;
+    }
+
+    /**
      * Returns the maximum chunk file size in bytes (defaults to 100MB).
-     * Can be overridden by system property 'seedm.export.max-file-size' (useful for unit testing).
+     * Priority:
+     * 1. explicitly configured via setMaxFileSizeBytes / setMaxFileSize (from application.yml)
+     * 2. system property 'seedm.export.split-file-size'
+     * 3. system property 'seedm.export.max-file-size'
+     * 4. DEFAULT_MAX_FILE_SIZE (100MB)
      */
     public static long getMaxFileSizeBytes() {
-        return Long.getLong("seedm.export.max-file-size", DEFAULT_MAX_FILE_SIZE);
+        if (configuredMaxFileSizeBytes != null && configuredMaxFileSizeBytes > 0) {
+            return configuredMaxFileSizeBytes;
+        }
+
+        String splitProp = System.getProperty("seedm.export.split-file-size");
+        if (splitProp != null && !splitProp.trim().isEmpty()) {
+            try {
+                return parseDataSizeToBytes(splitProp);
+            } catch (Exception e) {
+                log.warn("Failed to parse system property 'seedm.export.split-file-size': {}", splitProp, e);
+            }
+        }
+
+        String maxProp = System.getProperty("seedm.export.max-file-size");
+        if (maxProp != null && !maxProp.trim().isEmpty()) {
+            try {
+                return parseDataSizeToBytes(maxProp);
+            } catch (Exception e) {
+                log.warn("Failed to parse system property 'seedm.export.max-file-size': {}", maxProp, e);
+            }
+        }
+
+        return DEFAULT_MAX_FILE_SIZE;
+    }
+
+    /**
+     * Parses human-readable data size string (e.g., "100MB", "50MB", "1GB", "250", "250B") into bytes.
+     * Defaults to DEFAULT_MAX_FILE_SIZE if parsing fails or input is blank.
+     */
+    public static long parseDataSizeToBytes(String sizeStr) {
+        if (sizeStr == null || sizeStr.trim().isEmpty()) {
+            return DEFAULT_MAX_FILE_SIZE;
+        }
+        String trimmed = sizeStr.trim();
+        if (trimmed.matches("^\\d+$")) {
+            try {
+                return Long.parseLong(trimmed);
+            } catch (NumberFormatException e) {
+                log.warn("Could not parse numeric string as long: {}", trimmed);
+                return DEFAULT_MAX_FILE_SIZE;
+            }
+        }
+
+        try {
+            return DataSize.parse(trimmed).toBytes();
+        } catch (Exception ignored) {
+        }
+
+        Matcher m = DATA_SIZE_REGEX.matcher(trimmed);
+        if (m.matches()) {
+            try {
+                long val = Long.parseLong(m.group(1));
+                String unit = m.group(2).toUpperCase();
+                switch (unit) {
+                    case "B":
+                        return val;
+                    case "K":
+                    case "KB":
+                        return val * 1024L;
+                    case "M":
+                    case "MB":
+                        return val * 1024L * 1024L;
+                    case "G":
+                    case "GB":
+                        return val * 1024L * 1024L * 1024L;
+                    case "T":
+                    case "TB":
+                        return val * 1024L * 1024L * 1024L * 1024L;
+                    default:
+                        break;
+                }
+            } catch (Exception e) {
+                log.warn("Error parsing size with unit: {}", trimmed, e);
+            }
+        }
+
+        return DEFAULT_MAX_FILE_SIZE;
     }
 
     /**

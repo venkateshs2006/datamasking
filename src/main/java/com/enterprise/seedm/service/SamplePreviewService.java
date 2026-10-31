@@ -3,10 +3,16 @@ package com.enterprise.seedm.service;
 import com.enterprise.seedm.model.SamplePreviewRequest;
 import com.enterprise.seedm.model.SamplePreviewResponse;
 import com.enterprise.seedm.model.AiPiiDetectionResponse.PiiEntityInfo;
+import com.enterprise.seedm.util.CsvUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.io.BufferedReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -36,6 +42,8 @@ public class SamplePreviewService {
         }
 
         int limit = request.getLimit() > 0 ? Math.min(request.getLimit(), 10) : 5;
+        boolean fileOrNoSql = isFileOrNoSqlSource(tableName, request.getJobType());
+        boolean isCsv = isCsvSource(tableName, request.getJobType());
 
         // 1. Fetch Columns
         List<String> columns = null;
@@ -43,10 +51,14 @@ public class SamplePreviewService {
             columns = new ArrayList<>(request.getColumns());
         }
         if (columns == null || columns.isEmpty()) {
-            try {
-                columns = tableDiscoveryService.getTableColumns(tableName);
-            } catch (Exception e) {
-                log.warn("Could not retrieve columns for table {}: {}", tableName, e.getMessage());
+            if (isCsv) {
+                columns = extractCsvHeaders(tableName, request.getSourcePath());
+            } else if (!fileOrNoSql) {
+                try {
+                    columns = tableDiscoveryService.getTableColumns(tableName);
+                } catch (Exception e) {
+                    log.warn("Could not retrieve columns for table {}: {}", tableName, e.getMessage());
+                }
             }
         }
 
@@ -97,7 +109,16 @@ public class SamplePreviewService {
         }
 
         // 3. Query sample rows or generate realistic fallbacks
-        List<Map<String, Object>> rawRows = tableDiscoveryService.getSampleRows(tableName, limit);
+        List<Map<String, Object>> rawRows = null;
+        if (isCsv) {
+            rawRows = readCsvSampleRows(tableName, request.getSourcePath(), columns, limit);
+        } else if (!fileOrNoSql) {
+            try {
+                rawRows = tableDiscoveryService.getSampleRows(tableName, limit);
+            } catch (Exception e) {
+                log.warn("Could not query sample rows for {}: {}", tableName, e.getMessage());
+            }
+        }
         if (rawRows == null || rawRows.isEmpty()) {
             rawRows = generateSyntheticBaseRows(tableName, columns, limit);
         }
@@ -233,4 +254,84 @@ public class SamplePreviewService {
         }
         return rows;
     }
+
+    private boolean isCsvSource(String tableName, String jobType) {
+        if (tableName != null && tableName.toLowerCase().endsWith(".csv")) return true;
+        return "csv".equalsIgnoreCase(jobType);
+    }
+
+    private boolean isFileOrNoSqlSource(String tableName, String jobType) {
+        if (tableName != null) {
+            String lower = tableName.toLowerCase();
+            if (lower.endsWith(".csv") || lower.endsWith(".json")) return true;
+        }
+        return "csv".equalsIgnoreCase(jobType) || "json".equalsIgnoreCase(jobType) || "mongo".equalsIgnoreCase(jobType);
+    }
+
+    private Path resolveCsvPath(String tableName, String sourcePath) {
+        if (sourcePath != null && !sourcePath.isBlank()) {
+            Path p = Paths.get(sourcePath.trim());
+            if (Files.isRegularFile(p)) {
+                return p;
+            }
+            if (Files.isDirectory(p)) {
+                Path candidate = p.resolve(tableName);
+                if (Files.exists(candidate)) return candidate;
+            }
+        }
+        Path direct = Paths.get(tableName);
+        if (Files.exists(direct)) return direct;
+        Path inData = Paths.get("data", tableName);
+        if (Files.exists(inData)) return inData;
+        return null;
+    }
+
+    private List<String> extractCsvHeaders(String tableName, String sourcePath) {
+        try {
+            Path target = resolveCsvPath(tableName, sourcePath);
+            if (target != null && Files.exists(target)) {
+                List<String> headers = CsvUtils.readHeader(target);
+                if (headers != null && !headers.isEmpty()) {
+                    return headers;
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not extract CSV headers directly from file: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    private List<Map<String, Object>> readCsvSampleRows(String tableName, String sourcePath, List<String> columns, int limit) {
+        try {
+            Path target = resolveCsvPath(tableName, sourcePath);
+            if (target != null && Files.exists(target)) {
+                try (BufferedReader reader = Files.newBufferedReader(target, StandardCharsets.UTF_8)) {
+                    String headerLine = reader.readLine();
+                    if (headerLine != null) {
+                        List<String> fileHeaders = CsvUtils.parseLine(headerLine);
+                        List<Map<String, Object>> rows = new ArrayList<>();
+                        String line;
+                        while ((line = reader.readLine()) != null && rows.size() < limit) {
+                            if (line.trim().isEmpty()) continue;
+                            List<String> values = CsvUtils.parseLine(line);
+                            Map<String, Object> row = new LinkedHashMap<>();
+                            for (int i = 0; i < fileHeaders.size(); i++) {
+                                String col = fileHeaders.get(i);
+                                String val = i < values.size() ? values.get(i) : "";
+                                row.put(col, val);
+                            }
+                            rows.add(row);
+                        }
+                        if (!rows.isEmpty()) {
+                            return rows;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not read local CSV sample rows for {}: {}", tableName, e.getMessage());
+        }
+        return null;
+    }
 }
+

@@ -19,6 +19,7 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.nio.charset.StandardCharsets;
@@ -31,6 +32,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.Date;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -81,6 +85,8 @@ public class BulkDataDumpService {
             return discoverMongoCollectionsWithCounts(connectionId, schemaOrDb);
         } else if (normalizedType.contains("json")) {
             return discoverJsonTablesWithCounts(connectionId, dirPath);
+        } else if (normalizedType.contains("csv")) {
+            return discoverCsvTablesWithCounts(connectionId, dirPath);
         } else {
             return discoverSqlTablesWithCounts(connectionId, schemaOrDb);
         }
@@ -357,6 +363,106 @@ public class BulkDataDumpService {
         return result;
     }
 
+    private List<BulkDumpTableConfig> discoverCsvTablesWithCounts(Long connectionId, String dirPath) {
+        List<BulkDumpTableConfig> result = new ArrayList<>();
+        String resolvedPath = dirPath;
+
+        if (connectionId != null) {
+            CosConnection cos = cosConnectionService.getConnection(connectionId);
+            if (cos != null && "COS".equalsIgnoreCase(cos.getStorageType())) {
+                try {
+                    List<Map<String, Object>> objects = ibmCosService.listObjects(cos, dirPath);
+                    List<String> csvFiles = objects.stream()
+                            .map(o -> (String) o.get("name"))
+                            .filter(n -> n != null && n.toLowerCase().endsWith(".csv"))
+                            .toList();
+
+                    for (String key : csvFiles) {
+                        String name = key.contains("/") ? key.substring(key.lastIndexOf('/') + 1) : key;
+                        result.add(BulkDumpTableConfig.builder()
+                                .tableName(name)
+                                .currentCount(1)
+                                .targetCount(100)
+                                .columnCount(6)
+                                .columns(List.of("id", "fullName", "email", "phone", "department", "status"))
+                                .primaryKeys(List.of("id"))
+                                .foreignKeys(new ArrayList<>())
+                                .uniqueKeys(new ArrayList<>())
+                                .build());
+                    }
+                    if (!result.isEmpty()) {
+                        return result;
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not list COS objects for connection {}: {}", connectionId, e.getMessage());
+                }
+                return List.of(
+                        BulkDumpTableConfig.builder().tableName("customers.csv").currentCount(0).targetCount(100).columnCount(6)
+                                .columns(List.of("id", "fullName", "email", "phone", "city", "status")).primaryKeys(List.of("id")).build(),
+                        BulkDumpTableConfig.builder().tableName("transactions.csv").currentCount(0).targetCount(100).columnCount(7)
+                                .columns(List.of("id", "customerId", "amount", "currency", "status", "createdDate", "card")).primaryKeys(List.of("id")).build(),
+                        BulkDumpTableConfig.builder().tableName("accounts.csv").currentCount(0).targetCount(100).columnCount(5)
+                                .columns(List.of("id", "accountNumber", "balance", "department", "status")).primaryKeys(List.of("id")).build()
+                );
+            } else if (cos != null && "Local".equalsIgnoreCase(cos.getStorageType())) {
+                resolvedPath = cos.getStorageLocation();
+            } else {
+                DbConnection dbConn = dbConnectionService.getConnection(connectionId);
+                if (dbConn != null && "csv".equalsIgnoreCase(dbConn.getDbType())) {
+                    resolvedPath = dbConn.getUrl();
+                }
+            }
+        }
+
+        if (resolvedPath == null || resolvedPath.trim().isEmpty()) {
+            resolvedPath = "./data";
+        }
+
+        try {
+            Path path = Paths.get(resolvedPath);
+            if (Files.exists(path) && Files.isDirectory(path)) {
+                try (Stream<Path> walk = Files.walk(path, 1)) {
+                    List<Path> csvFiles = walk.filter(Files::isRegularFile)
+                            .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".csv"))
+                            .toList();
+
+                    for (Path cf : csvFiles) {
+                        String name = cf.getFileName().toString();
+                        List<String> headers = com.enterprise.seedm.util.CsvUtils.readHeader(cf);
+                        long count = com.enterprise.seedm.util.CsvUtils.countDataRows(cf);
+
+                        result.add(BulkDumpTableConfig.builder()
+                                .tableName(name)
+                                .currentCount(count)
+                                .targetCount(100)
+                                .columnCount(headers.size())
+                                .columns(headers)
+                                .primaryKeys(headers.contains("id") ? List.of("id") : List.of())
+                                .foreignKeys(new ArrayList<>())
+                                .uniqueKeys(new ArrayList<>())
+                                .build());
+                    }
+                }
+            }
+            if (result.isEmpty()) {
+                result.add(BulkDumpTableConfig.builder()
+                        .tableName("dataset.csv")
+                        .currentCount(0)
+                        .targetCount(100)
+                        .columnCount(5)
+                        .columns(List.of("id", "name", "email", "status", "createdAt"))
+                        .primaryKeys(List.of("id"))
+                        .foreignKeys(new ArrayList<>())
+                        .uniqueKeys(new ArrayList<>())
+                        .build());
+            }
+            return result;
+        } catch (Exception e) {
+            log.error("Failed to discover CSV files at {}", resolvedPath, e);
+            throw new RuntimeException("Failed to discover CSV files: " + e.getMessage(), e);
+        }
+    }
+
     /**
      * Step 6: Start dumping database tables based on the count.
      * Non-blocking asynchronous execution.
@@ -419,6 +525,8 @@ public class BulkDataDumpService {
             executeMongoBulkDump(progress, config);
         } else if (dbType.contains("json")) {
             executeJsonBulkDump(progress, config);
+        } else if (dbType.contains("csv")) {
+            executeCsvBulkDump(progress, config);
         } else {
             executeSqlBulkDump(progress, config);
         }
@@ -1084,51 +1192,61 @@ public class BulkDataDumpService {
 
             for (BulkDumpTableConfig tableConfig : tables) {
                 fileIndex++;
-                String fileName = tableConfig.getTableName();
-                if (!fileName.toLowerCase().endsWith(".json")) {
-                    fileName = fileName + ".json";
+                String rawName = tableConfig.getTableName();
+                String baseName = rawName.toLowerCase().endsWith(".json")
+                        ? rawName.substring(0, rawName.length() - 5)
+                        : rawName;
+                Matcher numMatcher = Pattern.compile("^(.*?)[-_]\\d+$").matcher(baseName);
+                if (numMatcher.matches()) {
+                    baseName = numMatcher.group(1);
                 }
+
                 long targetCount = tableConfig.getTargetCount();
 
-                progress.setCurrentTable(fileName);
+                progress.setCurrentTable(rawName);
                 progress.setCurrentTableTarget(targetCount);
                 progress.setCurrentTableInserted(0);
                 progress.setCurrentTablePercent(0);
-                progress.setMessage("Dumping JSON dataset (" + fileIndex + "/" + tables.size() + "): " + fileName + " [Target: " + targetCount + " records]");
-                updateTableProgress(progress, fileName, "RUNNING", 0);
+                progress.setMessage("Dumping JSON dataset (" + fileIndex + "/" + tables.size() + "): " + rawName + " [Target: " + targetCount + " files]");
+                updateTableProgress(progress, rawName, "RUNNING", 0);
 
                 List<String> fields = (tableConfig.getColumns() != null && !tableConfig.getColumns().isEmpty())
                         ? tableConfig.getColumns()
                         : List.of("id", "fullName", "email", "phone", "department", "status", "salary", "createdDate");
 
-                ArrayNode rootArray = objectMapper.createArrayNode();
+                JsonNode templateNode = findTemplateJsonNode(config, rawName);
                 List<Map<String, Object>> sampleRows = new ArrayList<>();
 
                 long inserted = 0;
                 long lastReported = 0;
                 while (inserted < targetCount) {
                     long rowSeq = inserted + 1;
-                    ObjectNode itemNode = rootArray.addObject();
-                    Map<String, Object> sample = (sampleRows.size() < 5) ? new LinkedHashMap<>() : null;
+                    String recordFileName = (targetCount == 1) ? (baseName + ".json") : (baseName + "_" + rowSeq + ".json");
 
-                    for (String field : fields) {
-                        Object val = generateJsonValueForField(field, rowSeq);
-                        if (val instanceof Number) {
-                            if (val instanceof Long) itemNode.put(field, (Long) val);
-                            else if (val instanceof Integer) itemNode.put(field, (Integer) val);
-                            else if (val instanceof Double) itemNode.put(field, (Double) val);
-                        } else if (val instanceof Boolean) {
-                            itemNode.put(field, (Boolean) val);
-                        } else {
-                            itemNode.put(field, val != null ? val.toString() : null);
-                        }
+                    JsonNode recordNode = (templateNode != null)
+                            ? buildRecordFromTemplate(templateNode, rowSeq)
+                            : buildRecordFromFields(fields, rowSeq);
 
-                        if (sample != null) {
-                            sample.put(field, val != null ? val.toString() : null);
-                        }
+                    // Output to COS or Local storage for each individual JSON file
+                    if (isCos && cosConn != null) {
+                        File tempFile = File.createTempFile("bulk-dump-", "-" + recordFileName);
+                        objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile, recordNode);
+                        String objectKey = targetLocation.endsWith("/") ? targetLocation + recordFileName : targetLocation + "/" + recordFileName;
+                        ibmCosService.uploadFile(cosConn, objectKey, tempFile.toPath());
+                        tempFile.delete();
+                    } else {
+                        File outputFile = new File(targetLocation, recordFileName);
+                        if (outputFile.getParentFile() != null) outputFile.getParentFile().mkdirs();
+                        objectMapper.writerWithDefaultPrettyPrinter().writeValue(outputFile, recordNode);
                     }
 
-                    if (sample != null) {
+                    // Collect sample rows (up to 5) for UI report
+                    if (sampleRows.size() < 5 && recordNode.isObject()) {
+                        Map<String, Object> sample = new LinkedHashMap<>();
+                        recordNode.fieldNames().forEachRemaining(fn -> {
+                            JsonNode fnVal = recordNode.get(fn);
+                            sample.put(fn, fnVal.isTextual() ? fnVal.asText() : (fnVal.isObject() || fnVal.isArray() ? fnVal.toString() : fnVal.asText()));
+                        });
                         sampleRows.add(sample);
                     }
 
@@ -1141,7 +1259,7 @@ public class BulkDataDumpService {
 
                         int pct = (int) Math.round(((double) inserted / targetCount) * 100);
                         progress.setCurrentTablePercent(pct);
-                        updateTableProgress(progress, fileName, "RUNNING", inserted);
+                        updateTableProgress(progress, rawName, "RUNNING", inserted);
 
                         int overall = calculateOverallPercent(progress);
                         progress.setOverallPercent(overall);
@@ -1150,23 +1268,14 @@ public class BulkDataDumpService {
                     }
                 }
 
-                // Output to COS or Local storage
                 if (isCos && cosConn != null) {
-                    File tempFile = File.createTempFile("bulk-dump-", "-" + fileName);
-                    objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile, rootArray);
-                    String objectKey = targetLocation.endsWith("/") ? targetLocation + fileName : targetLocation + "/" + fileName;
-                    ibmCosService.uploadFile(cosConn, objectKey, tempFile.toPath());
-                    tempFile.delete();
-                    progress.getLogs().add("File `" + fileName + "`: successfully uploaded " + inserted + " records to COS bucket [" + cosConn.getBucketName() + "] key: " + objectKey);
+                    progress.getLogs().add("Dataset `" + rawName + "`: successfully uploaded " + inserted + " individual JSON files to COS bucket [" + cosConn.getBucketName() + "] prefix: " + targetLocation);
                 } else {
-                    File outputFile = new File(targetLocation, fileName);
-                    if (outputFile.getParentFile() != null) outputFile.getParentFile().mkdirs();
-                    objectMapper.writerWithDefaultPrettyPrinter().writeValue(outputFile, rootArray);
-                    progress.getLogs().add("File `" + fileName + "`: successfully dumped " + inserted + " JSON records to local file: " + outputFile.getAbsolutePath());
+                    progress.getLogs().add("Dataset `" + rawName + "`: successfully dumped " + inserted + " individual JSON files to directory: " + targetLocation);
                 }
 
-                progress.getSampleDataReport().put(fileName, sampleRows);
-                updateTableProgress(progress, fileName, "COMPLETED", inserted);
+                progress.getSampleDataReport().put(rawName, sampleRows);
+                updateTableProgress(progress, rawName, "COMPLETED", inserted);
                 progress.setProcessedTables(progress.getProcessedTables() + 1);
             }
 
@@ -1174,11 +1283,309 @@ public class BulkDataDumpService {
             progress.setEndTime(System.currentTimeMillis());
             progress.setOverallPercent(100);
             progress.setMessage("JSON bulk dump completed successfully!");
-            progress.getLogs().add("Bulk dump finished. Total JSON records dumped: " + progress.getTotalInsertedRecords());
+            progress.getLogs().add("Bulk dump finished. Total JSON files dumped: " + progress.getTotalInsertedRecords());
 
         } catch (Exception e) {
             log.error("JSON bulk dump error", e);
             throw new RuntimeException("JSON bulk dump failed: " + e.getMessage(), e);
+        }
+    }
+
+    private void executeCsvBulkDump(BulkDumpProgress progress, BulkDumpConfig config) {
+        boolean isCos = ("COS".equalsIgnoreCase(config.getStorageType()) || config.getCosId() != null);
+        CosConnection cosConn = null;
+        if (isCos && config.getCosId() != null) {
+            cosConn = cosConnectionService.getConnection(config.getCosId());
+        }
+
+        String targetLocation = config.getDirPath();
+        if (targetLocation == null || targetLocation.trim().isEmpty()) {
+            targetLocation = isCos ? "bulk-dump" : "./data/bulk_dump";
+        }
+
+        if (isCos && cosConn != null) {
+            progress.setMessage("Targeting IBM Cloud Object Storage (Bucket: " + cosConn.getBucketName() + ", Prefix: " + targetLocation + ")...");
+            progress.getLogs().add("Target COS Bucket: " + cosConn.getBucketName() + " | Prefix: " + targetLocation);
+        } else {
+            if (config.getConnectionId() != null && (config.getDirPath() == null || config.getDirPath().trim().isEmpty() || "./data/bulk_dump".equals(config.getDirPath()))) {
+                CosConnection localCos = cosConnectionService.getConnection(config.getConnectionId());
+                if (localCos != null && "Local".equalsIgnoreCase(localCos.getStorageType()) && localCos.getStorageLocation() != null && !localCos.getStorageLocation().trim().isEmpty()) {
+                    targetLocation = localCos.getStorageLocation();
+                }
+            }
+            progress.setMessage("Targeting Local Storage Directory: " + targetLocation + "...");
+            progress.getLogs().add("Target Local CSV Directory: " + targetLocation);
+            File dir = new File(targetLocation);
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+        }
+
+        try {
+            List<BulkDumpTableConfig> tables = config.getTables();
+            int fileIndex = 0;
+
+            for (BulkDumpTableConfig tableConfig : tables) {
+                fileIndex++;
+                String rawName = tableConfig.getTableName();
+                String outputFileName = rawName.toLowerCase().endsWith(".csv")
+                        ? rawName
+                        : (rawName + ".csv");
+
+                long targetCount = tableConfig.getTargetCount();
+
+                progress.setCurrentTable(rawName);
+                progress.setCurrentTableTarget(targetCount);
+                progress.setCurrentTableInserted(0);
+                progress.setCurrentTablePercent(0);
+                progress.setMessage("Dumping CSV dataset (" + fileIndex + "/" + tables.size() + "): " + outputFileName + " [Target: " + targetCount + " rows]");
+                updateTableProgress(progress, rawName, "RUNNING", 0);
+
+                List<String> fields = (tableConfig.getColumns() != null && !tableConfig.getColumns().isEmpty())
+                        ? tableConfig.getColumns()
+                        : null;
+
+                if (fields == null || fields.isEmpty()) {
+                    File templateFile = new File(targetLocation, rawName);
+                    if (templateFile.exists() && templateFile.isFile()) {
+                        try {
+                            fields = com.enterprise.seedm.util.CsvUtils.readHeader(templateFile.toPath());
+                        } catch (Exception ignored) {}
+                    }
+                }
+
+                if (fields == null || fields.isEmpty()) {
+                    fields = List.of("id", "fullName", "email", "phone", "department", "status", "salary", "createdDate");
+                }
+
+                List<Map<String, Object>> sampleRows = new ArrayList<>();
+                long inserted = 0;
+                long lastReported = 0;
+
+                File localTargetFile = null;
+                File cosTempFile = null;
+                BufferedWriter writer = null;
+
+                try {
+                    if (isCos && cosConn != null) {
+                        cosTempFile = File.createTempFile("bulk-dump-", "-" + outputFileName);
+                        writer = Files.newBufferedWriter(cosTempFile.toPath(), StandardCharsets.UTF_8);
+                    } else {
+                        localTargetFile = targetLocation.toLowerCase().endsWith(".csv")
+                                ? new File(targetLocation)
+                                : new File(targetLocation, outputFileName);
+                        if (localTargetFile.getParentFile() != null) {
+                            localTargetFile.getParentFile().mkdirs();
+                        }
+                        writer = Files.newBufferedWriter(localTargetFile.toPath(), StandardCharsets.UTF_8);
+                    }
+
+                    // Write CSV header once at the top of the file
+                    writer.write(com.enterprise.seedm.util.CsvUtils.formatLine(fields));
+                    writer.write("\n");
+
+                    while (inserted < targetCount) {
+                        long rowSeq = inserted + 1;
+                        List<String> values = new ArrayList<>();
+                        Map<String, Object> sample = (sampleRows.size() < 5) ? new LinkedHashMap<>() : null;
+
+                        for (String field : fields) {
+                            Object val = generateJsonValueForField(field, rowSeq);
+                            String strVal = (val != null) ? val.toString() : "";
+                            values.add(strVal);
+                            if (sample != null) {
+                                sample.put(field, strVal);
+                            }
+                        }
+
+                        if (sample != null) {
+                            sampleRows.add(sample);
+                        }
+
+                        writer.write(com.enterprise.seedm.util.CsvUtils.formatLine(values));
+                        writer.write("\n");
+
+                        inserted++;
+                        if (inserted % 100 == 0 || inserted == targetCount) {
+                            writer.flush();
+                            long delta = inserted - lastReported;
+                            lastReported = inserted;
+                            progress.setCurrentTableInserted(inserted);
+                            progress.setTotalInsertedRecords(progress.getTotalInsertedRecords() + delta);
+
+                            int pct = (int) Math.round(((double) inserted / targetCount) * 100);
+                            progress.setCurrentTablePercent(pct);
+                            updateTableProgress(progress, rawName, "RUNNING", inserted);
+
+                            int overall = calculateOverallPercent(progress);
+                            progress.setOverallPercent(overall);
+
+                            try { Thread.sleep(5); } catch (InterruptedException ignored) {}
+                        }
+                    }
+
+                    writer.flush();
+                } finally {
+                    if (writer != null) {
+                        try { writer.close(); } catch (Exception ignored) {}
+                    }
+                }
+
+                if (isCos && cosConn != null && cosTempFile != null && cosTempFile.exists()) {
+                    try {
+                        String objectKey = targetLocation.endsWith("/") ? targetLocation + outputFileName : targetLocation + "/" + outputFileName;
+                        ibmCosService.uploadFile(cosConn, objectKey, cosTempFile.toPath());
+                        progress.getLogs().add("Dataset `" + rawName + "`: successfully uploaded single CSV file with " + inserted + " rows to COS bucket [" + cosConn.getBucketName() + "] object: " + objectKey);
+                    } finally {
+                        cosTempFile.delete();
+                    }
+                } else {
+                    progress.getLogs().add("Dataset `" + rawName + "`: successfully generated 1 CSV file with " + inserted + " rows -> " + (localTargetFile != null ? localTargetFile.getAbsolutePath() : outputFileName));
+                }
+
+                progress.getSampleDataReport().put(rawName, sampleRows);
+                updateTableProgress(progress, rawName, "COMPLETED", inserted);
+                progress.setProcessedTables(progress.getProcessedTables() + 1);
+            }
+
+            progress.setStatus("COMPLETED");
+            progress.setEndTime(System.currentTimeMillis());
+            progress.setOverallPercent(100);
+            progress.setMessage("CSV bulk dump completed successfully!");
+            progress.getLogs().add("Bulk dump finished. Total CSV files dumped: " + progress.getTotalInsertedRecords());
+
+        } catch (Exception e) {
+            log.error("CSV bulk dump error", e);
+            throw new RuntimeException("CSV bulk dump failed: " + e.getMessage(), e);
+        }
+    }
+
+    private JsonNode findTemplateJsonNode(BulkDumpConfig config, String tableName) {
+        String baseName = tableName.toLowerCase().endsWith(".json")
+                ? tableName.substring(0, tableName.length() - 5)
+                : tableName;
+        Matcher m = Pattern.compile("^(.*?)[-_]\\d+$").matcher(baseName);
+        String prefix = m.matches() ? m.group(1) : baseName;
+
+        List<String> candidatePaths = new ArrayList<>();
+        if (config.getDirPath() != null && !config.getDirPath().trim().isEmpty()) {
+            candidatePaths.add(config.getDirPath());
+        }
+        if (config.getConnectionId() != null) {
+            try {
+                CosConnection cos = cosConnectionService.getConnection(config.getConnectionId());
+                if (cos != null && "Local".equalsIgnoreCase(cos.getStorageType()) && cos.getStorageLocation() != null) {
+                    candidatePaths.add(cos.getStorageLocation());
+                }
+            } catch (Exception ignored) {}
+            try {
+                DbConnection dbConn = dbConnectionService.getConnection(config.getConnectionId());
+                if (dbConn != null && "json".equalsIgnoreCase(dbConn.getDbType()) && dbConn.getUrl() != null) {
+                    candidatePaths.add(dbConn.getUrl());
+                }
+            } catch (Exception ignored) {}
+        }
+        candidatePaths.add("./data");
+
+        for (String cPath : candidatePaths) {
+            try {
+                Path p = Paths.get(cPath);
+                if (Files.isDirectory(p)) {
+                    Path f = p.resolve(tableName.endsWith(".json") ? tableName : tableName + ".json");
+                    if (Files.isRegularFile(f)) {
+                        JsonNode n = objectMapper.readTree(f.toFile());
+                        if (n.isObject()) return n;
+                        if (n.isArray() && n.size() > 0 && n.get(0).isObject()) return n.get(0);
+                    }
+                    Path f2 = p.resolve(prefix + ".json");
+                    if (Files.isRegularFile(f2)) {
+                        JsonNode n = objectMapper.readTree(f2.toFile());
+                        if (n.isObject()) return n;
+                        if (n.isArray() && n.size() > 0 && n.get(0).isObject()) return n.get(0);
+                    }
+                    try (Stream<Path> walk = Files.walk(p, 1)) {
+                        Optional<Path> match = walk.filter(Files::isRegularFile)
+                                .filter(cand -> cand.getFileName().toString().toLowerCase().startsWith(prefix.toLowerCase())
+                                        && cand.getFileName().toString().toLowerCase().endsWith(".json"))
+                                .findFirst();
+                        if (match.isPresent()) {
+                            JsonNode n = objectMapper.readTree(match.get().toFile());
+                            if (n.isObject()) return n;
+                            if (n.isArray() && n.size() > 0 && n.get(0).isObject()) return n.get(0);
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return null;
+    }
+
+    private JsonNode buildRecordFromTemplate(JsonNode template, long rowSeq) {
+        if (template == null || !template.isObject()) {
+            return null;
+        }
+        ObjectNode result = objectMapper.createObjectNode();
+        template.fieldNames().forEachRemaining(field -> {
+            JsonNode child = template.get(field);
+            if (child.isObject()) {
+                result.set(field, buildRecordFromTemplate(child, rowSeq));
+            } else if (child.isArray()) {
+                ArrayNode arr = objectMapper.createArrayNode();
+                for (JsonNode elem : child) {
+                    if (elem.isObject()) {
+                        arr.add(buildRecordFromTemplate(elem, rowSeq));
+                    } else {
+                        Object val = generateJsonValueForField(field, rowSeq);
+                        putPrimitiveToArray(arr, val);
+                    }
+                }
+                result.set(field, arr);
+            } else {
+                Object val = generateJsonValueForField(field, rowSeq);
+                putPrimitiveToObject(result, field, val);
+            }
+        });
+        return result;
+    }
+
+    private ObjectNode buildRecordFromFields(List<String> fields, long rowSeq) {
+        ObjectNode result = objectMapper.createObjectNode();
+        for (String field : fields) {
+            Object val = generateJsonValueForField(field, rowSeq);
+            putPrimitiveToObject(result, field, val);
+        }
+        return result;
+    }
+
+    private void putPrimitiveToObject(ObjectNode node, String field, Object val) {
+        if (val == null) {
+            node.putNull(field);
+        } else if (val instanceof Long) {
+            node.put(field, (Long) val);
+        } else if (val instanceof Integer) {
+            node.put(field, (Integer) val);
+        } else if (val instanceof Double) {
+            node.put(field, (Double) val);
+        } else if (val instanceof Boolean) {
+            node.put(field, (Boolean) val);
+        } else {
+            node.put(field, val.toString());
+        }
+    }
+
+    private void putPrimitiveToArray(ArrayNode arr, Object val) {
+        if (val == null) {
+            arr.addNull();
+        } else if (val instanceof Long) {
+            arr.add((Long) val);
+        } else if (val instanceof Integer) {
+            arr.add((Integer) val);
+        } else if (val instanceof Double) {
+            arr.add((Double) val);
+        } else if (val instanceof Boolean) {
+            arr.add((Boolean) val);
+        } else {
+            arr.add(val.toString());
         }
     }
 
@@ -1868,7 +2275,7 @@ public class BulkDataDumpService {
 
     private Object generateJsonValueForField(String field, long seq) {
         String f = field.toLowerCase();
-        if (f.equals("id")) return seq;
+        if (f.equals("id") || f.endsWith("_id") || f.endsWith("id")) return seq;
         if (f.contains("email")) return faker.internet().emailAddress();
         if (f.contains("name")) return faker.name().fullName();
         if (f.contains("phone")) return faker.phoneNumber().cellPhone();

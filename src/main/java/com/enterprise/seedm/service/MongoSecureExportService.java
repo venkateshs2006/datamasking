@@ -66,6 +66,24 @@ public class MongoSecureExportService {
     }
 
     private static final String DEFAULT_EXPORT_DIR = "secure-export";
+
+    @org.springframework.beans.factory.annotation.Value("${seedm.export.split-file-size:${seedm.export.max-file-size:}}")
+    private String configuredSplitFileSize;
+
+    public void setSplitFileSize(String splitFileSize) {
+        this.configuredSplitFileSize = splitFileSize;
+    }
+
+    public long resolveMaxFileSizeBytes() {
+        if (configuredSplitFileSize != null && !configuredSplitFileSize.trim().isEmpty()) {
+            try {
+                return com.enterprise.seedm.util.BackupFileUtils.parseDataSizeToBytes(configuredSplitFileSize);
+            } catch (Exception e) {
+                log.warn("Failed to parse configured split file size: {}", configuredSplitFileSize, e);
+            }
+        }
+        return com.enterprise.seedm.util.BackupFileUtils.getMaxFileSizeBytes();
+    }
     private static final byte[] MAGIC_HEADER = "MONGOBSON1\n".getBytes(StandardCharsets.UTF_8);
     private static final byte MARKER_COLLECTION_START = 0x01;
     private static final byte MARKER_DOC_RECORD = 0x02;
@@ -170,7 +188,7 @@ public class MongoSecureExportService {
                 Files.createDirectories(destDir);
 
                 String encryptKey = (fileEncryptionKey != null && !fileEncryptionKey.trim().isEmpty()) ? fileEncryptionKey : saltKey;
-                long maxFileSizeBytes = com.enterprise.seedm.util.BackupFileUtils.getMaxFileSizeBytes();
+                long maxFileSizeBytes = resolveMaxFileSizeBytes();
                 List<Path> finalExportFiles;
 
                 try (MongoBsonRotator rotator = new MongoBsonRotator(destDir, "secure-mongo-export", encryptKey, maxFileSizeBytes)) {

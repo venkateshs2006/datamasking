@@ -122,7 +122,7 @@
                     <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500">Direct Cluster & File Synchronizations</h3>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <!-- Option 1: Relational SQL (Indigo) -->
                     <div class="db-card p-6 border-2 border-indigo-100/80 hover:border-indigo-500 group" onclick="selectDbType('postgres')">
                         <div class="h-1.5 w-full bg-gradient-to-r from-indigo-500 to-blue-600 absolute top-0 left-0"></div>
@@ -140,11 +140,11 @@
                         </div>
                     </div>
 
-                    <!-- Option 2: MongoDB Sync (Emerald) -->
+                    <!-- Option 2: Mongo Migration (Emerald) -->
                     <div class="db-card p-6 border-2 border-emerald-100/80 hover:border-emerald-500 group" onclick="selectDbType('mongo')">
-                        <div class="h-1.5 w-full bg-gradient-to-r from-emerald-500 to-green-600 absolute top-0 left-0"></div>
+                        <div class="h-1.5 w-full bg-gradient-to-r from-emerald-500 to-teal-600 absolute top-0 left-0"></div>
                         <div class="flex items-start justify-between mb-4">
-                            <div class="icon-badge bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white shadow-sm border border-emerald-100">
+                            <div class="icon-badge bg-emerald-50 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white shadow-sm border border-emerald-100">
                                 <i class="fas fa-leaf"></i>
                             </div>
                             <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 tracking-wide uppercase font-mono">NoSQL Sync</span>
@@ -173,6 +173,23 @@
                             <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
                         </div>
                     </div>
+
+                    <!-- Option 3B: CSV Migration (Sky / Cyan) -->
+                    <div class="db-card p-6 border-2 border-sky-100/80 hover:border-sky-500 group" onclick="selectDbType('csv')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-sky-500 to-blue-600 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-sky-50 text-sky-600 group-hover:bg-sky-500 group-hover:text-white shadow-sm border border-sky-100">
+                                <i class="fas fa-file-csv"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200 tracking-wide uppercase font-mono">CSV Transfer</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-sky-600 transition-colors">CSV Migration</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Direct file-to-file transformation & masking for CSV datasets across local directories and COS.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-sky-600">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -183,7 +200,7 @@
                     <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500">Secure Anonymization & Encrypted Export</h3>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <!-- Option 4: SQL Secure Export (Teal / Cyan) -->
                     <div class="db-card p-6 border-2 border-cyan-100/80 hover:border-cyan-500 group" onclick="selectDbType('secure-export')">
                         <div class="h-1.5 w-full bg-gradient-to-r from-cyan-500 to-teal-600 absolute top-0 left-0"></div>
@@ -234,6 +251,23 @@
                             <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
                         </div>
                     </div>
+
+                    <!-- Option 6B: CSV Secure Export (Blue / Indigo) -->
+                    <div class="db-card p-6 border-2 border-blue-100/80 hover:border-blue-500 group" onclick="selectDbType('csv-secure-export')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-blue-500 to-indigo-600 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white shadow-sm border border-blue-100">
+                                <i class="fas fa-file-contract"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 tracking-wide uppercase font-mono">AES-256 CSV</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-blue-600 transition-colors">CSV Secure Export</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Mask CSV columns with SFD/PMD/FPE and export into multi-part encrypted <code class="text-[11px] font-bold text-blue-800 bg-blue-50 px-1 rounded">.csv.enc</code> bundles.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-blue-600">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -244,7 +278,7 @@
                     <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500">Decryption & Target Restoration</h3>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <!-- Option 7: SQL Secure Import (Royal Cobalt Blue) -->
                     <div class="db-card p-6 border-2 border-blue-100/80 hover:border-blue-600 group" onclick="selectDbType('secure-import')">
                         <div class="h-1.5 w-full bg-gradient-to-r from-blue-600 to-indigo-700 absolute top-0 left-0"></div>
@@ -295,6 +329,23 @@
                             <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
                         </div>
                     </div>
+
+                    <!-- Option 9B: CSV Secure Import (Teal / Cyan) -->
+                    <div class="db-card p-6 border-2 border-cyan-100/80 hover:border-cyan-600 group" onclick="selectDbType('csv-secure-import')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-cyan-600 to-blue-700 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-cyan-50 text-cyan-700 group-hover:bg-cyan-700 group-hover:text-white shadow-sm border border-cyan-100">
+                                <i class="fas fa-file-import"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-cyan-50 text-cyan-800 border border-cyan-200 tracking-wide uppercase font-mono">CSV Restore</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-cyan-700 transition-colors">CSV Secure Import</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Decrypt and reconstruct <code class="text-[11px] font-bold text-cyan-800 bg-cyan-50 px-1 rounded">.csv.enc</code> multi-part bundles into target directories or COS.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-cyan-700">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -305,7 +356,7 @@
                     <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500">Bulk Data Generation & Database Dump</h3>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <!-- Option 10: SQL Bulk Dump (Emerald) -->
                     <div class="db-card p-6 border-2 border-emerald-100/80 hover:border-bnp-emerald group" onclick="selectDbType('bulk-sql')">
                         <div class="h-1.5 w-full bg-gradient-to-r from-emerald-500 to-teal-600 absolute top-0 left-0"></div>
@@ -356,6 +407,25 @@
                             <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
                         </div>
                     </div>
+
+                    <!-- Option 12B: CSV Bulk Dump (Violet) -->
+                    <div class="db-card p-6 border-2 border-violet-100/80 hover:border-violet-500 group" onclick="selectDbType('bulk-csv')">
+                        <div class="h-1.5 w-full bg-gradient-to-r from-violet-500 to-purple-600 absolute top-0 left-0"></div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="icon-badge bg-violet-50 text-violet-600 group-hover:bg-violet-600 group-hover:text-white shadow-sm border border-violet-100">
+                                <i class="fas fa-table"></i>
+                            </div>
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-violet-50 text-violet-800 border border-violet-200 tracking-wide uppercase font-mono">CSV Seed</span>
+                        </div>
+                        <h4 class="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-violet-600 transition-colors">CSV Bulk Data Dump</h4>
+                        <p class="text-xs text-gray-500 leading-relaxed mb-6">Discover CSV files, inspect headers, get approval, and generate individual synthetic CSV records into local or COS storage.</p>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-violet-600">
+                            <span class="uppercase tracking-wider">Configure Flow</span>
+                            <i class="fas fa-arrow-right transition-transform transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
                 </div>
             </div>
 
@@ -402,15 +472,19 @@
             if (type === 'postgres') window.location.href = '/workflow.html';
             else if (type === 'mongo') window.location.href = '/workflow-mongo.html';
             else if (type === 'json') window.location.href = '/workflow-json.html';
+            else if (type === 'csv') window.location.href = '/workflow-csv.html';
             else if (type === 'secure-export') window.location.href = '/secure-export.html';
             else if (type === 'secure-import') window.location.href = '/secure-import.html';
             else if (type === 'mongo-secure-export') window.location.href = '/secure-mongo-export.html';
             else if (type === 'mongo-secure-import') window.location.href = '/secure-mongo-import.html';
             else if (type === 'json-secure-export') window.location.href = '/secure-json-export.html';
             else if (type === 'json-secure-import') window.location.href = '/secure-json-import.html';
+            else if (type === 'csv-secure-export') window.location.href = '/secure-csv-export.html';
+            else if (type === 'csv-secure-import') window.location.href = '/secure-csv-import.html';
             else if (type === 'bulk-dump' || type === 'bulk-sql') window.location.href = '/bulk-dump-sql.html';
             else if (type === 'bulk-mongo') window.location.href = '/bulk-dump-mongo.html';
             else if (type === 'bulk-json') window.location.href = '/bulk-dump-json.html';
+            else if (type === 'bulk-csv') window.location.href = '/bulk-dump-csv.html';
         }
     </script>
 </body>

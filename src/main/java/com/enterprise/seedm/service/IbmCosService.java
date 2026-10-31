@@ -315,6 +315,20 @@ public class IbmCosService {
         return keys;
     }
 
+    public Set<String> extractCsvHeaders(CosConnection conn, String objectKey) {
+        Set<String> headers = new LinkedHashSet<>();
+        try (InputStream is = getObjectInputStream(conn, objectKey);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+            String firstLine = reader.readLine();
+            if (firstLine != null) {
+                headers.addAll(com.enterprise.seedm.util.CsvUtils.parseLine(firstLine));
+            }
+        } catch (Exception e) {
+            log.error("Failed to extract CSV headers from COS object {}/{}", conn.getBucketName(), objectKey, e);
+        }
+        return headers;
+    }
+
     private void extractKeysRecursive(JsonNode node, String currentPath, Set<String> keys) {
         if (node == null) return;
         if (node.isObject()) {

@@ -785,11 +785,25 @@ public class DataMaskingService {
     private final Map<String, List<ColumnMetadata>> metadataCache = new HashMap<>();
 
     private List<ColumnMetadata> getCachedMetadata(String tableName) {
+        if (tableName == null || tableName.isBlank()) {
+            return Collections.emptyList();
+        }
+        String lower = tableName.toLowerCase();
+        if (lower.endsWith(".csv") || lower.endsWith(".json")) {
+            return Collections.emptyList();
+        }
+        if (metadataCache.containsKey(tableName)) {
+            return metadataCache.get(tableName);
+        }
         try {
-            return metadataCache.computeIfAbsent(tableName, k -> tableDiscoveryService.getTableColumnMetadata(tableName));
+            List<ColumnMetadata> meta = tableDiscoveryService.getTableColumnMetadata(tableName);
+            List<ColumnMetadata> result = meta != null ? meta : Collections.emptyList();
+            metadataCache.put(tableName, result);
+            return result;
         } catch (Exception e) {
             log.warn("Failed to fetch column metadata for {}: {}", tableName, e.getMessage());
-            return null;
+            metadataCache.put(tableName, Collections.emptyList());
+            return Collections.emptyList();
         }
     }
 

@@ -84,6 +84,9 @@ seedm:
   admin:
     username: admin
     password: password
+  export:
+    split-file-size: 1MB
+    max-file-size: 1MB
   migration:
     source:
       schema: public

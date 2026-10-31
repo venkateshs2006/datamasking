@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNP Paribas - Anonify CSV Secure Import</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bnp: { emerald: '#00965e', dark: '#333333', light: '#f4f4f4' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root { --bnp-emerald: #00965e; --bnp-dark-grey: #333333; --bnp-light-grey: #f4f4f4; --white: #ffffff; --text-main: #4a4a4a; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--bnp-light-grey); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
+
+        header { border-top: 5px solid var(--bnp-emerald); padding: 15px 8%; display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
+        .bnp-logo { height: 48px; display: block; }
+        nav ul { display: flex; list-style: none; align-items: center; margin: 0; padding: 0; }
+        nav ul li { margin-left: 25px; }
+        nav ul li a, nav ul li button { text-decoration: none; color: var(--bnp-dark-grey); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; transition: color 0.2s; background: none; border: none; cursor: pointer; }
+        nav ul li a:hover, nav ul li button:hover { color: var(--bnp-emerald); }
+        nav ul li a.active { color: var(--bnp-emerald); border-bottom: 2px solid var(--bnp-emerald); padding-bottom: 4px; font-weight: 700; }
+
+        footer { background: var(--bnp-dark-grey); color: #ffffff; padding: 40px 8%; font-size: 0.8rem; margin-top: auto; z-index: 20; }
+        .footer-content { display: flex; justify-content: space-between; align-items: center; opacity: 0.8; }
+        .tagline { font-weight: 300; letter-spacing: 1px; }
+
+        .step-container { display: none !important; }
+        .step-container.active {
+            display: flex !important;
+            flex-direction: column;
+            animation: fadeIn 0.3s ease-out;
+            flex: 1;
+            min-height: 0;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Stepper Styles */
+        .stepper-item { flex: 1; text-align: center; position: relative; }
+        .stepper-item::after { content: ''; position: absolute; top: 16px; left: 50%; width: 100%; height: 2px; background-color: #e2e8f0; z-index: 1; transition: background-color 0.3s; }
+        .stepper-item:last-child::after { display: none; }
+        .stepper-item.completed::after { background-color: var(--bnp-emerald); }
+        .stepper-circle { width: 34px; height: 34px; border-radius: 50%; background-color: #fff; border: 2px solid #cbd5e1; color: #94a3b8; display: flex; align-items: center; justify-content: center; font-weight: 600; margin: 0 auto; position: relative; z-index: 2; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+
+        .stepper-item.active .stepper-circle { border-color: var(--bnp-emerald); color: var(--bnp-emerald); background-color: #fff; box-shadow: 0 0 0 4px rgba(0, 150, 94, 0.1); }
+        .stepper-item.completed .stepper-circle { background-color: var(--bnp-emerald); border-color: var(--bnp-emerald); color: white; }
+
+        .stepper-label { font-size: 0.7rem; font-weight: 600; color: #64748b; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em; transition: color 0.3s; }
+        .stepper-item.active .stepper-label { color: var(--bnp-dark-grey); font-weight: 700; }
+        .stepper-item.completed .stepper-label { color: var(--bnp-emerald); }
+
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #f1f5f9; }
+
+        .input-field { width: 100%; padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.875rem; transition: all 0.2s; background-color: #f8fafc; color: #334155; }
+        .input-field:focus { outline: none; border-color: var(--bnp-emerald); box-shadow: 0 0 0 3px rgba(0, 150, 94, 0.15); background-color: #fff; }
+        .input-field:disabled { background-color: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+
+        .btn { padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 600; font-size: 0.875rem; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+        .btn-primary { background-color: var(--bnp-emerald); color: white; border: 1px solid transparent; }
+        .btn-primary:hover:not(:disabled) { background-color: #007a4c; box-shadow: 0 4px 6px rgba(0, 150, 94, 0.2); transform: translateY(-1px); }
+        .btn-secondary { background-color: #fff; color: #475569; border: 1px solid #cbd5e1; }
+        .btn-secondary:hover:not(:disabled) { background-color: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
+        .btn-success { background-color: #10b981; color: white; border: 1px solid transparent; }
+        .btn-success:hover:not(:disabled) { background-color: #059669; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2); transform: translateY(-1px); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="flex items-center">
+            <a href="/index.html" class="logo-link mr-6">
+                <img src="https://cdn-group.bnpparibas.com/build/images/logo-bnp.svg" alt="BNP Paribas Logo" class="bnp-logo">
+            </a>
+            <div class="hidden md:block border-l border-gray-300 pl-6">
+                <h1 class="text-xl font-bold text-bnp-dark-grey tracking-tight leading-none">Anonify</h1>
+                <p class="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">CSV Secure Import</p>
+            </div>
+        </div>
+        <nav>
+            <ul>
+                <li id="navNewMigration"><a href="/select-db.html" class="active"><i class="fas fa-plus mr-1.5"></i> New Migration</a></li>
+                <li id="navDashboard"><a href="/index.html"><i class="fas fa-desktop mr-1.5"></i> Dashboard</a></li>
+                <li id="navJobs"><a href="/jobs.html"><i class="fas fa-tasks mr-1.5"></i> Jobs</a></li>
+                <li id="adminDbLink" style="display: none;"><a href="/admin-db.html"><i class="fas fa-database mr-1.5"></i> DB Admin</a></li>
+                <li id="adminCosLink" style="display: none;"><a href="/admin-cos.html"><i class="fas fa-cloud mr-1.5"></i> COS Admin</a></li>
+                <li id="userManagementLink" style="display: none;"><a href="/users.html"><i class="fas fa-users mr-1.5"></i> Users</a></li>
+                <li><button onclick="logout()"><i class="fas fa-sign-out-alt mr-1.5"></i> Sign Out</button></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="flex-1 flex flex-col overflow-hidden bg-transparent">
+        <div class="w-full max-w-5xl mx-auto px-6 py-8 flex flex-col h-full">
+
+            <div class="mb-8 shrink-0 text-center">
+                <h2 class="text-3xl font-bold text-gray-900">Configure CSV Secure Import</h2>
+                <p class="text-sm text-gray-500 mt-2">Restore and import encrypted secure export CSV packages into target storage directories.</p>
+            </div>
+
+            <!-- Stepper -->
+            <div class="flex items-start mb-8 px-4 w-[70%] mx-auto shrink-0">
+                <div class="stepper-item active" id="step1-indicator"><div class="stepper-circle"><i class="fas fa-archive text-sm"></i></div><div class="stepper-label">Source Package</div></div>
+                <div class="stepper-item" id="step2-indicator"><div class="stepper-circle"><i class="fas fa-hdd text-sm"></i></div><div class="stepper-label">Destination</div></div>
+                <div class="stepper-item" id="step3-indicator"><div class="stepper-circle"><i class="fas fa-flag-checkered text-sm"></i></div><div class="stepper-label">Review</div></div>
+            </div>
+
+            <!-- Main Card -->
+            <div class="card flex-1 flex flex-col overflow-hidden relative shadow-md bg-white rounded-xl">
+
+                <!-- STEP 1: SOURCE STORAGE & FILE -->
+                <div id="step1" class="step-container active p-8">
+                    <div class="max-w-2xl mx-auto w-full space-y-6">
+                        <div class="flex items-center pb-4 border-b border-gray-100">
+                            <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 mr-4 border border-emerald-100">
+                                <i class="fas fa-archive text-lg"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Source Location</h3>
+                                <p class="text-xs text-gray-500">Select where the exported CSV package is located</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2 block">Storage Type</label>
+                            <div class="flex gap-6">
+                                <label class="flex items-center text-sm font-semibold cursor-pointer">
+                                    <input type="radio" name="storageType" value="local" class="mr-2 text-bnp-emerald" checked onchange="toggleStorageType()">
+                                    <i class="fas fa-folder text-amber-500 mr-1.5"></i> Local Storage / Folder
+                                </label>
+                                <label class="flex items-center text-sm font-semibold cursor-pointer">
+                                    <input type="radio" name="storageType" value="cos" class="mr-2 text-bnp-emerald" onchange="toggleStorageType()">
+                                    <i class="fas fa-cloud text-blue-500 mr-1.5"></i> IBM Cloud Object Storage (COS)
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Local storage options -->
+                        <div id="local-storage-container" class="space-y-4">
+                            <div>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Local Storage Location</label>
+                                <div class="flex gap-2">
+                                    <select id="localPath" class="input-field cursor-pointer bg-white" onchange="scanSourceFiles(); validateStep1();">
+                                        <option value="">Loading local storage connections...</option>
+                                    </select>
+                                    <button type="button" onclick="scanSourceFiles()" class="btn btn-secondary text-xs px-4 whitespace-nowrap">
+                                        <i class="fas fa-search mr-1.5"></i> Scan Files
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- COS options -->
+                        <div id="cos-storage-container" class="space-y-4" style="display: none;">
+                            <div>
+                                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">COS Connection</label>
+                                <div class="flex gap-2">
+                                    <select id="cosConnectionId" class="input-field cursor-pointer bg-white" onchange="validateStep1()">
+                                        <option value="">Loading COS connections...</option>
+                                    </select>
+                                    <button type="button" onclick="scanSourceFiles()" class="btn btn-secondary text-xs px-4 whitespace-nowrap">
+                                        <i class="fas fa-search mr-1.5"></i> Scan Bucket
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scanned Files List -->
+                        <div class="pt-2">
+                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2 block flex justify-between items-center">
+                                Available CSV Backup Packages
+                                <span id="fileCountBadge" class="text-[10px] font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">0 package(s)</span>
+                            </label>
+                            <div id="filesListContainer" class="border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2 bg-gray-50/50">
+                                <div class="text-xs text-gray-400 text-center py-4 italic">Click "Scan Files" to discover export packages.</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- STEP 2: DESTINATION STORAGE -->
+                <div id="step2" class="step-container p-8">
+                    <div class="max-w-2xl mx-auto w-full space-y-6">
+                        <div class="flex items-center pb-4 border-b border-gray-100">
+                            <div class="w-10 h-10 rounded-lg bg-bnp-emerald/10 flex items-center justify-center text-bnp-emerald mr-4 border border-bnp-emerald/20">
+                                <i class="fas fa-hdd text-lg"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800 leading-tight">Target Storage Destination</h3>
+                                <p class="text-xs text-gray-500">Choose where the extracted and decrypted CSV files will be restored</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2 block">Destination Storage Type</label>
+                            <div class="flex gap-6">
+                                <label class="flex items-center text-sm font-semibold cursor-pointer">
+                                    <input type="radio" name="destStorageType" value="local" class="mr-2 text-bnp-emerald" checked onchange="toggleDestStorageType()">
+                                    <i class="fas fa-folder text-amber-500 mr-1.5"></i> Local Directory
+                                </label>
+                                <label class="flex items-center text-sm font-semibold cursor-pointer">
+                                    <input type="radio" name="destStorageType" value="cos" class="mr-2 text-bnp-emerald" onchange="toggleDestStorageType()">
+                                    <i class="fas fa-cloud text-blue-500 mr-1.5"></i> IBM Cloud Object Storage (COS)
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="dest-local-container">
+                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Target Destination Directory <span class="text-rose-500">*</span></label>
+                            <select id="destLocalSelect" class="input-field cursor-pointer bg-white" onchange="onDestLocalSelected()">
+                                <option value="">Select a registered destination directory...</option>
+                            </select>
+                            <input type="hidden" id="destDirPath" value="">
+                        </div>
+
+                        <div id="dest-cos-container" style="display: none;">
+                            <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Destination COS Connection <span class="text-rose-500">*</span></label>
+                            <select id="destCosSelect" class="input-field cursor-pointer bg-white" onchange="onDestCosSelected()">
+                                <option value="">Loading COS connections...</option>
+                            </select>
+                        </div>
+
+                        <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                            <label class="flex items-center space-x-2 text-xs font-semibold text-gray-700 cursor-pointer">
+                                <input type="checkbox" id="overwriteChk" checked class="text-bnp-emerald focus:ring-bnp-emerald rounded">
+                                <span>Overwrite existing CSV files with same names</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 3: REVIEW & SUBMIT -->
+                <div id="step3" class="step-container p-8 overflow-y-auto">
+                    <div class="max-w-2xl mx-auto w-full space-y-6">
+                        <div class="text-center mb-6 shrink-0">
+                            <div class="w-14 h-14 bg-bnp-emerald/10 text-bnp-emerald rounded-full flex items-center justify-center text-2xl mx-auto mb-3 shadow-sm ring-4 ring-bnp-emerald/5">
+                                <i class="fas fa-check"></i>
+                            </div>
+                            <h3 class="text-2xl font-bold text-gray-900">Ready to Submit</h3>
+                            <p class="text-sm text-gray-500 mt-1">Review the details and submit for approval.</p>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Import Job Name</label>
+                                <input type="text" id="migrationName" class="input-field" placeholder="e.g. Q3 CSV Finance Import" required oninput="validateStep3()">
+                            </div>
+                            <!-- Auto-populated Department (Requirement 3) -->
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department</label>
+                                <div class="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl shadow-inner">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-9 h-9 rounded-lg bg-bnp-emerald/10 text-bnp-emerald flex items-center justify-center font-bold text-sm border border-bnp-emerald/20 shadow-sm">
+                                            <i class="fas fa-building"></i>
+                                        </div>
+                                        <div>
+                                            <span id="departmentDisplay" class="font-bold text-gray-800 text-sm block">Auto-detected from Destination</span>
+                                            <p id="departmentHint" class="text-[11px] text-gray-500 font-medium">Determined automatically from destination storage endpoint</p>
+                                        </div>
+                                    </div>
+                                    <span id="departmentBadge" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                        Auto-Assigned
+                                    </span>
+                                </div>
+                                <input type="hidden" id="department" name="department" value="">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Source Package</span>
+                                <div class="font-mono text-xs font-bold text-gray-800 break-all" id="reviewSourceFile">-</div>
+                                <div class="text-[11px] text-gray-500 mt-1" id="reviewStorageType">-</div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Destination Storage</span>
+                                <div class="font-mono text-xs font-bold text-gray-800 break-all" id="reviewDestPath">-</div>
+                                <div class="text-[11px] text-bnp-emerald font-semibold mt-1" id="reviewOverwritePolicy">Overwrite: Enabled</div>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-start">
+                            <i class="fas fa-lock text-amber-600 text-base mr-3 mt-0.5"></i>
+                            <div>
+                                <strong>Decryption Key Prompt on Execution:</strong>
+                                <p class="mt-0.5 text-amber-700">Once this job is approved by the designated reviewer, you will be prompted to enter the secret key to decrypt and restore CSV files directly with live progress.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Footer -->
+                <div class="mt-auto border-t border-gray-200 px-8 py-4 bg-gray-50 flex justify-between items-center shrink-0 rounded-b-xl z-10 relative">
+                    <button id="btnPrev" onclick="prevStep()" class="btn btn-secondary text-sm font-bold tracking-wide"><i class="fas fa-chevron-left mr-2 text-xs"></i> BACK</button>
+                    <div class="flex-1"></div>
+                    <button id="btnNext" onclick="nextStep()" class="btn btn-primary px-8 text-sm font-bold tracking-wide shadow-md hover:shadow-lg">CONTINUE <i class="fas fa-chevron-right ml-2 text-xs"></i></button>
+                    <button id="btnStart" onclick="submitWorkflow()" class="btn btn-success px-10 py-3 text-base font-bold tracking-wide shadow-lg hover:shadow-xl hidden animate-pulse bg-bnp-emerald hover:bg-[#007a4c]">
+                        SUBMIT FOR APPROVAL <i class="fas fa-paper-plane ml-2"></i>
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <p>© BNP Paribas - 2026</p>
+            <p class="tagline">The bank for a changing world</p>
+        </div>
+    </footer>
+
+    <script>
+        let currentStep = 1;
+        const totalSteps = 3;
+        let userDepartments = [];
+        let discoveredFiles = [];
+        let selectedFileName = '';
+        let cosConnections = [];
+
+        fetch('/api/auth/check').then(r => r.json()).then(data => {
+            if (!data.authenticated) {
+                window.location.href = '/login.html';
+                return;
+            }
+            const role = (data.role || '').toUpperCase();
+            if (role === 'APPROVER') {
+                window.location.href = '/jobs.html';
+                return;
+            }
+            if (role === 'ADMIN' || role === 'MANAGER') {
+                const dbLink = document.getElementById('adminDbLink');
+                const cosLink = document.getElementById('adminCosLink');
+                if (dbLink) dbLink.style.display = 'block';
+                if (cosLink) cosLink.style.display = 'block';
+            }
+            if (role === 'ADMIN') {
+                const userLink = document.getElementById('userManagementLink');
+                if (userLink) userLink.style.display = 'block';
+            }
+
+            userDepartments = data.departments || [];
+            const deptSelect = document.getElementById('department');
+            deptSelect.innerHTML = '<option value="">Select a department...</option>';
+            userDepartments.forEach(d => {
+                const dName = typeof d === 'string' ? d : d.name;
+                deptSelect.add(new Option(dName, dName));
+            });
+
+            initStep1();
+        });
+
+        async function logout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/login.html';
+        }
+
+        async function initStep1() {
+            try {
+                const res = await fetch('/api/cos-connections');
+                if (res.ok) {
+                    const allConns = await res.json();
+                    cosConnections = allConns;
+                    const cosConns = allConns.filter(c => (c.storageType || '').toLowerCase() !== 'local');
+                    const localConns = allConns.filter(c => (c.storageType || '').toLowerCase() === 'local');
+
+                    const cosSelect = document.getElementById('cosConnectionId');
+                    const destCosSelect = document.getElementById('destCosSelect');
+                    if (cosSelect) cosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
+                    if (destCosSelect) destCosSelect.innerHTML = '<option value="">Select a COS connection...</option>';
+
+                    cosConns.forEach(c => {
+                        const optDest = document.createElement('option');
+                        optDest.value = c.id;
+                        optDest.textContent = `${c.cosName || c.name || 'COS'} - ${c.bucketName || 'Bucket'} (${c.department || c.departmentId || ''})`;
+                        optDest.dataset.department = c.department || c.departmentId || '';
+                        if (destCosSelect) destCosSelect.appendChild(optDest);
+
+                        const optSrc = document.createElement('option');
+                        optSrc.value = c.id;
+                        optSrc.textContent = `${c.cosName || c.name || 'COS'} - ${c.bucketName || 'Bucket'}`;
+                        if (cosSelect) cosSelect.appendChild(optSrc);
+                    });
+
+                    const localSelect = document.getElementById('localPath');
+                    if (localSelect) {
+                        localSelect.innerHTML = '<option value="">Select a Local Storage...</option>';
+                        localConns.forEach(c => {
+                            const opt = new Option(`${c.cosName || c.name || 'Local'} - ${c.storageLocation || ''}`, c.id);
+                            opt.dataset.path = c.storageLocation || '';
+                            opt.dataset.department = c.department || c.departmentId || '';
+                            localSelect.add(opt);
+                        });
+                        if (localConns.length > 0) {
+                            localSelect.selectedIndex = 1;
+                        }
+                    }
+
+                    const destLocalSelect = document.getElementById('destLocalSelect');
+                    if (destLocalSelect) {
+                        destLocalSelect.innerHTML = '<option value="">Select a registered destination directory...</option>';
+                        localConns.forEach(c => {
+                            const opt = new Option(`${c.cosName || c.name || 'Local'} (${c.storageLocation || 'N/A'})`, c.id);
+                            opt.dataset.path = c.storageLocation || '';
+                            opt.dataset.department = c.department || c.departmentId || '';
+                            destLocalSelect.add(opt);
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn('Error loading storage connections', e);
+            }
+
+            scanSourceFiles();
+        }
+
+        function toggleStorageType() {
+            const type = document.querySelector('input[name="storageType"]:checked').value;
+            document.getElementById('local-storage-container').style.display = (type === 'local') ? 'block' : 'none';
+            document.getElementById('cos-storage-container').style.display = (type === 'cos') ? 'block' : 'none';
+            scanSourceFiles();
+        }
+
+        function toggleDestStorageType() {
+            const type = document.querySelector('input[name="destStorageType"]:checked').value;
+            document.getElementById('dest-local-container').style.display = (type === 'local') ? 'block' : 'none';
+            document.getElementById('dest-cos-container').style.display = (type === 'cos') ? 'block' : 'none';
+            updateDepartmentDisplay();
+            validateStep2();
+        }
+
+        function onDestLocalSelected() {
+            const select = document.getElementById('destLocalSelect');
+            const opt = select.options[select.selectedIndex];
+            if (opt && opt.dataset && opt.dataset.path) {
+                document.getElementById('destDirPath').value = opt.dataset.path;
+            } else {
+                document.getElementById('destDirPath').value = '';
+            }
+            updateDepartmentDisplay();
+            validateStep2();
+        }
+
+        function onDestCosSelected() {
+            updateDepartmentDisplay();
+            validateStep2();
+        }
+
+        function updateDepartmentDisplay() {
+            const destType = document.querySelector('input[name="destStorageType"]:checked').value;
+            let dept = '';
+            if (destType === 'local') {
+                const sel = document.getElementById('destLocalSelect');
+                const opt = sel.options[sel.selectedIndex];
+                if (opt && opt.dataset && opt.dataset.department) dept = opt.dataset.department;
+                if (!dept && userDepartments.length > 0) {
+                    const first = userDepartments[0];
+                    dept = typeof first === 'string' ? first : first.name;
+                }
+            } else {
+                const sel = document.getElementById('destCosSelect');
+                const opt = sel.options[sel.selectedIndex];
+                if (opt && opt.dataset && opt.dataset.department) dept = opt.dataset.department;
+            }
+
+            const deptInput = document.getElementById('department');
+            const deptDisplay = document.getElementById('departmentDisplay');
+            const deptBadge = document.getElementById('departmentBadge');
+            const deptHint = document.getElementById('departmentHint');
+
+            if (deptInput) deptInput.value = dept;
+            if (deptDisplay) deptDisplay.textContent = dept || 'Not Detected';
+            if (deptBadge) {
+                if (dept) {
+                    deptBadge.textContent = 'Auto-Assigned';
+                    deptBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200';
+                } else {
+                    deptBadge.textContent = 'Pending Destination';
+                    deptBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200';
+                }
+            }
+            if (deptHint) {
+                deptHint.textContent = dept
+                    ? `Mapped automatically from destination connection (${dept})`
+                    : 'Select a destination storage endpoint in Step 2 to detect department';
+            }
+        }
+
+        async function scanSourceFiles() {
+            const type = document.querySelector('input[name="storageType"]:checked').value;
+            const container = document.getElementById('filesListContainer');
+            const countBadge = document.getElementById('fileCountBadge');
+
+            container.innerHTML = '<div class="text-xs text-gray-500 text-center py-4"><i class="fas fa-spinner fa-spin mr-1"></i> Scanning files...</div>';
+
+            const payload = { type: type };
+            if (type === 'local') {
+                const localSelect = document.getElementById('localPath');
+                if (!localSelect || !localSelect.value) {
+                    container.innerHTML = '<div class="text-xs text-gray-400 text-center py-4 italic">Select a local storage connection to scan.</div>';
+                    return;
+                }
+                payload.id = Number(localSelect.value);
+                payload.cosId = Number(localSelect.value);
+                const opt = localSelect.options[localSelect.selectedIndex];
+                payload.path = opt ? (opt.dataset.path || opt.value) : '';
+            } else {
+                const cosId = document.getElementById('cosConnectionId').value;
+                if (!cosId) {
+                    container.innerHTML = '<div class="text-xs text-gray-400 text-center py-4 italic">Select a COS connection to scan.</div>';
+                    return;
+                }
+                payload.id = Number(cosId);
+            }
+
+            try {
+                const res = await fetch('/api/csv-secure-import/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                discoveredFiles = (data.files || []).filter(f => f.name && f.name.toLowerCase().endsWith('.csv.enc'));
+                countBadge.innerText = `${discoveredFiles.length} package(s)`;
+
+                if (discoveredFiles.length === 0) {
+                    container.innerHTML = `<div class="text-xs text-amber-600 text-center py-4"><i class="fas fa-exclamation-circle mr-1"></i> No encrypted .csv.enc packages found in this location.</div>`;
+                    selectedFileName = '';
+                } else {
+                    container.innerHTML = '';
+                    discoveredFiles.forEach((file, idx) => {
+                        const isSelected = idx === 0 || file.name === selectedFileName;
+                        if (isSelected && !selectedFileName) selectedFileName = file.name;
+
+                        const sizeKb = (file.sizeBytes / 1024).toFixed(1);
+                        const isEnc = file.encrypted || file.name.endsWith('.enc');
+
+                        const div = document.createElement('label');
+                        div.className = 'flex items-center justify-between p-2.5 bg-white rounded-lg border border-gray-200 hover:border-bnp-emerald cursor-pointer transition shadow-sm';
+                        div.innerHTML = `
+                            <div class="flex items-center space-x-3">
+                                <input type="radio" name="selectedFileRadio" value="${file.name}" ${isSelected ? 'checked' : ''} onchange="onFileSelected('${file.name}')" class="text-bnp-emerald">
+                                <div>
+                                    <div class="text-xs font-mono font-bold text-gray-800 flex items-center gap-1.5">
+                                        <i class="fas fa-file-archive ${isEnc ? 'text-amber-500' : 'text-blue-500'}"></i> ${file.name}
+                                    </div>
+                                    <div class="text-[10px] text-gray-400">${sizeKb} KB</div>
+                                </div>
+                            </div>
+                            <div>
+                                ${isEnc ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-700 border border-purple-200"><i class="fas fa-lock mr-1"></i>AES-256</span>' : '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">Plain CSV</span>'}
+                            </div>
+                        `;
+                        container.appendChild(div);
+                    });
+                }
+            } catch (e) {
+                container.innerHTML = `<div class="text-xs text-red-500 text-center py-4">Error scanning location: ${e.message}</div>`;
+                discoveredFiles = [];
+            }
+            validateStep1();
+        }
+
+        function onFileSelected(name) {
+            selectedFileName = name;
+            validateStep1();
+        }
+
+        function validateStep1() {
+            const btn = document.getElementById('btnNext');
+            if (btn) btn.disabled = !selectedFileName;
+        }
+
+        function validateStep2() {
+            const destType = document.querySelector('input[name="destStorageType"]:checked').value;
+            let valid = false;
+            if (destType === 'local') {
+                valid = !!document.getElementById('destLocalSelect').value;
+            } else {
+                valid = !!document.getElementById('destCosSelect').value;
+            }
+            const btn = document.getElementById('btnNext');
+            if (btn) btn.disabled = !valid;
+        }
+
+        function validateStep3() {
+            const name = document.getElementById('migrationName').value.trim();
+            const dept = document.getElementById('department').value;
+            const btn = document.getElementById('btnStart');
+            if (btn) btn.disabled = !(name && dept);
+        }
+
+        function updateUI() {
+            document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active'));
+            document.getElementById(`step${currentStep}`).classList.add('active');
+
+            for (let i = 1; i <= totalSteps; i++) {
+                const el = document.getElementById(`step${i}-indicator`);
+                if (el) {
+                    el.classList.toggle('completed', i < currentStep);
+                    el.classList.toggle('active', i === currentStep);
+
+                    const iconWrap = el.querySelector('.stepper-circle');
+                    if (i < currentStep) {
+                        iconWrap.innerHTML = '<i class="fas fa-check"></i>';
+                    } else {
+                        const icons = ['archive', 'hdd', 'flag-checkered'];
+                        iconWrap.innerHTML = `<i class="fas fa-${icons[i-1]} text-sm"></i>`;
+                    }
+                }
+            }
+
+            document.getElementById('btnPrev').style.visibility = currentStep > 1 ? 'visible' : 'hidden';
+            document.getElementById('btnNext').classList.toggle('hidden', currentStep === totalSteps);
+            document.getElementById('btnStart').classList.toggle('hidden', currentStep !== totalSteps);
+
+            if (currentStep === 1) validateStep1();
+            if (currentStep === 2) validateStep2();
+            if (currentStep === 3) {
+                populateReview();
+                validateStep3();
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateUI();
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                updateUI();
+            }
+        }
+
+        function populateReview() {
+            document.getElementById('reviewSourceFile').innerText = selectedFileName || 'None';
+            const srcType = document.querySelector('input[name="storageType"]:checked').value;
+            if (srcType === 'local') {
+                const localSelect = document.getElementById('localPath');
+                const locText = localSelect && localSelect.options[localSelect.selectedIndex] ? localSelect.options[localSelect.selectedIndex].text : '';
+                document.getElementById('reviewStorageType').innerText = `Local: ${locText}`;
+            } else {
+                const cosSelect = document.getElementById('cosConnectionId');
+                document.getElementById('reviewStorageType').innerText = `COS: ${cosSelect.options[cosSelect.selectedIndex]?.text || 'Bucket'}`;
+            }
+
+            const destType = document.querySelector('input[name="destStorageType"]:checked').value;
+            if (destType === 'local') {
+                const destSelect = document.getElementById('destLocalSelect');
+                const destText = destSelect && destSelect.options[destSelect.selectedIndex] ? destSelect.options[destSelect.selectedIndex].text : '';
+                document.getElementById('reviewDestPath').innerText = `Local: ${destText}`;
+            } else {
+                const destCos = document.getElementById('destCosSelect');
+                document.getElementById('reviewDestPath').innerText = `COS: ${destCos.options[destCos.selectedIndex]?.text || 'Bucket'}`;
+            }
+
+            const isOverwrite = document.getElementById('overwriteChk').checked;
+            document.getElementById('reviewOverwritePolicy').innerText = isOverwrite ? 'Overwrite: Enabled' : 'Overwrite: Disabled';
+
+            updateDepartmentDisplay();
+        }
+
+        async function submitWorkflow() {
+            const btn = document.getElementById('btnStart');
+            const migrationName = document.getElementById('migrationName').value.trim();
+            const department = document.getElementById('department').value;
+
+            if (!migrationName) {
+                alert('Please enter an Import Job Name.');
+                return;
+            }
+            if (!department) {
+                alert('Please select a Department.');
+                return;
+            }
+
+            const origHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Submitting...';
+            btn.disabled = true;
+
+            const srcType = document.querySelector('input[name="storageType"]:checked').value;
+            const destType = document.querySelector('input[name="destStorageType"]:checked').value;
+            const isOverwrite = document.getElementById('overwriteChk').checked;
+
+            const localSrcSelect = document.getElementById('localPath');
+            const localDestSelect = document.getElementById('destLocalSelect');
+
+            const payload = {
+                migrationName: migrationName,
+                department: department,
+                jobType: 'CSV_SECURE_IMPORT',
+                configDetails: {
+                    jobName: migrationName,
+                    storage: {
+                        type: srcType,
+                        path: srcType === 'local' && localSrcSelect ? (localSrcSelect.options[localSrcSelect.selectedIndex]?.dataset?.path || '') : null,
+                        id: srcType === 'local' && localSrcSelect ? Number(localSrcSelect.value) : (srcType === 'cos' ? Number(document.getElementById('cosConnectionId').value) : null),
+                        cosId: srcType === 'local' && localSrcSelect ? Number(localSrcSelect.value) : (srcType === 'cos' ? Number(document.getElementById('cosConnectionId').value) : null),
+                        fileName: selectedFileName
+                    },
+                    dest: {
+                        type: destType,
+                        id: destType === 'local' && localDestSelect ? Number(localDestSelect.value) : null,
+                        path: destType === 'local' ? document.getElementById('destDirPath').value.trim() : null,
+                        cosId: destType === 'cos' ? Number(document.getElementById('destCosSelect').value) : null,
+                        overwrite: isOverwrite
+                    }
+                }
+            };
+
+            try {
+                const res = await fetch('/api/jobs/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    alert('CSV Secure Import job submitted for approval successfully!');
+                    window.location.href = '/jobs.html';
+                } else {
+                    const err = await res.json();
+                    throw new Error(err.message || 'Failed to submit job.');
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+            }
+        }
+
+        updateUI();
+    </script>
+</body>
+</html>

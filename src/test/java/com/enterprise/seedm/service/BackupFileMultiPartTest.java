@@ -42,6 +42,47 @@ public class BackupFileMultiPartTest {
     @AfterEach
     void tearDown() {
         System.clearProperty("seedm.export.max-file-size");
+        System.clearProperty("seedm.export.split-file-size");
+        BackupFileUtils.resetMaxFileSizeBytes();
+    }
+
+    @Test
+    void testBackupFileUtilsSplitFileSizeParsingAndConfiguration() {
+        assertEquals(100L * 1024 * 1024, BackupFileUtils.parseDataSizeToBytes("100MB"));
+        assertEquals(50L * 1024 * 1024, BackupFileUtils.parseDataSizeToBytes("50MB"));
+        assertEquals(1L * 1024 * 1024 * 1024, BackupFileUtils.parseDataSizeToBytes("1GB"));
+        assertEquals(512L * 1024, BackupFileUtils.parseDataSizeToBytes("512KB"));
+        assertEquals(250L, BackupFileUtils.parseDataSizeToBytes("250"));
+        assertEquals(BackupFileUtils.DEFAULT_MAX_FILE_SIZE, BackupFileUtils.parseDataSizeToBytes(null));
+
+        // Test dynamic setter
+        BackupFileUtils.setMaxFileSize("50MB");
+        assertEquals(50L * 1024 * 1024, BackupFileUtils.getMaxFileSizeBytes());
+
+        BackupFileUtils.resetMaxFileSizeBytes();
+
+        // Test system property seedm.export.split-file-size
+        System.setProperty("seedm.export.split-file-size", "25MB");
+        assertEquals(25L * 1024 * 1024, BackupFileUtils.getMaxFileSizeBytes());
+        System.clearProperty("seedm.export.split-file-size");
+    }
+
+    @Test
+    void testServicesResolveSplitFileSize() {
+        // Test SecureExportService
+        SecureExportService sqlService = new SecureExportService(objectMapper, null, null, null);
+        sqlService.setSplitFileSize("64MB");
+        assertEquals(64L * 1024 * 1024, sqlService.resolveMaxFileSizeBytes());
+
+        // Test MongoSecureExportService
+        MongoSecureExportService mongoService = new MongoSecureExportService(null, null, null, null, null, objectMapper, null);
+        mongoService.setSplitFileSize("32MB");
+        assertEquals(32L * 1024 * 1024, mongoService.resolveMaxFileSizeBytes());
+
+        // Test JsonSecureExportService
+        JsonSecureExportService jsonService = new JsonSecureExportService(null, null, null, null, objectMapper);
+        jsonService.setSplitFileSize("16MB");
+        assertEquals(16L * 1024 * 1024, jsonService.resolveMaxFileSizeBytes());
     }
 
     @Test

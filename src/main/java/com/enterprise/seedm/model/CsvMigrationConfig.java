@@ -1,0 +1,70 @@
+package com.enterprise.seedm.model;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Data;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+@Data
+public class CsvMigrationConfig {
+    private SourceConfig source;
+    private DestConfig dest;
+    private RulesConfig rules;
+
+    @Data
+    public static class SourceConfig {
+        private String id;
+        @JsonProperty("source_dir")
+        private String sourceDir;
+        private String storageType;
+        @JsonProperty("authentication_type")
+        private String authenticationType;
+        @JsonProperty("api_key")
+        private String apiKey;
+        @JsonProperty("service_instance_id")
+        private String serviceInstanceId;
+        @JsonProperty("bucket_url_endpoint")
+        private String bucketUrlEndpoint;
+        private String location;
+        @JsonProperty("bucket_name")
+        private String bucketName;
+        @JsonProperty("bucket_id")
+        private String bucketId;
+    }
+
+    @Data
+    public static class DestConfig {
+        private String id;
+        @JsonProperty("dest_dir")
+        private String destDir;
+        private String storageType;
+        @JsonProperty("authentication_type")
+        private String authenticationType;
+        @JsonProperty("api_key")
+        private String apiKey;
+        @JsonProperty("service_instance_id")
+        private String serviceInstanceId;
+        @JsonProperty("bucket_url_endpoint")
+        private String bucketUrlEndpoint;
+        private String location;
+        @JsonProperty("bucket_name")
+        private String bucketName;
+        @JsonProperty("bucket_id")
+        private String bucketId;
+    }
+
+    @Data
+    public static class RulesConfig {
+        private List<String> maskingColumns = new ArrayList<>();
+        private List<String> partialMaskingColumns = new ArrayList<>();
+        private List<String> constraintFields = new ArrayList<>();
+        private List<String> constraintColumns = new ArrayList<>();
+        private List<String> nullifyColumns = new ArrayList<>();
+        private Map<String, String> defaultValues = new java.util.HashMap<>();
+        private Map<String, String> customFormats = new java.util.HashMap<>();
+        private List<String> targetTables = new ArrayList<>();
+        private String maskingKey;
+    }
+}

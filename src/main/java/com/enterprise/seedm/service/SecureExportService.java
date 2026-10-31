@@ -53,6 +53,24 @@ public class SecureExportService {
     private final MaskingConfigService maskingConfigService;
     private static final String DEFAULT_EXPORT_DIR = "secure-export";
 
+    @org.springframework.beans.factory.annotation.Value("${seedm.export.split-file-size:${seedm.export.max-file-size:}}")
+    private String configuredSplitFileSize;
+
+    public void setSplitFileSize(String splitFileSize) {
+        this.configuredSplitFileSize = splitFileSize;
+    }
+
+    public long resolveMaxFileSizeBytes() {
+        if (configuredSplitFileSize != null && !configuredSplitFileSize.trim().isEmpty()) {
+            try {
+                return com.enterprise.seedm.util.BackupFileUtils.parseDataSizeToBytes(configuredSplitFileSize);
+            } catch (Exception e) {
+                log.warn("Failed to parse configured split file size: {}", configuredSplitFileSize, e);
+            }
+        }
+        return com.enterprise.seedm.util.BackupFileUtils.getMaxFileSizeBytes();
+    }
+
     // In-memory store for real-time progress tracking
     private final Map<String, SecureExportProgress> progressMap = new ConcurrentHashMap<>();
 
@@ -170,7 +188,7 @@ public class SecureExportService {
             Files.createDirectories(destDir);
 
             String encryptKey = (fileEncryptionKey != null && !fileEncryptionKey.trim().isEmpty()) ? fileEncryptionKey : saltKey;
-            long maxFileSizeBytes = com.enterprise.seedm.util.BackupFileUtils.getMaxFileSizeBytes();
+            long maxFileSizeBytes = resolveMaxFileSizeBytes();
             List<Path> finalExportFiles;
 
             try (SqlBackupRotator writer = new SqlBackupRotator(destDir, "secure-export", encryptKey, maxFileSizeBytes)) {

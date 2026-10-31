@@ -105,4 +105,62 @@ class SamplePreviewServiceTest {
         assertTrue(response.getBeforeRows().get(0).get("email").toString().contains("PROTECTED"));
         assertEquals("masked@fake.com", response.getAfterRows().get(0).get("email"));
     }
+
+    @Test
+    void testGeneratePreviewForCsvFileDoesNotQueryTableDiscovery() {
+        String csvFileName = "sample_employee_data.csv";
+        when(dataMaskingService.maskDataWithRules(eq(csvFileName), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(Map.of("id", 1001, "name", "Masked User", "email", "masked@fake.com", "created_at", "2026-01-01"));
+
+        SamplePreviewRequest request = SamplePreviewRequest.builder()
+                .tableName(csvFileName)
+                .jobType("csv")
+                .columns(List.of("id", "name", "email", "created_at"))
+                .maskingColumns(List.of("sample_employee_data.csv.email"))
+                .limit(5)
+                .build();
+
+        SamplePreviewResponse response = samplePreviewService.generatePreview(request);
+
+        assertNotNull(response);
+        assertEquals(csvFileName, response.getTableName());
+        assertEquals(4, response.getColumns().size());
+        assertEquals(5, response.getRowCount());
+
+        // Crucial verification: JDBC table discovery MUST NEVER be called for CSV files
+        org.mockito.Mockito.verify(tableDiscoveryService, org.mockito.Mockito.never()).getTableColumns(anyString());
+        org.mockito.Mockito.verify(tableDiscoveryService, org.mockito.Mockito.never()).getSampleRows(anyString(), anyInt());
+    }
+
+    @Test
+    void testGeneratePreviewForCsvFileWithLocalFile(@org.junit.jupiter.api.io.TempDir java.nio.file.Path tempDir) throws Exception {
+        String fileName = "employees.csv";
+        java.nio.file.Path csvFile = tempDir.resolve(fileName);
+        java.nio.file.Files.writeString(csvFile, "emp_id,full_name,email_addr,department\n101,John Smith,john@company.com,Finance\n102,Jane Doe,jane@company.com,Engineering\n");
+
+        when(dataMaskingService.maskDataWithRules(eq(fileName), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(Map.of("emp_id", "101", "full_name", "Masked User", "email_addr", "masked@fake.com", "department", "Finance"));
+
+        SamplePreviewRequest request = SamplePreviewRequest.builder()
+                .tableName(fileName)
+                .jobType("csv")
+                .sourcePath(tempDir.toString())
+                .maskingColumns(List.of("employees.csv.email_addr"))
+                .limit(5)
+                .build();
+
+        SamplePreviewResponse response = samplePreviewService.generatePreview(request);
+
+        assertNotNull(response);
+        assertEquals(fileName, response.getTableName());
+        assertEquals(List.of("emp_id", "full_name", "email_addr", "department"), response.getColumns());
+        assertEquals(2, response.getRowCount());
+
+        // Zero exposure for sensitive email
+        assertTrue(response.getBeforeRows().get(0).get("email_addr").toString().contains("PROTECTED"));
+        assertEquals("Finance", response.getBeforeRows().get(0).get("department"));
+
+        org.mockito.Mockito.verify(tableDiscoveryService, org.mockito.Mockito.never()).getTableColumns(anyString());
+        org.mockito.Mockito.verify(tableDiscoveryService, org.mockito.Mockito.never()).getSampleRows(anyString(), anyInt());
+    }
 }

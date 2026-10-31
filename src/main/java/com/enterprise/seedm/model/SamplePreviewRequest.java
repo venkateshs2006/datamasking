@@ -36,4 +36,7 @@ public class SamplePreviewRequest {
     private Long connectionId;
     private String databaseName;
     private String maskingKey;
+    private String sourcePath;
+    private Long cosId;
+    private String storageType;
 }

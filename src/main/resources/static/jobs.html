@@ -853,12 +853,14 @@
                     window.location.href = `/bulk-dump-mongo.html?jobId=${activeJobId}&autoRun=true`;
                 } else if (normalizedJobType.includes('json')) {
                     window.location.href = `/bulk-dump-json.html?jobId=${activeJobId}&autoRun=true`;
+                } else if (normalizedJobType.includes('csv')) {
+                    window.location.href = `/bulk-dump-csv.html?jobId=${activeJobId}&autoRun=true`;
                 } else {
                     window.location.href = `/bulk-dump-sql.html?jobId=${activeJobId}&autoRun=true`;
                 }
                 return;
             }
-            if (normalizedJobType === 'secure-import' || normalizedJobType === 'secureimport' || normalizedJobType === 'mongo-secure-import' || normalizedJobType === 'json-secure-import') {
+            if (normalizedJobType === 'secure-import' || normalizedJobType === 'secureimport' || normalizedJobType === 'mongo-secure-import' || normalizedJobType === 'json-secure-import' || normalizedJobType === 'csv-secure-import' || normalizedJobType === 'csv-import') {
                 openSecretKeyModal();
                 return;
             }
@@ -872,6 +874,10 @@
                 url = `/api/migration/json-secure-export/start/${activeJobId}`;
             } else if (normalizedJobType === 'json') {
                 url = `/api/migration/json/start/${activeJobId}`;
+            } else if (normalizedJobType === 'csv-secure-export' || normalizedJobType === 'csv-export') {
+                url = `/api/migration/csv-secure-export/start/${activeJobId}`;
+            } else if (normalizedJobType === 'csv' || normalizedJobType === 'csv-migration') {
+                url = `/api/migration/csv/start/${activeJobId}`;
             } else if (normalizedJobType === 'mongo' || normalizedJobType === 'mongodb' || normalizedJobType === 'mongo-db') {
                 url = `/api/migration/mongo/start/${activeJobId}`;
             }
@@ -974,6 +980,8 @@
                 endpoint = `/api/migration/mongo-secure-import/start/${activeJobId}`;
             } else if (normalized.includes('json')) {
                 endpoint = `/api/migration/json-secure-import/start/${activeJobId}`;
+            } else if (normalized.includes('csv')) {
+                endpoint = `/api/migration/csv-secure-import/start/${activeJobId}`;
             }
 
             try {
