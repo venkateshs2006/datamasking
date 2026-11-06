@@ -5,9 +5,11 @@ import lombok.Data;
 @Data
 public class CsvSecureImportConfig {
     private String jobName;
+    private String department;
     private StorageConfig storage;
     private DestinationConfig dest;
     private String secretKey;
+    private CsvSecureExportConfig.RulesConfig rules;
 
     @Data
     public static class StorageConfig {

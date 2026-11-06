@@ -31,13 +31,18 @@ public class CsvSecureExportController {
     public ResponseEntity<?> sampleCsvFields(@RequestBody Map<String, Object> payload) {
         try {
             CsvSecureExportConfig.StorageConfig source = new CsvSecureExportConfig.StorageConfig();
-            if (payload.containsKey("source")) {
+            if (payload.containsKey("source") && payload.get("source") instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> srcMap = (Map<String, Object>) payload.get("source");
                 source.setType((String) srcMap.get("type"));
                 if (srcMap.get("cosId") != null) source.setCosId(Long.valueOf(srcMap.get("cosId").toString()));
                 else if (srcMap.get("id") != null) source.setCosId(Long.valueOf(srcMap.get("id").toString()));
                 source.setPath((String) srcMap.get("path"));
+            } else {
+                if (payload.get("type") != null) source.setType(payload.get("type").toString());
+                if (payload.get("cosId") != null) source.setCosId(Long.valueOf(payload.get("cosId").toString()));
+                else if (payload.get("id") != null) source.setCosId(Long.valueOf(payload.get("id").toString()));
+                if (payload.get("path") != null) source.setPath(payload.get("path").toString());
             }
             String fileName = (String) payload.get("fileName");
             Map<String, Object> result = csvSecureExportService.sampleCsvHeaders(source, fileName);

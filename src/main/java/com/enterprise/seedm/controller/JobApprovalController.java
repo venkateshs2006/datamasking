@@ -47,6 +47,9 @@ public class JobApprovalController {
         }
         if ((fileEncKey == null || fileEncKey.isEmpty()) && request.getConfigDetails() != null) {
             Object k = request.getConfigDetails().get("fileEncryptionKey");
+            if (k == null) {
+                k = request.getConfigDetails().get("secretKey");
+            }
             if (k != null) fileEncKey = k.toString().trim();
         }
 

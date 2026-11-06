@@ -67,6 +67,8 @@ public class CsvSecureExportImportServiceTest {
         assertTrue(headers.contains("name"));
         assertTrue(headers.contains("email"));
         assertTrue(headers.contains("score"));
+        assertNotNull(headersRes.get("fields"));
+        assertNotNull(headersRes.get("columns"));
 
         // 3. Run Secure Export
         String secretKey = "BnpCsvSecureKey2026!";
@@ -92,7 +94,7 @@ public class CsvSecureExportImportServiceTest {
         assertTrue(Files.exists(encFile), "Encrypted CSV export file should exist");
         assertTrue(Files.size(encFile) > 0);
 
-        // 4. Validate Secret Key on import
+        // 4. Validate Secret Key & Inspect on import
         CsvSecureImportConfig importConfig = new CsvSecureImportConfig();
         importConfig.setJobName("Test CSV Import");
 
@@ -107,6 +109,25 @@ public class CsvSecureExportImportServiceTest {
         importDest.setPath(destImportDir.toString());
         importConfig.setDest(importDest);
 
+        // Test inspectSource before entering key
+        Map<String, Object> inspectWithoutKey = importService.inspectSource(importStorage, null);
+        assertEquals("KEY_REQUIRED", inspectWithoutKey.get("status"));
+
+        // Test inspectSource with valid key
+        Map<String, Object> inspectWithKey = importService.inspectSource(importStorage, secretKey);
+        assertEquals("SUCCESS", inspectWithKey.get("status"));
+        @SuppressWarnings("unchecked")
+        List<String> bundleFiles = (List<String>) inspectWithKey.get("files");
+        assertTrue(bundleFiles.contains("staff.csv"));
+
+        // Test sampleCsvHeaders on import
+        Map<String, Object> importHeadersRes = importService.sampleCsvHeaders(importStorage, "staff.csv", secretKey);
+        assertEquals("SUCCESS", importHeadersRes.get("status"));
+        @SuppressWarnings("unchecked")
+        List<String> impHeaders = (List<String>) importHeadersRes.get("headers");
+        assertTrue(impHeaders.contains("score"));
+        assertNotNull(importHeadersRes.get("fields"));
+
         // Wrong key should throw IllegalArgumentException
         assertThrows(IllegalArgumentException.class, () ->
                 importService.validateSecretKey(importConfig, "WrongPassword123!")
@@ -116,6 +137,10 @@ public class CsvSecureExportImportServiceTest {
         assertDoesNotThrow(() ->
                 importService.validateSecretKey(importConfig, secretKey)
         );
+
+        CsvSecureExportConfig.RulesConfig importRules = new CsvSecureExportConfig.RulesConfig();
+        importRules.setNullifyColumns(List.of("score"));
+        importConfig.setRules(importRules);
 
         // 5. Run Secure Import & Restore
         importService.processCsvImport("csv-import-test-1", importConfig, secretKey);
@@ -132,7 +157,7 @@ public class CsvSecureExportImportServiceTest {
         assertEquals("101", row1.get(0));
         assertEquals("John Doe", row1.get(1));
         assertNotEquals("john@bnp.com", row1.get(2), "Email should be masked");
-        assertEquals("98.5", row1.get(3));
+        assertEquals("", row1.get(3), "Score should be nullified by import masking rules");
     }
 
     @Test

@@ -1059,7 +1059,7 @@
                     });
                     if (res.ok) {
                         const data = await res.json();
-                        state.columnsCache[t] = data.fields || [];
+                        state.columnsCache[t] = data.fields || data.headers || data.columns || [];
                     } else {
                         state.columnsCache[t] = [];
                     }
@@ -1673,7 +1673,7 @@
                 });
                 if (res.ok) {
                     const data = await res.json();
-                    state.columnsCache[table] = data.fields || [];
+                    state.columnsCache[table] = data.fields || data.headers || data.columns || [];
                 } else {
                     state.columnsCache[table] = [];
                 }

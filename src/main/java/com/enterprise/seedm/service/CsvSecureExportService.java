@@ -189,9 +189,12 @@ public class CsvSecureExportService {
                     CosConnection cos = cosConnectionService.getConnection(cosId);
                     if (cos != null && !"Local".equalsIgnoreCase(cos.getStorageType())) {
                         Set<String> headers = ibmCosService.extractCsvHeaders(cos, fileName);
+                        List<String> list = new ArrayList<>(headers);
                         response.put("status", "SUCCESS");
                         response.put("fileName", fileName);
-                        response.put("headers", new ArrayList<>(headers));
+                        response.put("headers", list);
+                        response.put("fields", list);
+                        response.put("columns", list);
                         return response;
                     }
                 }
@@ -199,6 +202,10 @@ public class CsvSecureExportService {
 
             Path srcPath = resolveStoragePath(source);
             Path filePath = Files.isDirectory(srcPath) ? srcPath.resolve(fileName) : srcPath;
+            if (!Files.exists(filePath) && !fileName.toLowerCase().endsWith(".csv")) {
+                Path withExt = srcPath.resolve(fileName + ".csv");
+                if (Files.exists(withExt)) filePath = withExt;
+            }
             if (!Files.exists(filePath)) {
                 response.put("status", "ERROR");
                 response.put("message", "File not found: " + fileName);
@@ -209,6 +216,8 @@ public class CsvSecureExportService {
             response.put("status", "SUCCESS");
             response.put("fileName", fileName);
             response.put("headers", headers);
+            response.put("fields", headers);
+            response.put("columns", headers);
             return response;
         } catch (Exception e) {
             log.error("Failed to sample CSV headers for {}", fileName, e);

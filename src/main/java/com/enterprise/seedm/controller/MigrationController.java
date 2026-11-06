@@ -930,14 +930,23 @@ public class MigrationController {
             }
             config.setJobName(jobRequest.getMigrationName());
 
+            if (secretKey == null || secretKey.trim().isEmpty()) {
+                if (config.getSecretKey() != null && !config.getSecretKey().trim().isEmpty()) {
+                    secretKey = config.getSecretKey();
+                } else if (jobRequest.getFileEncryptionKey() != null && !jobRequest.getFileEncryptionKey().trim().isEmpty()) {
+                    secretKey = jobRequest.getFileEncryptionKey();
+                }
+            }
+
             // Validate key
             csvSecureImportService.validateSecretKey(config, secretKey);
 
             String executionId = "csv-import-" + csvSecureImportSequence.getAndIncrement();
             final CsvSecureImportConfig finalConfig = config;
+            final String finalSecretKey = secretKey;
             taskExecutor.execute(() -> {
                 try {
-                    csvSecureImportService.processCsvImport(executionId, finalConfig, secretKey);
+                    csvSecureImportService.processCsvImport(executionId, finalConfig, finalSecretKey);
                 } catch (Exception e) {
                     log.error("CSV Secure Import failed in background task", e);
                 }
